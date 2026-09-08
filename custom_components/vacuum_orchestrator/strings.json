@@ -1,0 +1,33 @@
+{
+  "title": "Vacuum Orchestrator",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Vacuum Orchestrator",
+        "description": "Create the global job queue. Robot profiles can be added after setup."
+      }
+    }
+  },
+  "config_subentries": {
+    "robot": {
+      "title": "Robot profile",
+      "step": {
+        "user": {
+          "title": "Add Roborock robot",
+          "description": "Only capabilities that can be proven through Home Assistant are advertised to the planner.",
+          "data": {
+            "robot_entity_id": "Vacuum entity",
+            "target_areas": "Mapped Home Assistant areas",
+            "last_clean_start_entity_id": "Last clean start sensor",
+            "last_clean_end_entity_id": "Last clean end sensor"
+          }
+        }
+      },
+      "error": {
+        "entity_not_registered": "The selected vacuum is not registered.",
+        "not_roborock_entity": "The selected entity is not provided by the Roborock integration.",
+        "already_configured": "This physical robot is already configured."
+      }
+    }
+  }
+}

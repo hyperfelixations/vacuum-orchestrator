@@ -1,0 +1,11 @@
+{
+  "domain": "vacuum_orchestrator",
+  "name": "Vacuum Orchestrator",
+  "version": "0.1.0",
+  "codeowners": ["@hyperfelixations"],
+  "config_flow": true,
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "single_config_entry": true,
+  "requirements": []
+}

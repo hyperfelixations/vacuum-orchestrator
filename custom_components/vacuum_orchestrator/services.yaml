@@ -1,0 +1,231 @@
+create_job:
+  name: Create job
+  description: Create a cleaning job and append it to the global queue.
+  fields: &job_intent_fields
+    areas:
+      name: Areas
+      required: true
+      selector:
+        area:
+          multiple: true
+    mode:
+      name: Cleaning mode
+      required: true
+      selector:
+        select:
+          options:
+            - vacuum
+            - mop
+            - vacuum_and_mop
+            - vacuum_then_mop
+    name:
+      name: Name
+      selector:
+        text:
+    vacuum_power:
+      name: Vacuum power
+      selector: &semantic_level
+        select:
+          options: [off, low, standard, medium, high, maximum, auto]
+    mop_intensity:
+      name: Mop intensity
+      selector: *semantic_level
+    mop_route:
+      name: Mop route
+      selector:
+        select:
+          options: [standard, deep, fast, auto]
+    passes:
+      name: Passes
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+    source:
+      name: Source
+      selector:
+        text:
+    reason:
+      name: Reason
+      selector:
+        text:
+    note:
+      name: Note
+      selector:
+        text:
+          multiline: true
+    dedupe_key:
+      name: Deduplication key
+      selector:
+        text:
+    required_on:
+      name: Required on
+      selector:
+        entity:
+          multiple: true
+    required_off:
+      name: Required off
+      selector:
+        entity:
+          multiple: true
+    settings_policy:
+      name: Settings policy
+      default: best_effort
+      selector:
+        select:
+          options: [best_effort, strict]
+
+update_job:
+  name: Update job
+  description: Change only the supplied fields of a queued job.
+  fields:
+    job_id: &job_id
+      name: Job ID
+      required: true
+      selector:
+        text:
+    areas:
+      name: Areas
+      selector:
+        area:
+          multiple: true
+    mode:
+      name: Cleaning mode
+      selector:
+        select:
+          options:
+            - vacuum
+            - mop
+            - vacuum_and_mop
+            - vacuum_then_mop
+    name:
+      name: Name
+      selector:
+        text:
+    vacuum_power:
+      name: Vacuum power
+      selector: *semantic_level
+    mop_intensity:
+      name: Mop intensity
+      selector: *semantic_level
+    mop_route:
+      name: Mop route
+      selector:
+        select:
+          options: [standard, deep, fast, auto]
+    passes:
+      name: Passes
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+    source:
+      name: Source
+      selector:
+        text:
+    reason:
+      name: Reason
+      selector:
+        text:
+    note:
+      name: Note
+      selector:
+        text:
+          multiline: true
+    dedupe_key:
+      name: Deduplication key
+      selector:
+        text:
+    required_on:
+      name: Required on
+      selector:
+        entity:
+          multiple: true
+    required_off:
+      name: Required off
+      selector:
+        entity:
+          multiple: true
+    settings_policy:
+      name: Settings policy
+      selector:
+        select:
+          options: [best_effort, strict]
+
+delete_job:
+  name: Delete job
+  description: Delete a queued or terminal job.
+  fields: &job_fields
+    job_id: *job_id
+
+move_job:
+  name: Move job
+  description: Move a queued job up, down, to the top, or to the bottom.
+  fields:
+    job_id: *job_id
+    direction:
+      name: Direction
+      required: true
+      selector:
+        select:
+          options: [up, down, top, bottom]
+
+start_job:
+  name: Start job
+  description: Start one queued job on the best robot or an optional selected robot.
+  fields:
+    job_id: *job_id
+    robot_id:
+      name: Robot ID
+      selector:
+        text:
+
+run_queue:
+  name: Run queue
+  description: Enable automatic queue processing and dispatch safe jobs.
+
+pause_queue:
+  name: Pause queue
+  description: Prevent new automatic dispatches without interrupting active work.
+
+resume_queue:
+  name: Resume queue
+  description: Resume automatic queue processing and dispatch safe jobs.
+
+cancel_job:
+  name: Cancel job
+  description: Cancel queued work or safely stop an active attempt.
+  fields: *job_fields
+
+retry_job:
+  name: Retry job
+  description: Create a new queued job from a terminal job.
+  fields: *job_fields
+
+get_queue:
+  name: Get queue
+  description: Return a bounded page from the global pending queue.
+  fields:
+    offset:
+      name: Offset
+      default: 0
+      selector:
+        number:
+          min: 0
+          mode: box
+    limit:
+      name: Limit
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+
+get_job:
+  name: Get job
+  description: Return one job including its complete public intent.
+  fields: *job_fields

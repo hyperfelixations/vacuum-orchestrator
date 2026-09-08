@@ -1,6 +1,9 @@
 # Python environments and bytecode
 .venv/
 venv/
+.test-deps/
+.test-deps-local/
+.python/
 __pycache__/
 *.py[cod]
 
@@ -35,4 +38,3 @@ Thumbs.db
 
 # Local agent routing
 /AGENTS.md
-

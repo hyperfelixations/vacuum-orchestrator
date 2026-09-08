@@ -1,0 +1,33 @@
+{
+  "title": "Vacuum Orchestrator",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Vacuum Orchestrator einrichten",
+        "description": "Erstellt die globale Job-Warteschlange. Roboterprofile können anschließend hinzugefügt werden."
+      }
+    }
+  },
+  "config_subentries": {
+    "robot": {
+      "title": "Roboterprofil",
+      "step": {
+        "user": {
+          "title": "Roborock-Roboter hinzufügen",
+          "description": "Der Planner verwendet ausschließlich Fähigkeiten, die über Home Assistant nachweisbar sind.",
+          "data": {
+            "robot_entity_id": "Saugroboter-Entität",
+            "target_areas": "Zugeordnete Home-Assistant-Bereiche",
+            "last_clean_start_entity_id": "Sensor für letzten Reinigungsstart",
+            "last_clean_end_entity_id": "Sensor für letztes Reinigungsende"
+          }
+        }
+      },
+      "error": {
+        "entity_not_registered": "Der ausgewählte Saugroboter ist nicht registriert.",
+        "not_roborock_entity": "Die ausgewählte Entität stammt nicht aus der Roborock-Integration.",
+        "already_configured": "Dieser physische Roboter ist bereits konfiguriert."
+      }
+    }
+  }
+}

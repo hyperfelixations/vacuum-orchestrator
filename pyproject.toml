@@ -1,0 +1,55 @@
+[project]
+name = "vacuum-orchestrator"
+version = "0.1.0"
+requires-python = ">=3.14.2"
+dependencies = []
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers --cov=custom_components.vacuum_orchestrator --cov-branch --cov-report=term-missing --cov-fail-under=95"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["custom_components/vacuum_orchestrator"]
+
+[tool.coverage.report]
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]
+show_missing = true
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+  "ASYNC",
+  "B",
+  "D",
+  "DTZ",
+  "E",
+  "F",
+  "I",
+  "PERF",
+  "PLC",
+  "PLE",
+  "PLW",
+  "RUF",
+  "SIM",
+  "TID",
+  "UP",
+]
+ignore = ["D105", "D107", "D203", "D213", "TID252", "UP040", "UP047"]
+
+[tool.ruff.lint.per-file-ignores]
+"custom_components/vacuum_orchestrator/__init__.py" = ["PLC0415"]
+"tests/**/*.py" = ["D"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_unreachable = true
+packages = ["custom_components.vacuum_orchestrator"]
