@@ -49,7 +49,10 @@ class CriticalOrchestratorRepository:
         """Write, read back, and verify an exact monotonic commit."""
         if state.commit_id != expected_previous_commit_id + 1:
             raise ConflictError("non_monotonic_commit")
-        sealed = seal_snapshot(encode_orchestrator_state(state))
+        payload = encode_orchestrator_state(state)
+        if decode_orchestrator_state(payload) != state:
+            raise StorageIntegrityError("critical_commit_semantic_mismatch")
+        sealed = seal_snapshot(payload)
         await self._backend.async_save_raw(sealed)
         read_back = await self._backend.async_load_raw()
         if read_back is None:

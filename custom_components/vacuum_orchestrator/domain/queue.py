@@ -152,10 +152,52 @@ class OrchestratorState:
         jobs = dict(self.jobs)
         del jobs[job_id]
         queue = tuple(item for item in self.queue if item != job_id)
+        plan_ids = {key for key, plan in self.plans.items() if plan.job_id == job_id}
+        unit_ids = {
+            unit.work_unit_id for key in plan_ids for unit in self.plans[key].work_units
+        }
+        attempt_ids = {
+            key for key, attempt in self.attempts.items() if attempt.job_id == job_id
+        }
+        removed_run_ids = {
+            correlation.robot_run_id
+            for key, correlation in self.correlations.items()
+            if key in attempt_ids
+        }
+        correlations = {
+            key: value
+            for key, value in self.correlations.items()
+            if key not in attempt_ids
+        }
+        retained_run_ids = {value.robot_run_id for value in correlations.values()}
         return self._replace(
             jobs=jobs,
             queue=queue,
             queue_revision=self.queue_revision + (queue != self.queue),
+            plans={
+                key: value for key, value in self.plans.items() if key not in plan_ids
+            },
+            work_unit_states={
+                key: value
+                for key, value in self.work_unit_states.items()
+                if key not in unit_ids
+            },
+            attempts={
+                key: value
+                for key, value in self.attempts.items()
+                if key not in attempt_ids
+            },
+            assignments={
+                key: value
+                for key, value in self.assignments.items()
+                if key not in attempt_ids
+            },
+            correlations=correlations,
+            robot_runs={
+                key: value
+                for key, value in self.robot_runs.items()
+                if key not in removed_run_ids - retained_run_ids
+            },
         )
 
     def move_job(self, job_id: str, direction: MoveDirection) -> OrchestratorState:
@@ -300,8 +342,16 @@ class OrchestratorState:
         job = self._job(attempt.job_id)
         if job.state is JobState.CANCELING:
             return self
-        if attempt.state is not AttemptState.COMMAND_SENT:
+        if attempt.state is AttemptState.PREPARED:
             raise ConflictError("attempt_command_not_sent")
+        if attempt.state not in {
+            AttemptState.COMMAND_SENT,
+            AttemptState.START_CONFIRMED,
+            AttemptState.COMPLETION_PENDING,
+        }:
+            return self
+        if job.state is JobState.RUNNING:
+            return self
         if job.state is not JobState.DISPATCHING:
             raise ConflictError("job_not_dispatching")
         jobs = dict(self.jobs)

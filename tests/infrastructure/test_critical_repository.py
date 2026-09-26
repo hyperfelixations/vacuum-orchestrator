@@ -1,6 +1,7 @@
 """Fault-injection tests for verified critical commits."""
 
 from copy import deepcopy
+from dataclasses import replace
 
 import pytest
 
@@ -8,7 +9,15 @@ from custom_components.vacuum_orchestrator.domain.errors import (
     ConflictError,
     StorageIntegrityError,
 )
+from custom_components.vacuum_orchestrator.domain.execution import (
+    RobotRun,
+    RunCorrelation,
+)
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
+from custom_components.vacuum_orchestrator.domain.types import (
+    CorrelationConfidence,
+    CorrelationState,
+)
 from custom_components.vacuum_orchestrator.infrastructure.critical_repository import (
     CriticalOrchestratorRepository,
     MigratingOrchestratorRepository,
@@ -17,6 +26,7 @@ from custom_components.vacuum_orchestrator.infrastructure.integrity import (
     JsonObject,
     seal_snapshot,
 )
+from tests.domain.test_queue import NOW, _prepared
 from tests.infrastructure.test_codec import legacy_payload
 
 
@@ -37,6 +47,64 @@ class Backend:
     async def async_save_raw(self, data: JsonObject) -> None:
         if not self.swallow:
             self.data = deepcopy(data)
+
+
+async def test_invalid_candidate_never_replaces_valid_snapshot() -> None:
+    backend = Backend()
+    repository = CriticalOrchestratorRepository(backend)
+    prepared, _ = _prepared()
+    await repository.async_commit(
+        prepared, expected_previous_commit_id=prepared.commit_id - 1
+    )
+    original = deepcopy(backend.data)
+    invalid = replace(prepared, assignments={}, commit_id=prepared.commit_id + 1)
+
+    with pytest.raises(StorageIntegrityError):
+        await repository.async_commit(
+            invalid, expected_previous_commit_id=prepared.commit_id
+        )
+
+    assert backend.data == original
+    assert await repository.async_load() == prepared
+
+
+@pytest.mark.parametrize("outcome", ["cancelled", "failed", "completed"])
+async def test_deleting_executed_job_preserves_reloadable_ledger(outcome: str) -> None:
+    prepared, _ = _prepared()
+    state = prepared.mark_command_sent("attempt", NOW)
+    if outcome == "cancelled":
+        state, _ = state.request_cancel("a", NOW)
+        state = state.confirm_cancel("a", NOW)
+    elif outcome == "failed":
+        state = state.fail_job("a", "attempt", "device_error", NOW)
+    else:
+        run = RobotRun("run", "source", NOW, NOW, NOW, NOW, True)
+        correlation = RunCorrelation(
+            "attempt",
+            "run",
+            CorrelationState.MATCHED,
+            CorrelationConfidence.STRONG,
+            (),
+            False,
+        )
+        state = state.complete_attempt("attempt", run, correlation, NOW)
+    assert state.mark_dispatch_accepted("attempt", NOW) is state
+    state = state.retry_job("a", "retry", NOW)
+    deleted = state.delete_job("a")
+    repository = CriticalOrchestratorRepository(Backend())
+
+    await repository.async_commit(deleted, expected_previous_commit_id=state.commit_id)
+
+    assert await repository.async_load() == deleted
+    assert set(deleted.jobs) == {"retry"}
+    assert deleted.jobs["retry"].retries_job_id == "a"
+    assert not deleted.attempts
+    assert not deleted.plans
+    assert not deleted.work_unit_states
+    assert not deleted.assignments
+    assert not deleted.correlations
+    assert not deleted.robot_runs
+    assert deleted.robot_generations == state.robot_generations
 
 
 async def test_commit_requires_monotonic_verified_readback() -> None:

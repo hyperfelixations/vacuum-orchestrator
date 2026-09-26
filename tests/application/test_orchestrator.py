@@ -196,6 +196,33 @@ async def _orchestrator(
     return orchestrator
 
 
+async def test_start_observation_before_dispatch_returns_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    backend = RecordingBackend()
+    adapter = RecordingAdapter(backend, "robot")
+    orchestrator = await _orchestrator(backend, adapter)
+    job_id = await orchestrator.async_create_job(_intent())
+    dispatch = adapter.async_dispatch
+
+    async def early_observation(unit: WorkUnit, assignment: DispatchAssignment) -> None:
+        await dispatch(unit, assignment)
+        adapter.observation = replace(
+            adapter.observation, state=RobotAvailabilityState.BUSY
+        )
+        await orchestrator.async_process_robot_observation("robot")
+
+    monkeypatch.setattr(adapter, "async_dispatch", early_observation)
+    await orchestrator.async_start_job(job_id)
+
+    job = orchestrator.state.jobs[job_id]
+    assert job.state is JobState.RUNNING
+    assert (
+        orchestrator.state.attempts[job.active_attempt_id].state
+        is AttemptState.START_CONFIRMED
+    )
+
+
 async def test_start_job_auto_selects_best_robot_after_shared_availability_check() -> (
     None
 ):

@@ -283,6 +283,18 @@ def test_attempt_transition_preconditions_are_enforced() -> None:
     assert canceled.mark_dispatch_accepted("attempt", NOW) is canceled
 
 
+def test_repeated_dispatch_acceptance_preserves_observed_start() -> None:
+    prepared, _ = _prepared()
+    started = prepared.mark_command_sent("attempt", NOW).mark_start_confirmed(
+        "attempt", NOW
+    )
+    accepted = started.mark_dispatch_accepted("attempt", NOW)
+
+    assert accepted.jobs["a"].state is JobState.RUNNING
+    assert accepted.attempts["attempt"] == started.attempts["attempt"]
+    assert accepted.mark_dispatch_accepted("attempt", NOW) is accepted
+
+
 def test_completion_replay_is_idempotent_and_collision_is_rejected() -> None:
     prepared, _ = _prepared()
     sent = prepared.mark_command_sent("attempt", NOW)
