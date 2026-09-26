@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from homeassistant.core import HomeAssistant
 
+from custom_components.vacuum_orchestrator.const import STORE_VERSION
 from custom_components.vacuum_orchestrator.domain.errors import StorageIntegrityError
 from custom_components.vacuum_orchestrator.infrastructure.ha_store import (
     HomeAssistantSnapshotBackend,
@@ -86,7 +87,7 @@ async def test_missing_and_structurally_invalid_store_are_distinct(
     path.write_text(
         json.dumps(
             {
-                "version": 2,
+                "version": STORE_VERSION,
                 "minor_version": 0,
                 "key": "vacuum_orchestrator.invalid",
                 "data": [],

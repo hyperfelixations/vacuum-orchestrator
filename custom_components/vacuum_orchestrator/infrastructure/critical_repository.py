@@ -10,6 +10,7 @@ from .codec import (
     decode_orchestrator_state,
     encode_orchestrator_state,
     migrate_schema_one,
+    migrate_schema_two,
 )
 from .integrity import JsonObject, seal_snapshot, verify_snapshot
 
@@ -73,18 +74,33 @@ class MigratingOrchestratorRepository:
         current: CriticalOrchestratorRepository,
         legacy_backend: SnapshotBackend,
         installation_id: str,
+        *,
+        previous_backend: SnapshotBackend | None = None,
     ) -> None:
         if not legacy_backend.atomic_writes:
             raise StorageIntegrityError("atomic_writes_required")
         self._current = current
         self._legacy_backend = legacy_backend
         self._installation_id = installation_id
+        self._previous_backend = previous_backend
 
     async def async_load(self) -> OrchestratorState | None:
-        """Prefer version 2 and import a verified version-1 snapshot if needed."""
+        """Prefer current storage and import V2 before considering legacy V1."""
         current = await self._current.async_load()
         if current is not None:
             return current
+        if self._previous_backend is not None:
+            previous = await self._previous_backend.async_load_raw()
+            if previous is not None:
+                migrated = migrate_schema_two(verify_snapshot(previous))
+                if migrated.installation_id != self._installation_id:
+                    raise StorageIntegrityError(
+                        "installation_storage_ownership_mismatch"
+                    )
+                await self._current.async_commit(
+                    migrated, expected_previous_commit_id=migrated.commit_id - 1
+                )
+                return migrated
         legacy_raw = await self._legacy_backend.async_load_raw()
         if legacy_raw is None:
             return None

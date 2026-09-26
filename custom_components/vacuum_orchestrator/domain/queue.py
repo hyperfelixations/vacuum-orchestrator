@@ -16,6 +16,7 @@ from .planning import (
     WorkUnit,
     plan_matches_intent,
 )
+from .room_registry import RoomRegistry
 from .types import AttemptState, JobState, MoveDirection, QueueMode, WorkUnitState
 
 _TERMINAL = frozenset({JobState.COMPLETED, JobState.FAILED, JobState.CANCELLED})
@@ -59,6 +60,7 @@ class OrchestratorState:
     correlations: Mapping[str, RunCorrelation] = field(default_factory=dict)
     robot_leases: Mapping[str, RobotLease] = field(default_factory=dict)
     blocked_robots: Mapping[str, str] = field(default_factory=dict)
+    room_registry: RoomRegistry = field(default_factory=RoomRegistry)
 
     def __post_init__(self) -> None:
         for field_name in (

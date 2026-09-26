@@ -115,6 +115,9 @@ async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> b
                 store_minor_version=1,
             ),
             installation_id,
+            previous_backend=HomeAssistantSnapshotBackend(
+                hass, f"{DOMAIN}.2", store_version=2, store_minor_version=0
+            ),
         )
 
         def state_reader(references: tuple[str, ...]) -> dict[str, str | None]:

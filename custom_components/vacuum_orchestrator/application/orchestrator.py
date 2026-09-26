@@ -28,6 +28,7 @@ from ..domain.types import AttemptState, JobState, MoveDirection, QueueMode
 from ..ports.repository import OrchestratorRepository
 from ..ports.robot import RobotAdapter
 from .robot_session import RobotSession
+from .room_service import RoomService
 
 Clock = Callable[[], datetime]
 IdFactory = Callable[[], str]
@@ -77,6 +78,7 @@ class VacuumOrchestrator:
         self._lock = asyncio.Lock()
         self._sessions: dict[str, RobotSession] = {}
         self._listeners: set[StateListener] = set()
+        self.rooms = RoomService(self._mutate, lambda: self.state, clock, id_factory)
 
     @property
     def state(self) -> OrchestratorState:

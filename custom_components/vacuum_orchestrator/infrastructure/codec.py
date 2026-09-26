@@ -1,13 +1,11 @@
-"""Explicit version-2 JSON codec for critical orchestration state."""
+"""Explicit versioned JSON codec for critical orchestration state."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from datetime import UTC, datetime
-from enum import StrEnum
-from typing import Any, TypeVar, cast
+from dataclasses import replace
+from typing import Any, cast
 
-from ..domain.errors import StorageIntegrityError
+from ..domain.errors import StorageIntegrityError, ValidationError
 from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun, RunCorrelation
 from ..domain.intents import (
     CleaningPreferences,
@@ -23,6 +21,8 @@ from ..domain.planning import (
     plan_matches_intent,
 )
 from ..domain.queue import Job, OrchestratorState
+from ..domain.room_registry import RoomRegistry
+from ..domain.rooms import Room
 from ..domain.types import (
     AttemptState,
     CleaningMode,
@@ -37,10 +37,29 @@ from ..domain.types import (
     SettingsPolicy,
     WorkUnitState,
 )
+from .codec_values import (
+    _bool,
+    _decode_datetime,
+    _decode_optional_datetime,
+    _encode_datetime,
+    _encode_optional_datetime,
+    _enum,
+    _enum_value,
+    _EnumT,
+    _int,
+    _object,
+    _object_list,
+    _optional_enum,
+    _optional_str,
+    _pair_list,
+    _str,
+    _string_list,
+    _string_mapping,
+)
 from .integrity import JsonObject
+from .room_codec import decode_room_registry, encode_room_registry
 
-SCHEMA_VERSION = 2
-_EnumT = TypeVar("_EnumT", bound=StrEnum)
+SCHEMA_VERSION = 3
 
 
 def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
@@ -74,11 +93,12 @@ def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
             key: _encode_lease(value) for key, value in state.robot_leases.items()
         },
         "blocked_robots": dict(state.blocked_robots),
+        "room_registry": encode_room_registry(state.room_registry),
     }
 
 
 def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
-    """Decode and relationally validate a complete version-2 snapshot."""
+    """Decode and relationally validate a complete current snapshot."""
     try:
         if data["schema_version"] != SCHEMA_VERSION:
             raise StorageIntegrityError("unsupported_storage_schema")
@@ -128,13 +148,34 @@ def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
                 key: _str(value)
                 for key, value in _string_mapping(data["blocked_robots"]).items()
             },
+            room_registry=decode_room_registry(_object(data["room_registry"])),
         )
     except StorageIntegrityError:
         raise
-    except (KeyError, TypeError, ValueError) as err:
+    except (KeyError, TypeError, ValueError, ValidationError) as err:
         raise StorageIntegrityError("invalid_storage_payload") from err
     _validate_relational_integrity(state)
     return state
+
+
+def migrate_schema_two(data: JsonObject) -> OrchestratorState:
+    """Import legacy area identities without inventing grants or device mappings."""
+    if data.get("schema_version") != 2:
+        raise StorageIntegrityError("unsupported_previous_storage_schema")
+    candidate = {
+        **data,
+        "schema_version": SCHEMA_VERSION,
+        "room_registry": encode_room_registry(RoomRegistry()),
+    }
+    state = decode_orchestrator_state(candidate)
+    rooms = {
+        target.area_id: Room(
+            target.area_id, target.area_id, area_id=target.area_id, area_missing=True
+        )
+        for job in state.jobs.values()
+        for target in job.intent.areas
+    }
+    return replace(state, room_registry=RoomRegistry(rooms))
 
 
 def migrate_schema_one(data: JsonObject, installation_id: str) -> OrchestratorState:
@@ -785,93 +826,3 @@ def _decode_lease(data: JsonObject) -> RobotLease:
         _str(data["work_unit_id"]),
         _int(data["generation"]),
     )
-
-
-def _encode_datetime(value: datetime) -> str:
-    if value.tzinfo is None or value.utcoffset() is None:
-        raise StorageIntegrityError("naive_datetime")
-    return value.astimezone(UTC).isoformat()
-
-
-def _encode_optional_datetime(value: datetime | None) -> str | None:
-    return None if value is None else _encode_datetime(value)
-
-
-def _decode_datetime(value: object) -> datetime:
-    parsed = datetime.fromisoformat(_str(value))
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise StorageIntegrityError("naive_datetime")
-    return parsed.astimezone(UTC)
-
-
-def _decode_optional_datetime(value: object) -> datetime | None:
-    return None if value is None else _decode_datetime(value)
-
-
-def _enum_value(value: StrEnum | None) -> str | None:
-    return None if value is None else value.value
-
-
-def _enum(enum_type: type[_EnumT], value: object) -> _EnumT:
-    return enum_type(_str(value))
-
-
-def _optional_enum(enum_type: type[_EnumT], value: object) -> _EnumT | None:
-    return None if value is None else _enum(enum_type, value)
-
-
-def _object(value: object) -> JsonObject:
-    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
-        raise StorageIntegrityError("expected_object")
-    return cast(JsonObject, value)
-
-
-def _string_mapping(value: object) -> Mapping[str, object]:
-    return _object(value)
-
-
-def _object_list(value: object) -> list[JsonObject]:
-    if not isinstance(value, list):
-        raise StorageIntegrityError("expected_list")
-    return [_object(item) for item in value]
-
-
-def _string_list(value: object) -> list[str]:
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        raise StorageIntegrityError("expected_string_list")
-    return cast(list[str], value)
-
-
-def _pair_list(value: object) -> list[list[object]]:
-    if not isinstance(value, list):
-        raise StorageIntegrityError("expected_pair_list")
-    result: list[list[object]] = []
-    for item in value:
-        if not isinstance(item, list) or len(item) != 2:
-            raise StorageIntegrityError("expected_pair")
-        result.append(cast(list[object], item))
-    return result
-
-
-def _str(value: object) -> str:
-    if not isinstance(value, str):
-        raise StorageIntegrityError("expected_string")
-    return value
-
-
-def _optional_str(value: object) -> str | None:
-    if value is not None and not isinstance(value, str):
-        raise StorageIntegrityError("expected_optional_string")
-    return value
-
-
-def _int(value: object) -> int:
-    if not isinstance(value, int) or isinstance(value, bool):
-        raise StorageIntegrityError("expected_integer")
-    return value
-
-
-def _bool(value: object) -> bool:
-    if not isinstance(value, bool):
-        raise StorageIntegrityError("expected_boolean")
-    return value
