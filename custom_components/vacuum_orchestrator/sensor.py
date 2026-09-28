@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import cast
+from datetime import datetime
+from typing import Any, cast
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
-from .domain.types import JobState
+from .domain.types import JobState, OperationKind
+from .room_entities import RoomEntity, setup_room_entities
 from .runtime import VacuumOrchestratorRuntime
 
 
@@ -31,6 +33,62 @@ async def async_setup_entry(
             AttentionJobCountSensor(runtime),
         )
     )
+    setup_room_entities(
+        entry,
+        runtime,
+        async_add_entities,
+        lambda room_id: [
+            RoomCleaningSensor(runtime, room_id, operation, measurement)
+            for operation in (OperationKind.VACUUM, OperationKind.MOP)
+            for measurement in ("last_cleaning", "elapsed_seconds", "due")
+        ],
+    )
+
+
+class RoomCleaningSensor(RoomEntity, SensorEntity):
+    """Expose effective cleaning, elapsed time and due state with evidence quality."""
+
+    def __init__(
+        self,
+        runtime: VacuumOrchestratorRuntime,
+        room_id: str,
+        operation: OperationKind,
+        measurement: str,
+    ) -> None:
+        super().__init__(runtime, room_id, f"{operation.value}_{measurement}")
+        self.operation = operation
+        self.measurement = measurement
+        if measurement == "last_cleaning":
+            self._attr_device_class = SensorDeviceClass.TIMESTAMP
+        elif measurement == "elapsed_seconds":
+            self._attr_device_class = SensorDeviceClass.DURATION
+            self._attr_native_unit_of_measurement = "s"
+
+    @property
+    def native_value(self) -> datetime | float | str | None:
+        """Project state without moving the stored cleaning reference point."""
+        stamp = self.room.last_cleaning.get(self.operation)
+        if self.measurement == "due":
+            return self.room.due(self.operation, self.now()).state.value
+        if stamp is None:
+            return None
+        if self.measurement == "last_cleaning":
+            return stamp.completed_at
+        return max(0, (self.now() - stamp.completed_at).total_seconds())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Keep inferred quality and last confirmed completion visible."""
+        stamp = self.room.last_cleaning.get(self.operation)
+        confirmed = self.room.last_confirmed.get(self.operation)
+        report = self.room.due(self.operation, self.now())
+        return {
+            **super().extra_state_attributes,
+            "quality": stamp.quality.value if stamp else None,
+            "receipt_id": stamp.receipt_id if stamp else None,
+            "last_confirmed": confirmed.completed_at.isoformat() if confirmed else None,
+            "due_reason": report.reason,
+        }
 
 
 class _OrchestratorSensor(SensorEntity):

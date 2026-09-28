@@ -1,11 +1,19 @@
 {
   "domain": "vacuum_orchestrator",
   "name": "Vacuum Orchestrator",
-  "version": "0.1.0",
-  "codeowners": ["@hyperfelixations"],
+  "after_dependencies": [
+    "roborock",
+    "vacuum"
+  ],
+  "codeowners": [
+    "@hyperfelixations"
+  ],
   "config_flow": true,
+  "documentation": "https://github.com/hyperfelixations/vacuum-orchestrator",
   "integration_type": "service",
   "iot_class": "calculated",
+  "issue_tracker": "https://github.com/hyperfelixations/vacuum-orchestrator/issues",
+  "requirements": [],
   "single_config_entry": true,
-  "requirements": []
+  "version": "0.1.0"
 }

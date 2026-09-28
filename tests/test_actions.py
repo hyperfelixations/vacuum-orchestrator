@@ -7,6 +7,7 @@ import pytest
 import voluptuous as vol
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import ServiceValidationError, Unauthorized
+from homeassistant.helpers import area_registry as ar
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -39,6 +40,12 @@ from custom_components.vacuum_orchestrator.const import (
     SERVICE_UPDATE_JOB,
 )
 from custom_components.vacuum_orchestrator.infrastructure.integrity import JsonObject
+
+
+@pytest.fixture(autouse=True)
+def registered_areas(hass: HomeAssistant) -> None:
+    for name in ("Kitchen", "Hall"):
+        ar.async_get(hass).async_create(name)
 
 
 class MemoryBackend:
@@ -315,7 +322,7 @@ async def test_non_admin_commands_and_unknown_queries_are_rejected(
             return_response=True,
             context=Context(user_id=hass_read_only_user.id),
         )
-    with pytest.raises(ServiceValidationError, match="no_robot_configured"):
+    with pytest.raises(ServiceValidationError, match="job_blocked"):
         created = await hass.services.async_call(
             DOMAIN,
             SERVICE_CREATE_JOB,

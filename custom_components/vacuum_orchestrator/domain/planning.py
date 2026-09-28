@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from types import MappingProxyType
 from uuid import uuid4
 
+from .errors import ValidationError
 from .intents import CleaningPreferences, JobIntent, VendorExtension
 from .types import CleaningMode, OperationKind, PassScope, SettingsPolicy
 
@@ -53,6 +56,21 @@ class DispatchAssignment:
     adapter_targets: tuple[str, ...]
     capability_revision: str
     preference_resolution: PreferenceResolution
+    room_targets: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        values = tuple(
+            target for targets in self.room_targets.values() for target in targets
+        )
+        if self.room_targets and (
+            not all(self.room_targets.values())
+            or len(values) != len(set(values))
+            or set(values) != set(self.adapter_targets)
+        ):
+            raise ValidationError("assignment_room_mapping_invalid")
+        object.__setattr__(
+            self, "room_targets", MappingProxyType(dict(self.room_targets))
+        )
 
 
 class Planner:

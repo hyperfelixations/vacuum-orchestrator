@@ -14,6 +14,10 @@ from custom_components.vacuum_orchestrator.domain.errors import (
     ConflictError,
     StaleCommandError,
 )
+from custom_components.vacuum_orchestrator.ports.command_scope import (
+    check_command_authorization,
+    command_guard,
+)
 
 
 async def test_cancel_fence_rejects_delayed_dispatch() -> None:
@@ -101,3 +105,28 @@ def test_ownership_release_requires_matching_fleet() -> None:
     with pytest.raises(ConflictError, match="source_robot_owner_mismatch"):
         registry.release("source-1", "fleet-2")
     registry.release("missing", "fleet-1")
+
+
+async def test_command_scope_rechecks_preconditions_and_clears_after_failure() -> None:
+    session = RobotSession("source")
+    ticket = session.reserve("attempt")
+    allowed = True
+    calls = []
+
+    def guard() -> None:
+        if not allowed:
+            raise ConflictError("readiness_changed")
+
+    async def command() -> None:
+        nonlocal allowed
+        check_command_authorization()
+        calls.append("settings")
+        allowed = False
+        check_command_authorization()
+        calls.append("start")
+
+    with pytest.raises(ConflictError, match="readiness_changed"):
+        await session.dispatch(ticket, command, guard)
+    assert calls == ["settings"]
+    assert command_guard.get() is None
+    check_command_authorization()

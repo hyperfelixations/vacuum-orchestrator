@@ -54,6 +54,10 @@ class StateObservation:
     value: str | None
     reported_at: datetime | None = None
 
+    def __post_init__(self) -> None:
+        if self.reported_at is not None:
+            instant(self.reported_at)
+
 
 @dataclass(frozen=True, slots=True)
 class RequirementResult:
@@ -62,6 +66,9 @@ class RequirementResult:
     entity_id: str
     state: RequirementState
     reason: str
+    room_id: str | None = None
+    robot_id: str | None = None
+    operation: OperationKind | None = None
 
 
 def evaluate_requirements(

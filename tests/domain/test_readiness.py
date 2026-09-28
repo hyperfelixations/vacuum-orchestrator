@@ -36,3 +36,12 @@ def test_readiness_reports_ready_blocked_and_unknown() -> None:
     assert blocked.failed_off == ("binary_sensor.person",)
     assert unknown.state is ReadinessState.UNKNOWN
     assert unknown.unknown == ("binary_sensor.door",)
+
+
+def test_unknown_requirement_does_not_hide_known_blocker():
+    report = ReadinessEvaluator().evaluate(
+        _intent(), {"binary_sensor.door": "unknown", "binary_sensor.person": "on"}
+    )
+    assert report.state is ReadinessState.UNKNOWN
+    assert report.unknown == ("binary_sensor.door",)
+    assert report.failed_off == ("binary_sensor.person",)

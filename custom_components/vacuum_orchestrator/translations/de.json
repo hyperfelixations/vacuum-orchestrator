@@ -13,21 +13,76 @@
       "title": "Roboterprofil",
       "step": {
         "user": {
-          "title": "Roborock-Roboter hinzufügen",
-          "description": "Der Planner verwendet ausschließlich Fähigkeiten, die über Home Assistant nachweisbar sind.",
+          "title": "Roboter hinzufügen",
+          "description": "Registrierten Saugroboter auswählen. Die erweiterte Konfiguration nimmt Rollen, unterstützte Modi, Zuordnungen, Bedingungen und Zeitlimits auf.",
           "data": {
             "robot_entity_id": "Saugroboter-Entität",
             "target_areas": "Zugeordnete Home-Assistant-Bereiche",
             "last_clean_start_entity_id": "Sensor für letzten Reinigungsstart",
-            "last_clean_end_entity_id": "Sensor für letztes Reinigungsende"
+            "last_clean_end_entity_id": "Sensor für letztes Reinigungsende",
+            "advanced": "Erweiterte Konfiguration"
+          }
+        },
+        "reconfigure": {
+          "title": "Roboter konfigurieren",
+          "description": "Registrierten Saugroboter auswählen. Die erweiterte Konfiguration nimmt Rollen, unterstützte Modi, Zuordnungen, Bedingungen und Zeitlimits auf.",
+          "data": {
+            "robot_entity_id": "Saugroboter-Entität",
+            "target_areas": "Zugeordnete Home-Assistant-Bereiche",
+            "last_clean_start_entity_id": "Sensor für letzten Reinigungsstart",
+            "last_clean_end_entity_id": "Sensor für letztes Reinigungsende",
+            "advanced": "Erweiterte Konfiguration"
           }
         }
       },
       "error": {
         "entity_not_registered": "Der ausgewählte Saugroboter ist nicht registriert.",
-        "not_roborock_entity": "Die ausgewählte Entität stammt nicht aus der Roborock-Integration.",
-        "already_configured": "Dieser physische Roboter ist bereits konfiguriert."
+        "already_configured": "Dieser physische Roboter ist bereits konfiguriert.",
+        "not_vacuum_entity": "Bitte eine registrierte Saugroboter-Entität auswählen.",
+        "robot_busy": "Aktuellen Versuch und Wiederherstellung zuerst abschließen.",
+        "robot_identity_change": "Der physische Roboter eines bestehenden Profils kann nicht ausgetauscht werden.",
+        "robot_limit_reached": "Es werden höchstens 20 Roboterprofile unterstützt.",
+        "invalid_robot_configuration": "Bitte das Objekt der erweiterten Konfiguration prüfen.",
+        "invalid_role_mapping": "Rollen müssen als Zuordnung angegeben werden.",
+        "unknown_entity_role": "Eine Entitätsrolle ist unbekannt.",
+        "invalid_role_entity": "Die Rollen-Entität fehlt oder hat die falsche Domäne.",
+        "invalid_requirements": "Bitte die Bedingungsfelder prüfen.",
+        "requirement_binding_missing": "Eine gebundene Bedingungs-Entität wurde entfernt.",
+        "invalid_target_areas": "Bitte eine Liste von Zielbereichs-IDs angeben.",
+        "invalid_operation": "Für einen physischen Vorgang vacuum, mop oder vacuum_and_mop verwenden.",
+        "empty_allowed_operations": "Mindestens einen Vorgang auswählen.",
+        "invalid_robot_enabled": "Aktiviert muss true oder false sein.",
+        "unsupported_robot_protocol": "Das ausgewählte Roboterprotokoll wird nicht unterstützt.",
+        "invalid_robot_preference": "Priorität muss eine ganze Zahl zwischen -100 und 100 sein.",
+        "invalid_minimum_battery": "Mindestakku muss zwischen 0 und 100 liegen.",
+        "invalid_option_mapping": "Schlüssel und Werte der Optionszuordnung prüfen.",
+        "ambiguous_mode_mapping": "Jeder Reinigungsvorgang benötigt eine eindeutige Option.",
+        "invalid_duration": "Zeitlimits müssen endliche positive Sekundenwerte sein.",
+        "timeout_out_of_range": "Zeitlimits dürfen 24 Stunden nicht überschreiten.",
+        "invalid_identifier": "Ein Bezeichner ist leer oder ungültig.",
+        "unknown_robot_configuration_field": "Ein Feld der erweiterten Konfiguration ist unbekannt."
+      },
+      "abort": {
+        "reconfigure_successful": "Roboterkonfiguration aktualisiert."
       }
+    }
+  },
+  "issues": {
+    "robot_entity_missing": {
+      "title": "Roboter-Entität fehlt",
+      "description": "Ursprüngliche Saugroboter-Entität wiederherstellen oder das inaktive Profil entfernen."
+    },
+    "robot_configuration_incomplete": {
+      "title": "Roboterkonfiguration unvollständig",
+      "description": "Raumziele, Kartenzuordnung und unterstützte Reinigungsmodi über get_robots und configure_robot prüfen."
+    },
+    "room_area_missing": {
+      "title": "Raumbereich fehlt",
+      "description": "HA-Bereich wiederherstellen, den Raum neu zuordnen oder deaktivieren. Der Verlauf bleibt erhalten."
+    },
+    "recovery_required": {
+      "title": "Wiederherstellung erforderlich",
+      "description": "recovery_targets in get_queue prüfen. Vor resolve_recovery sicherstellen, dass der betroffene Roboter gestoppt ist. Reinigungserfolg wird nicht angenommen."
     }
   }
 }

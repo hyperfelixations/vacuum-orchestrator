@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
 
 from .errors import ValidationError
+from .execution import ExecutionPolicy
+from .requirements import StateRequirement
 from .types import MopRoute, OperationKind, PassScope, SemanticLevel
 
 
@@ -60,7 +62,7 @@ class RobotCapabilities:
     revision: str
     operations: frozenset[OperationKind]
     area_addressing: AreaAddressing
-    target_map: Mapping[str, str]
+    target_map: Mapping[str, str | tuple[str, ...]]
     map_context: str | None
     passes: PassCapability
     vacuum_levels: frozenset[SemanticLevel]
@@ -76,6 +78,11 @@ class RobotCapabilities:
             raise ValidationError("empty_capability_revision")
         object.__setattr__(self, "target_map", MappingProxyType(dict(self.target_map)))
 
+    def targets_for(self, room_id: str) -> tuple[str, ...]:
+        """Return every physical target bound to a canonical room."""
+        value = self.target_map.get(room_id, ())
+        return (value,) if isinstance(value, str) else value
+
 
 @dataclass(frozen=True, slots=True)
 class RobotProfile:
@@ -87,6 +94,9 @@ class RobotProfile:
     capabilities: RobotCapabilities
     allowed_operations: frozenset[OperationKind] | None = None
     preference: int = 0
+    minimum_battery: int | None = None
+    execution_policy: ExecutionPolicy = field(default_factory=ExecutionPolicy)
+    requirements: tuple[StateRequirement, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.robot_id.strip() or not self.source_robot_id.strip():
@@ -97,6 +107,8 @@ class RobotProfile:
             raise ValidationError("empty_allowed_operations")
         if not -100 <= self.preference <= 100:
             raise ValidationError("invalid_robot_preference")
+        if self.minimum_battery is not None and not 0 <= self.minimum_battery <= 100:
+            raise ValidationError("invalid_minimum_battery")
 
     @property
     def effective_operations(self) -> frozenset[OperationKind]:

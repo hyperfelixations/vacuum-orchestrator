@@ -31,4 +31,4 @@ SERVICE_RETRY_JOB = "retry_job"
 SERVICE_GET_QUEUE = "get_queue"
 SERVICE_GET_JOB = "get_job"
 
-PLATFORMS = ("sensor", "binary_sensor")
+PLATFORMS = ("sensor", "binary_sensor", "switch")

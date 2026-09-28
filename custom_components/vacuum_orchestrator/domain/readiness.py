@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from .intents import JobIntent
+from .requirements import RequirementResult
 from .types import ReadinessState
 
 _UNKNOWN_STATES = frozenset({"unknown", "unavailable"})
@@ -19,6 +20,9 @@ class ReadinessReport:
     failed_on: tuple[str, ...] = ()
     failed_off: tuple[str, ...] = ()
     unknown: tuple[str, ...] = ()
+    reason_codes: tuple[str, ...] = ()
+    requirements: tuple[RequirementResult, ...] = ()
+    blocked_room_ids: tuple[str, ...] = ()
 
 
 class ReadinessEvaluator:
@@ -38,18 +42,23 @@ class ReadinessEvaluator:
             if normalized.get(reference) is None
             or normalized.get(reference) in _UNKNOWN_STATES
         )
-        if unknown:
-            return ReadinessReport(ReadinessState.UNKNOWN, unknown=unknown)
         failed_on = tuple(
             reference
             for reference in intent.required_on
-            if normalized.get(reference) != "on"
+            if reference not in unknown and normalized.get(reference) != "on"
         )
         failed_off = tuple(
             reference
             for reference in intent.required_off
-            if normalized.get(reference) != "off"
+            if reference not in unknown and normalized.get(reference) != "off"
         )
+        if unknown:
+            return ReadinessReport(
+                ReadinessState.UNKNOWN,
+                failed_on=failed_on,
+                failed_off=failed_off,
+                unknown=unknown,
+            )
         if failed_on or failed_off:
             return ReadinessReport(
                 ReadinessState.BLOCKED,

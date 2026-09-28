@@ -129,6 +129,11 @@ class RoomService:
                 None
                 if duration_seconds is None
                 else now + timedelta(seconds=duration_seconds),
+                queue_run_id=state.queue_run.run_id
+                if kind is ReleaseKind.QUEUE_RUN
+                and state.queue_run
+                and state.queue_run.active
+                else None,
             )
             return replace(
                 state,
@@ -253,6 +258,7 @@ class RoomService:
         return (
             policy.basis,
             policy.occupancy_entity_id,
+            policy.occupancy_entity_registry_id,
             policy.occupied_state,
             policy.unoccupied_state,
         )

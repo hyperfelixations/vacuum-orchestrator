@@ -35,6 +35,7 @@ class DuePolicy:
     occupancy_entity_id: str | None = None
     occupied_state: str = "on"
     unoccupied_state: str = "off"
+    occupancy_entity_registry_id: str | None = None
 
     def __post_init__(self) -> None:
         for duration in (self.vacuum_seconds, self.mop_seconds):
@@ -42,6 +43,8 @@ class DuePolicy:
                 seconds(duration, positive=True)
         if self.occupancy_entity_id is not None:
             identifier(self.occupancy_entity_id)
+        if self.occupancy_entity_registry_id is not None:
+            identifier(self.occupancy_entity_registry_id)
         if self.basis is DueBasis.OCCUPIED and self.occupancy_entity_id is None:
             raise ValidationError("occupancy_source_required")
         identifier(self.occupied_state)

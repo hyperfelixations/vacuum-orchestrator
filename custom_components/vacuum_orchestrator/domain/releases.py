@@ -9,11 +9,12 @@ from .validation import identifier, instant
 
 
 class ReleaseKind(StrEnum):
-    """Three user-facing grant lifetimes."""
+    """Four user-facing grant lifetimes."""
 
     PERMANENT = "permanent"
     ONCE = "once"
     TIMED = "timed"
+    QUEUE_RUN = "queue_run"
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,10 +27,15 @@ class RoomRelease:
     expires_at: datetime | None = None
     reserved_job_id: str | None = None
     consumed: bool = False
+    queue_run_id: str | None = None
 
     def __post_init__(self) -> None:
         identifier(self.grant_id)
         instant(self.granted_at)
+        if self.queue_run_id is not None:
+            identifier(self.queue_run_id)
+            if self.kind is not ReleaseKind.QUEUE_RUN:
+                raise ValidationError("queue_run_binding_requires_run_release")
         if self.expires_at is not None:
             instant(self.expires_at)
         if (self.kind is ReleaseKind.TIMED) != (self.expires_at is not None):

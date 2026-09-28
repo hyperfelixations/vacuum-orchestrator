@@ -5,8 +5,15 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any, cast
 
+from ..domain.completion import CleaningSource, CompletionQuality
 from ..domain.errors import StorageIntegrityError, ValidationError
-from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun, RunCorrelation
+from ..domain.execution import (
+    ExecutionAttempt,
+    ExecutionPolicy,
+    RobotLease,
+    RobotRun,
+    RunCorrelation,
+)
 from ..domain.intents import (
     CleaningPreferences,
     JobIntent,
@@ -21,8 +28,11 @@ from ..domain.planning import (
     plan_matches_intent,
 )
 from ..domain.queue import Job, OrchestratorState
+from ..domain.queue_runs import QueueRun
+from ..domain.requests import CommandOrigin
 from ..domain.room_registry import RoomRegistry
 from ..domain.rooms import Room
+from ..domain.templates import JobTemplate
 from ..domain.types import (
     AttemptState,
     CleaningMode,
@@ -57,7 +67,7 @@ from .codec_values import (
     _string_mapping,
 )
 from .integrity import JsonObject
-from .room_codec import decode_room_registry, encode_room_registry
+from .room_codec import _number, decode_room_registry, encode_room_registry
 
 SCHEMA_VERSION = 3
 
@@ -94,6 +104,28 @@ def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
         },
         "blocked_robots": dict(state.blocked_robots),
         "room_registry": encode_room_registry(state.room_registry),
+        "queue_grace_seconds": state.queue_grace_seconds,
+        "queue_run": None
+        if state.queue_run is None
+        else {
+            "run_id": state.queue_run.run_id,
+            "started_at": _encode_datetime(state.queue_run.started_at),
+            "grace_seconds": state.queue_run.grace_seconds,
+            "idle_since": _encode_optional_datetime(state.queue_run.idle_since),
+            "completed_at": _encode_optional_datetime(state.queue_run.completed_at),
+        },
+        "templates": {
+            key: {
+                "template_id": value.template_id,
+                "name": value.name,
+                "intent": _encode_intent(value.intent),
+                "updated_at": _encode_datetime(value.updated_at),
+                "enabled": value.enabled,
+                "automatic": value.automatic,
+                "demand_tokens": dict(value.demand_tokens),
+            }
+            for key, value in state.templates.items()
+        },
     }
 
 
@@ -149,6 +181,12 @@ def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
                 for key, value in _string_mapping(data["blocked_robots"]).items()
             },
             room_registry=decode_room_registry(_object(data["room_registry"])),
+            queue_grace_seconds=_number(data.get("queue_grace_seconds", 900)),
+            queue_run=_decode_queue_run(data.get("queue_run")),
+            templates={
+                key: _decode_template(_object(value))
+                for key, value in _string_mapping(data.get("templates", {})).items()
+            },
         )
     except StorageIntegrityError:
         raise
@@ -156,6 +194,34 @@ def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
         raise StorageIntegrityError("invalid_storage_payload") from err
     _validate_relational_integrity(state)
     return state
+
+
+def _decode_template(data: JsonObject) -> JobTemplate:
+    return JobTemplate(
+        _str(data["template_id"]),
+        _str(data["name"]),
+        _decode_intent(_object(data["intent"])),
+        _decode_datetime(data["updated_at"]),
+        _bool(data["enabled"]),
+        _bool(data["automatic"]),
+        {
+            key: _str(value)
+            for key, value in _string_mapping(data["demand_tokens"]).items()
+        },
+    )
+
+
+def _decode_queue_run(value: object) -> QueueRun | None:
+    if value is None:
+        return None
+    data = _object(value)
+    return QueueRun(
+        _str(data["run_id"]),
+        _decode_datetime(data["started_at"]),
+        _number(data["grace_seconds"]),
+        _decode_optional_datetime(data["idle_since"]),
+        _decode_optional_datetime(data["completed_at"]),
+    )
 
 
 def migrate_schema_two(data: JsonObject) -> OrchestratorState:
@@ -441,6 +507,17 @@ def _legacy_queue_mode(value: str) -> QueueMode:
 
 
 def _validate_relational_integrity(state: OrchestratorState) -> None:
+    for room in state.room_registry.rooms.values():
+        if (
+            room.release
+            and room.release.queue_run_id is not None
+            and (
+                state.queue_run is None
+                or not state.queue_run.active
+                or room.release.queue_run_id != state.queue_run.run_id
+            )
+        ):
+            raise StorageIntegrityError("release_queue_run_mismatch")
     if state.commit_id < 0 or state.queue_revision < 0:
         raise StorageIntegrityError("negative_storage_revision")
     if any(value < 0 for value in state.robot_generations.values()):
@@ -470,6 +547,10 @@ def _validate_relational_integrity(state: OrchestratorState) -> None:
             or assignment.work_unit_id != ledger_attempt.work_unit_id
             or assignment.robot_id != ledger_attempt.robot_id
             or assignment.source_robot_id != ledger_attempt.source_robot_id
+            or (
+                assignment.room_targets
+                and set(assignment.room_targets) != set(planned[1].canonical_targets)
+            )
         ):
             raise StorageIntegrityError("attempt_ledger_reference_mismatch")
     for source_robot_id, lease in state.robot_leases.items():
@@ -519,6 +600,21 @@ def _validate_relational_integrity(state: OrchestratorState) -> None:
             or correlation.robot_run_id not in state.robot_runs
         ):
             raise StorageIntegrityError("correlation_ledger_reference_mismatch")
+    for job_id, admissions in state.room_registry.admissions.items():
+        admitted_job = state.jobs.get(job_id)
+        if (
+            admitted_job is None
+            or admitted_job.state
+            not in {
+                JobState.DISPATCHING,
+                JobState.RUNNING,
+                JobState.CANCELING,
+                JobState.NEEDS_ATTENTION,
+            }
+            or {item.room_id for item in admissions}
+            != {target.area_id for target in admitted_job.intent.areas}
+        ):
+            raise StorageIntegrityError("room_admission_job_mismatch")
 
 
 def _encode_job(job: Job) -> JsonObject:
@@ -534,6 +630,13 @@ def _encode_job(job: Job) -> JsonObject:
         "completed_work_unit_ids": list(job.completed_work_unit_ids),
         "retries_job_id": job.retries_job_id,
         "failure_code": job.failure_code,
+        "origin": None
+        if job.origin is None
+        else {
+            "context_id": job.origin.context_id,
+            "user_id": job.origin.user_id,
+            "parent_id": job.origin.parent_id,
+        },
     }
 
 
@@ -550,6 +653,18 @@ def _decode_job(data: JsonObject) -> Job:
         completed_work_unit_ids=tuple(_string_list(data["completed_work_unit_ids"])),
         retries_job_id=_optional_str(data["retries_job_id"]),
         failure_code=_optional_str(data["failure_code"]),
+        origin=_decode_origin(data.get("origin")),
+    )
+
+
+def _decode_origin(value: object) -> CommandOrigin | None:
+    if value is None:
+        return None
+    data = _object(value)
+    return CommandOrigin(
+        _str(data["context_id"]),
+        _optional_str(data["user_id"]),
+        _optional_str(data["parent_id"]),
     )
 
 
@@ -695,6 +810,9 @@ def _decode_work_unit(data: JsonObject) -> WorkUnit:
 
 def _encode_assignment(assignment: DispatchAssignment) -> JsonObject:
     return {
+        "room_targets": {
+            key: list(value) for key, value in assignment.room_targets.items()
+        },
         "work_unit_id": assignment.work_unit_id,
         "robot_id": assignment.robot_id,
         "source_robot_id": assignment.source_robot_id,
@@ -721,6 +839,10 @@ def _decode_assignment(data: JsonObject) -> DispatchAssignment:
             tuple(_string_list(resolution["applied"])),
             tuple(_string_list(resolution["omitted"])),
         ),
+        {
+            key: tuple(_string_list(value))
+            for key, value in _string_mapping(data.get("room_targets", {})).items()
+        },
     )
 
 
@@ -739,10 +861,21 @@ def _encode_attempt(attempt: ExecutionAttempt) -> JsonObject:
         "prior_history_start": _encode_optional_datetime(attempt.prior_history_start),
         "prior_history_end": _encode_optional_datetime(attempt.prior_history_end),
         "failure_code": attempt.failure_code,
+        "policy": {
+            "start_seconds": attempt.policy.start_seconds,
+            "run_seconds": attempt.policy.run_seconds,
+            "cancel_seconds": attempt.policy.cancel_seconds,
+            "settle_seconds": attempt.policy.settle_seconds,
+        },
+        "terminal_observed_at": _encode_optional_datetime(attempt.terminal_observed_at),
+        "last_observation_at": _encode_optional_datetime(attempt.last_observation_at),
+        "completion_quality": _enum_value(attempt.completion_quality),
+        "cancel_requested_at": _encode_optional_datetime(attempt.cancel_requested_at),
     }
 
 
 def _decode_attempt(data: JsonObject) -> ExecutionAttempt:
+    policy = _object(data.get("policy", {}))
     return ExecutionAttempt(
         _str(data["attempt_id"]),
         _str(data["job_id"]),
@@ -757,6 +890,16 @@ def _decode_attempt(data: JsonObject) -> ExecutionAttempt:
         _decode_optional_datetime(data["prior_history_start"]),
         _decode_optional_datetime(data["prior_history_end"]),
         _optional_str(data["failure_code"]),
+        ExecutionPolicy(
+            _number(policy.get("start_seconds", 180)),
+            _number(policy.get("run_seconds", 14400)),
+            _number(policy.get("cancel_seconds", 120)),
+            _number(policy.get("settle_seconds", 30)),
+        ),
+        _decode_optional_datetime(data.get("terminal_observed_at")),
+        _decode_optional_datetime(data.get("last_observation_at")),
+        _optional_enum(CompletionQuality, data.get("completion_quality")),
+        _decode_optional_datetime(data.get("cancel_requested_at")),
     )
 
 
@@ -770,6 +913,12 @@ def _encode_robot_run(run: RobotRun) -> JsonObject:
         "history_end": _encode_optional_datetime(run.history_end),
         "cleaning_activity_seen": run.cleaning_activity_seen,
         "causal_token": run.causal_token,
+        "completion_quality": _enum_value(run.completion_quality),
+        "operation": _enum_value(run.operation),
+        "canonical_targets": list(run.canonical_targets),
+        "source": run.source.value,
+        "failure_code": run.failure_code,
+        "capability_revision": run.capability_revision,
     }
 
 
@@ -783,6 +932,12 @@ def _decode_robot_run(data: JsonObject) -> RobotRun:
         _decode_optional_datetime(data["history_end"]),
         _bool(data["cleaning_activity_seen"]),
         _optional_str(data["causal_token"]),
+        _optional_enum(CompletionQuality, data.get("completion_quality")),
+        _optional_enum(OperationKind, data.get("operation")),
+        tuple(_string_list(data.get("canonical_targets", []))),
+        _enum(CleaningSource, data.get("source", "voi")),
+        _optional_str(data.get("failure_code")),
+        _optional_str(data.get("capability_revision")),
     )
 
 

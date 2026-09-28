@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from ..const import API_VERSION
 from ..domain.queue import Job, OrchestratorState
 from ..domain.readiness import ReadinessReport
+from ..domain.rooms import Room
 
 
 def present_job(
-    job: Job, readiness: ReadinessReport | None = None
+    job: Job,
+    readiness: ReadinessReport | None = None,
+    rooms: Mapping[str, Room] | None = None,
 ) -> dict[str, object]:
     """Serialize one bounded job record without leaking mutable internals."""
     intent = job.intent
@@ -18,7 +23,13 @@ def present_job(
         "revision": job.revision,
         "state": job.state.value,
         "name": intent.name,
-        "areas": [target.area_id for target in intent.areas],
+        "areas": [
+            room.area_id or room.room_id
+            if rooms is not None and (room := rooms.get(target.area_id)) is not None
+            else target.area_id
+            for target in intent.areas
+        ],
+        "room_ids": [target.area_id for target in intent.areas],
         "mode": intent.mode.value,
         "vacuum_power": (
             None
@@ -55,6 +66,19 @@ def present_job(
             "failed_on": list(readiness.failed_on),
             "failed_off": list(readiness.failed_off),
             "unknown": list(readiness.unknown),
+            "reason_codes": list(readiness.reason_codes),
+            "blocked_room_ids": list(readiness.blocked_room_ids),
+            "requirements": [
+                {
+                    "entity_id": item.entity_id,
+                    "state": item.state.value,
+                    "reason": item.reason,
+                    "room_id": item.room_id,
+                    "robot_id": item.robot_id,
+                    "operation": item.operation.value if item.operation else None,
+                }
+                for item in readiness.requirements
+            ],
         }
     return result
 
@@ -73,6 +97,32 @@ def present_queue(
         "queue_revision": state.queue_revision,
         "mode": state.mode.value,
         "needs_attention": state.needs_attention,
+        "recovery_targets": [
+            {
+                "robot_id": state.robot_leases[source_id].robot_id
+                if source_id in state.robot_leases
+                else source_id,
+                "reason": reason,
+            }
+            for source_id, reason in state.blocked_robots.items()
+        ],
+        "queue_grace_seconds": state.queue_grace_seconds,
+        "queue_run": None
+        if state.queue_run is None
+        else {
+            "run_id": state.queue_run.run_id,
+            "started_at": state.queue_run.started_at.isoformat(),
+            "active": state.queue_run.active,
+            "idle_since": state.queue_run.idle_since.isoformat()
+            if state.queue_run.idle_since
+            else None,
+            "deadline": state.queue_run.deadline.isoformat()
+            if state.queue_run.deadline
+            else None,
+            "completed_at": state.queue_run.completed_at.isoformat()
+            if state.queue_run.completed_at
+            else None,
+        },
         "total": len(state.queue),
         "offset": offset,
         "limit": limit,

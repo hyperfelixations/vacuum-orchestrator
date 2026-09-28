@@ -137,6 +137,7 @@ def encode_room(value: Room) -> JsonObject:
             "expires_at": cv._encode_optional_datetime(grant.expires_at),
             "reserved_job_id": grant.reserved_job_id,
             "consumed": grant.consumed,
+            "queue_run_id": grant.queue_run_id,
         },
         "due_policy": {
             "basis": policy.basis.value,
@@ -145,6 +146,7 @@ def encode_room(value: Room) -> JsonObject:
             "occupancy_entity_id": policy.occupancy_entity_id,
             "occupied_state": policy.occupied_state,
             "unoccupied_state": policy.unoccupied_state,
+            "occupancy_entity_registry_id": policy.occupancy_entity_registry_id,
         },
         "occupancy": {
             "epoch": counter.epoch,
@@ -197,6 +199,7 @@ def decode_room(data: JsonObject) -> Room:
             cv._decode_optional_datetime(grant["expires_at"]),
             cv._optional_str(grant["reserved_job_id"]),
             cv._bool(grant["consumed"]),
+            cv._optional_str(grant.get("queue_run_id")),
         ),
         due_policy=DuePolicy(
             cv._enum(DueBasis, policy["basis"]),
@@ -205,6 +208,7 @@ def decode_room(data: JsonObject) -> Room:
             cv._optional_str(policy["occupancy_entity_id"]),
             cv._str(policy["occupied_state"]),
             cv._str(policy["unoccupied_state"]),
+            cv._optional_str(policy.get("occupancy_entity_registry_id")),
         ),
         occupancy=OccupancyCounter(
             cv._int(counter["epoch"]),

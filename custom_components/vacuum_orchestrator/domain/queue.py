@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from types import MappingProxyType
 
+from .completion import CleaningReceipt, CleaningSource, CompletionQuality
 from .errors import ConflictError, ValidationError
 from .execution import ExecutionAttempt, RobotLease, RobotRun, RunCorrelation
 from .intents import JobIntent, JobIntentPatch
@@ -16,8 +17,12 @@ from .planning import (
     WorkUnit,
     plan_matches_intent,
 )
+from .queue_runs import QueueRun
+from .requests import CommandOrigin
 from .room_registry import RoomRegistry
+from .templates import JobTemplate
 from .types import AttemptState, JobState, MoveDirection, QueueMode, WorkUnitState
+from .validation import seconds
 
 _TERMINAL = frozenset({JobState.COMPLETED, JobState.FAILED, JobState.CANCELLED})
 _ACTIVE = frozenset({JobState.DISPATCHING, JobState.RUNNING, JobState.CANCELING})
@@ -39,6 +44,7 @@ class Job:
     completed_work_unit_ids: tuple[str, ...] = ()
     retries_job_id: str | None = None
     failure_code: str | None = None
+    origin: CommandOrigin | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,8 +67,14 @@ class OrchestratorState:
     robot_leases: Mapping[str, RobotLease] = field(default_factory=dict)
     blocked_robots: Mapping[str, str] = field(default_factory=dict)
     room_registry: RoomRegistry = field(default_factory=RoomRegistry)
+    templates: Mapping[str, JobTemplate] = field(default_factory=dict)
+    queue_run: QueueRun | None = None
+    queue_grace_seconds: float = 900
 
     def __post_init__(self) -> None:
+        seconds(self.queue_grace_seconds)
+        if self.queue_grace_seconds > 86400:
+            raise ValidationError("queue_grace_out_of_range")
         for field_name in (
             "jobs",
             "robot_generations",
@@ -74,12 +86,19 @@ class OrchestratorState:
             "correlations",
             "robot_leases",
             "blocked_robots",
+            "templates",
         ):
             object.__setattr__(
                 self, field_name, MappingProxyType(dict(getattr(self, field_name)))
             )
         if not self.installation_id.strip():
             raise ValidationError("empty_installation_id")
+        for key, template in self.templates.items():
+            if template.template_id != key:
+                raise ValidationError("template_identity_mismatch")
+            for target in template.intent.areas:
+                if target.area_id not in self.room_registry.rooms:
+                    raise ValidationError("template_unknown_room")
         if len(self.queue) != len(set(self.queue)):
             raise ValidationError("duplicate_queue_job")
         if any(job_id not in self.jobs for job_id in self.queue):
@@ -105,7 +124,12 @@ class OrchestratorState:
         )
 
     def add_job(
-        self, job_id: str, intent: JobIntent, now: datetime
+        self,
+        job_id: str,
+        intent: JobIntent,
+        now: datetime,
+        *,
+        origin: CommandOrigin | None = None,
     ) -> OrchestratorState:
         """Append a new job to the single pending queue."""
         if job_id in self.jobs:
@@ -116,7 +140,7 @@ class OrchestratorState:
         ):
             raise ConflictError("dedupe_key_already_queued")
         jobs = dict(self.jobs)
-        jobs[job_id] = Job(job_id, 1, intent, JobState.QUEUED, now, now)
+        jobs[job_id] = Job(job_id, 1, intent, JobState.QUEUED, now, now, origin=origin)
         return self._replace(
             jobs=jobs,
             queue=(*self.queue, job_id),
@@ -372,8 +396,12 @@ class OrchestratorState:
             attempt,
             state=AttemptState.START_CONFIRMED,
             observed_start_at=observed_start_at,
+            last_observation_at=observed_start_at,
         )
-        return self._replace(attempts=attempts)
+        return self._replace(
+            attempts=attempts,
+            room_registry=self.room_registry.mark_started(attempt.job_id),
+        )
 
     def complete_attempt(
         self,
@@ -395,6 +423,45 @@ class OrchestratorState:
         if existing_run is not None or existing_correlation is not None:
             if existing_run == run and existing_correlation == correlation:
                 return self
+            if (
+                existing_run is not None
+                and existing_correlation is not None
+                and attempt.state is AttemptState.SUCCEEDED
+                and existing_run.completion_quality is CompletionQuality.DERIVED
+                and run.completion_quality is CompletionQuality.CONFIRMED
+                and not correlation.requires_attention
+                and replace(
+                    existing_run,
+                    completion_quality=CompletionQuality.CONFIRMED,
+                    history_start=run.history_start,
+                    history_end=run.history_end,
+                    causal_token=run.causal_token,
+                )
+                == run
+            ):
+                receipt = self.room_registry.receipts.get(f"attempt:{attempt_id}")
+                registry = (
+                    self.room_registry
+                    if receipt is None
+                    else self.room_registry.record(
+                        replace(
+                            receipt,
+                            quality=CompletionQuality.CONFIRMED,
+                            evidence=correlation.reason_codes,
+                        )
+                    )
+                )
+                return self._replace(
+                    attempts={
+                        **self.attempts,
+                        attempt_id: replace(
+                            attempt, completion_quality=CompletionQuality.CONFIRMED
+                        ),
+                    },
+                    robot_runs={**self.robot_runs, run.robot_run_id: run},
+                    correlations={**self.correlations, attempt_id: correlation},
+                    room_registry=registry,
+                )
             raise ConflictError("run_correlation_identity_conflict")
         if correlation.requires_attention:
             return self.require_robot_attention(attempt_id, run, correlation, now)
@@ -405,7 +472,10 @@ class OrchestratorState:
         }:
             raise ConflictError("attempt_not_completable")
         attempts = dict(self.attempts)
-        attempts[attempt_id] = replace(attempt, state=AttemptState.SUCCEEDED)
+        quality = run.completion_quality or CompletionQuality.DERIVED
+        attempts[attempt_id] = replace(
+            attempt, state=AttemptState.SUCCEEDED, completion_quality=quality
+        )
         runs = dict(self.robot_runs)
         runs[run.robot_run_id] = run
         correlations = dict(self.correlations)
@@ -426,6 +496,27 @@ class OrchestratorState:
         )
         leases = dict(self.robot_leases)
         leases.pop(attempt.source_robot_id, None)
+        registry = self.room_registry.mark_started(job.job_id)
+        if job.job_id in registry.admissions:
+            unit = next(
+                item
+                for item in plan.work_units
+                if item.work_unit_id == attempt.work_unit_id
+            )
+            registry = registry.record(
+                CleaningReceipt(
+                    f"attempt:{attempt_id}",
+                    CleaningSource.VOI,
+                    attempt_id,
+                    unit.canonical_targets,
+                    unit.operation,
+                    run.observed_end or now,
+                    quality,
+                    correlation.reason_codes,
+                )
+            )
+        if final:
+            registry = registry.finish(job.job_id)
         return self._replace(
             jobs=jobs,
             attempts=attempts,
@@ -433,6 +524,7 @@ class OrchestratorState:
             correlations=correlations,
             work_unit_states=work_unit_states,
             robot_leases=leases,
+            room_registry=registry,
         )
 
     def request_cancel(
@@ -440,7 +532,9 @@ class OrchestratorState:
     ) -> tuple[OrchestratorState, int | None]:
         """Cancel pending work or atomically fence active physical ownership."""
         job = self._job(job_id)
-        if job.state is JobState.QUEUED:
+        if job.state is JobState.QUEUED or (
+            job.state is JobState.DISPATCHING and job.active_attempt_id is None
+        ):
             jobs = dict(self.jobs)
             jobs[job_id] = replace(
                 job,
@@ -452,7 +546,20 @@ class OrchestratorState:
                 self._replace(
                     jobs=jobs,
                     queue=tuple(item for item in self.queue if item != job_id),
-                    queue_revision=self.queue_revision + 1,
+                    queue_revision=self.queue_revision + (job_id in self.queue),
+                    work_unit_states={
+                        key: WorkUnitState.CANCELLED
+                        if job.plan_id is not None
+                        and key
+                        in {
+                            unit.work_unit_id
+                            for unit in self.plans[job.plan_id].work_units
+                        }
+                        and value is WorkUnitState.PENDING
+                        else value
+                        for key, value in self.work_unit_states.items()
+                    },
+                    room_registry=self.room_registry.finish(job_id, never_started=True),
                 ),
                 None,
             )
@@ -474,7 +581,7 @@ class OrchestratorState:
         )
         attempts = dict(self.attempts)
         attempts[attempt.attempt_id] = replace(
-            attempt, state=AttemptState.CANCEL_PENDING
+            attempt, state=AttemptState.CANCEL_PENDING, cancel_requested_at=now
         )
         generations = dict(self.robot_generations)
         generations[attempt.source_robot_id] = generation
@@ -483,7 +590,9 @@ class OrchestratorState:
             generation,
         )
 
-    def confirm_cancel(self, job_id: str, now: datetime) -> OrchestratorState:
+    def confirm_cancel(
+        self, job_id: str, now: datetime, *, never_started: bool = False
+    ) -> OrchestratorState:
         """Finish cancellation only after observed physical confirmation."""
         job = self._job(job_id)
         if job.state is not JobState.CANCELING or job.active_attempt_id is None:
@@ -508,10 +617,19 @@ class OrchestratorState:
             attempts=attempts,
             work_unit_states=units,
             robot_leases=leases,
+            room_registry=self.room_registry.finish(
+                job_id, never_started=never_started
+            ),
         )
 
     def fail_job(
-        self, job_id: str, attempt_id: str, failure_code: str, now: datetime
+        self,
+        job_id: str,
+        attempt_id: str,
+        failure_code: str,
+        now: datetime,
+        *,
+        never_started: bool = False,
     ) -> OrchestratorState:
         """Finalize an active attempt without implicit retry."""
         job = self._job(job_id)
@@ -540,10 +658,18 @@ class OrchestratorState:
             attempts=attempts,
             work_unit_states=units,
             robot_leases=leases,
+            room_registry=self.room_registry.finish(
+                job_id, never_started=never_started
+            ),
         )
 
     def retry_job(
-        self, job_id: str, retry_job_id: str, now: datetime
+        self,
+        job_id: str,
+        retry_job_id: str,
+        now: datetime,
+        *,
+        origin: CommandOrigin | None = None,
     ) -> OrchestratorState:
         """Create a new queued job while preserving terminal history."""
         job = self._job(job_id)
@@ -560,6 +686,7 @@ class OrchestratorState:
             now,
             now,
             retries_job_id=job_id,
+            origin=origin,
         )
         return self._replace(
             jobs=jobs,
@@ -621,6 +748,59 @@ class OrchestratorState:
                 )
         return state
 
+    def resolve_recovery(
+        self, source_robot_id: str, now: datetime, *, assumed_stopped: bool = False
+    ) -> OrchestratorState:
+        """Abandon uncertain work after a verified or operator-confirmed stop."""
+        if source_robot_id not in self.blocked_robots:
+            raise ConflictError("robot_not_needing_recovery")
+        jobs, attempts, units = (
+            dict(self.jobs),
+            dict(self.attempts),
+            dict(self.work_unit_states),
+        )
+        leases, blocked = dict(self.robot_leases), dict(self.blocked_robots)
+        registry = self.room_registry
+        lease = leases.pop(source_robot_id, None)
+        if lease is not None:
+            attempt = attempts[lease.attempt_id]
+            job = jobs[attempt.job_id]
+            reason = (
+                "operator_assumed_stopped" if assumed_stopped else "recovery_abandoned"
+            )
+            attempts[attempt.attempt_id] = replace(
+                attempt, state=AttemptState.FAILED, failure_code=reason
+            )
+            jobs[job.job_id] = replace(
+                job,
+                state=JobState.FAILED,
+                active_attempt_id=None,
+                revision=job.revision + 1,
+                failure_code=reason,
+                updated_at=now,
+            )
+            for unit in self._plan_for_job(job).work_units:
+                if unit.work_unit_id not in job.completed_work_unit_ids:
+                    units[unit.work_unit_id] = (
+                        WorkUnitState.FAILED
+                        if unit.work_unit_id == attempt.work_unit_id
+                        else WorkUnitState.CANCELLED
+                    )
+            registry = registry.finish(job.job_id)
+        blocked.pop(source_robot_id)
+        return self._replace(
+            jobs=jobs,
+            attempts=attempts,
+            work_unit_states=units,
+            robot_leases=leases,
+            blocked_robots=blocked,
+            room_registry=registry,
+            robot_generations={
+                **self.robot_generations,
+                source_robot_id: self.robot_generations.get(source_robot_id, 0) + 1,
+            },
+        )
+
     def next_pending_unit(self, job: Job) -> WorkUnit:
         """Return the first dependency-satisfied unit of a planned job."""
         plan = self._plan_for_job(job)
@@ -630,24 +810,18 @@ class OrchestratorState:
                 return unit
         raise ConflictError("job_has_no_pending_work_unit")
 
-    def active_target_sets(self) -> tuple[frozenset[str], ...]:
+    def active_target_sets(
+        self, *, excluding_job_id: str | None = None
+    ) -> tuple[frozenset[str], ...]:
         """Return target reservations used by the no-overlap invariant."""
         return tuple(
             frozenset(self._active_targets(job))
             for job in self.jobs.values()
-            if job.state in _TARGET_RESERVED
+            if job.state in _TARGET_RESERVED and job.job_id != excluding_job_id
         )
 
     def _active_targets(self, job: Job) -> tuple[str, ...]:
-        if job.active_attempt_id is None:
-            return ()
-        attempt = self.attempts[job.active_attempt_id]
-        plan = self._plan_for_job(job)
-        return next(
-            unit.canonical_targets
-            for unit in plan.work_units
-            if unit.work_unit_id == attempt.work_unit_id
-        )
+        return tuple(target.area_id for target in job.intent.areas)
 
     def _plan_for_job(self, job: Job) -> ExecutionPlan:
         if job.plan_id is None or job.plan_id not in self.plans:

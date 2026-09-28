@@ -26,5 +26,9 @@ class StaleCommandError(OrchestratorError):
     """A physical command has been invalidated by generation fencing."""
 
 
+class DispatchNotStartedError(ConflictError):
+    """The adapter proves no cleaning-start command was issued."""
+
+
 class StorageIntegrityError(OrchestratorError):
     """Critical state cannot be proven to match persisted data."""

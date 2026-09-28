@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from ..domain.errors import ConflictError, StaleCommandError
+from ..ports.command_scope import command_guard
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,11 +67,22 @@ class RobotSession:
         self,
         ticket: RobotCommandTicket,
         command: Callable[[], Awaitable[None]],
+        guard: Callable[[], None] | None = None,
     ) -> None:
         """Run a start command only while its ticket remains current."""
         async with self._command_lane:
-            self._validate_ticket(ticket, require_attempt=True)
-            await command()
+
+            def validate() -> None:
+                self._validate_ticket(ticket, require_attempt=True)
+                if guard is not None:
+                    guard()
+
+            validate()
+            token = command_guard.set(validate)
+            try:
+                await command()
+            finally:
+                command_guard.reset(token)
 
     async def cancel(
         self,
@@ -80,7 +92,13 @@ class RobotSession:
         """Run stop after any in-flight start and reject stale cancel calls."""
         async with self._command_lane:
             self._validate_ticket(ticket, require_attempt=False)
-            await command()
+            token = command_guard.set(
+                lambda: self._validate_ticket(ticket, require_attempt=False)
+            )
+            try:
+                await command()
+            finally:
+                command_guard.reset(token)
 
     def release(self, attempt_id: str) -> None:
         """Release attempt ownership after a correlated terminal outcome."""

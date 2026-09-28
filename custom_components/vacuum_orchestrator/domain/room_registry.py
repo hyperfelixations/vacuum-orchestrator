@@ -105,6 +105,30 @@ class RoomRegistry:
             self, rooms=rooms, admissions={**self.admissions, job_id: tuple(admissions)}
         )
 
+    def allows_job(self, job_id: str, room_id: str, now: datetime) -> bool:
+        """Recheck unstarted admissions while preserving a started job's scope."""
+        room = self.resolve(room_id)
+        admission = next(
+            (
+                item
+                for item in self.admissions.get(job_id, ())
+                if item.room_id == room.room_id
+            ),
+            None,
+        )
+        if admission is not None and admission.started:
+            return True
+        grant = room.release
+        if not room.enabled or room.area_missing or grant is None:
+            return False
+        if admission is not None and admission.grant_id != grant.grant_id:
+            return False
+        return grant.allows_new_job(now) or (
+            grant.reserved_job_id == job_id
+            and not grant.consumed
+            and now >= grant.granted_at
+        )
+
     def mark_started(self, job_id: str) -> RoomRegistry:
         """Consume only original grant generations, preserving later grants."""
         if job_id not in self.admissions:

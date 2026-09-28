@@ -9,6 +9,7 @@ from homeassistant.components.websocket_api import async_register_command
 from homeassistant.components.websocket_api.connection import ActiveConnection
 from homeassistant.components.websocket_api.decorators import (
     async_response,
+    require_admin,
     websocket_command,
 )
 from homeassistant.core import HomeAssistant, callback
@@ -16,7 +17,14 @@ from homeassistant.helpers import config_validation as cv
 
 from ..const import API_VERSION
 from ..domain.errors import OrchestratorError
+from ..ha_context import request_context
 from ..runtime import async_get_runtime
+from .configuration import (
+    COMMANDS,
+    QUERIES,
+    async_query_configuration,
+    execute_configuration,
+)
 from .presentation import present_job, present_queue
 
 TYPE_QUEUE_GET = "vacuum_orchestrator/queue/get"
@@ -38,6 +46,56 @@ def async_setup_websocket(hass: HomeAssistant) -> None:
     async_register_command(hass, websocket_job_get)
     async_register_command(hass, websocket_jobs_list)
     async_register_command(hass, websocket_subscribe)
+    async_register_command(hass, websocket_configuration_get)
+    async_register_command(hass, websocket_configuration_command)
+
+
+@websocket_command(
+    {
+        vol.Required("type"): "vacuum_orchestrator/configuration/get",
+        vol.Required("query"): vol.In(QUERIES),
+        vol.Optional("parameters", default={}): dict,
+    }
+)
+@async_response
+async def websocket_configuration_get(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Query room and configuration views through their action schemas."""
+    try:
+        data = QUERIES[msg["query"]](msg["parameters"])
+        connection.send_result(
+            msg["id"], await async_query_configuration(hass, msg["query"], data)
+        )
+    except vol.Invalid:
+        connection.send_error(msg["id"], "invalid_parameters", "invalid_parameters")
+    except OrchestratorError as err:
+        connection.send_error(msg["id"], err.code, err.code)
+
+
+@websocket_command(
+    {
+        vol.Required("type"): "vacuum_orchestrator/configuration/command",
+        vol.Required("command"): vol.In(COMMANDS),
+        vol.Required("parameters"): dict,
+    }
+)
+@require_admin
+@async_response
+async def websocket_configuration_command(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Use the same validated commands for HA and optional clients."""
+    try:
+        data = COMMANDS[msg["command"]](msg["parameters"])
+        with request_context(connection.context(msg)):
+            connection.send_result(
+                msg["id"], await execute_configuration(hass, msg["command"], data)
+            )
+    except vol.Invalid:
+        connection.send_error(msg["id"], "invalid_parameters", "invalid_parameters")
+    except OrchestratorError as err:
+        connection.send_error(msg["id"], err.code, err.code)
 
 
 @websocket_command({vol.Required("type"): TYPE_QUEUE_GET, **PAGE_FIELDS})
@@ -53,7 +111,11 @@ async def websocket_queue_get(
         limit = msg["limit"]
         selected = state.queue[offset : offset + limit]
         jobs = [
-            present_job(state.jobs[job_id], orchestrator.readiness_for_job(job_id))
+            present_job(
+                state.jobs[job_id],
+                orchestrator.readiness_for_job(job_id),
+                state.room_registry.rooms,
+            )
             for job_id in selected
         ]
         connection.send_result(
@@ -82,7 +144,10 @@ async def websocket_job_get(
             if job.job_id in orchestrator.state.queue
             else None
         )
-        connection.send_result(msg["id"], present_job(job, readiness))
+        connection.send_result(
+            msg["id"],
+            present_job(job, readiness, orchestrator.state.room_registry.rooms),
+        )
     except OrchestratorError as err:
         connection.send_error(msg["id"], err.code, str(err))
 
@@ -109,7 +174,10 @@ async def websocket_jobs_list(
                 "total": len(ordered),
                 "offset": offset,
                 "limit": limit,
-                "jobs": [present_job(job) for job in ordered[offset : offset + limit]],
+                "jobs": [
+                    present_job(job, rooms=state.room_registry.rooms)
+                    for job in ordered[offset : offset + limit]
+                ],
             },
         )
     except OrchestratorError as err:
@@ -136,6 +204,8 @@ def websocket_subscribe(
             {
                 "api_version": API_VERSION,
                 "commit_id": state.commit_id,
+                "runtime_id": orchestrator.runtime_id,
+                "runtime_sequence": orchestrator.runtime_sequence,
                 "queue_revision": state.queue_revision,
                 "mode": state.mode.value,
                 "pending_jobs": len(state.queue),
@@ -143,5 +213,5 @@ def websocket_subscribe(
             },
         )
 
-    connection.subscriptions[msg["id"]] = orchestrator.subscribe(state_changed)
+    connection.subscriptions[msg["id"]] = orchestrator.subscribe_view(state_changed)
     connection.send_result(msg["id"])

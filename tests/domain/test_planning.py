@@ -433,7 +433,7 @@ def test_selector_applies_supported_preferences_and_validates_observation() -> N
             "job",
             JobIntent(
                 (TargetRef("kitchen"),),
-                CleaningMode.VACUUM,
+                CleaningMode.VACUUM_AND_MOP,
                 preferences=CleaningPreferences(
                     vacuum_power=SemanticLevel.HIGH,
                     mop_route=MopRoute.DEEP,
@@ -466,3 +466,96 @@ def test_selector_applies_supported_preferences_and_validates_observation() -> N
     assert result.preference_resolution.applied == ("vacuum_power", "mop_route")
     with pytest.raises(PlanningError, match="invalid_battery_percentage"):
         RobotObservation("robot", "source", RobotAvailabilityState.AVAILABLE, 101)
+
+
+@pytest.mark.parametrize(
+    "operation,applied",
+    [
+        (OperationKind.VACUUM, ("vacuum_power",)),
+        (OperationKind.MOP, ("mop_intensity", "mop_route")),
+    ],
+)
+def test_phase_only_applies_relevant_preferences(
+    operation: OperationKind, applied: tuple[str, ...]
+) -> None:
+    profile = _profile()
+    profile = replace(
+        profile,
+        capabilities=replace(
+            profile.capabilities,
+            water_levels=frozenset({SemanticLevel.HIGH}),
+            mop_routes=frozenset({MopRoute.DEEP}),
+        ),
+    )
+    unit = (
+        Planner()
+        .create_plan(
+            "job",
+            JobIntent(
+                (TargetRef("kitchen"),),
+                CleaningMode.VACUUM_THEN_MOP,
+                preferences=CleaningPreferences(
+                    SemanticLevel.HIGH, SemanticLevel.HIGH, MopRoute.DEEP
+                ),
+            ),
+        )
+        .work_units[0]
+    )
+    observation = RobotObservation(
+        profile.robot_id, profile.source_robot_id, RobotAvailabilityState.AVAILABLE
+    )
+    result = RobotSelector().assign(
+        replace(unit, operation=operation),
+        (profile,),
+        {profile.robot_id: observation},
+        {},
+        frozenset(),
+        (),
+    )
+    assert result.preference_resolution.applied == applied
+    assert result.preference_resolution.omitted == ()
+
+
+def test_supported_preferences_outrank_preferred_robot_and_battery_minimum_blocks() -> (
+    None
+):
+    profile = _profile()
+    other = replace(
+        _profile("other", preference=100),
+        capabilities=replace(profile.capabilities, vacuum_levels=frozenset()),
+    )
+    unit = (
+        Planner()
+        .create_plan(
+            "job",
+            JobIntent(
+                (TargetRef("kitchen"),),
+                CleaningMode.VACUUM,
+                preferences=CleaningPreferences(vacuum_power=SemanticLevel.HIGH),
+            ),
+        )
+        .work_units[0]
+    )
+    observations = {
+        item.robot_id: RobotObservation(
+            item.robot_id, item.source_robot_id, RobotAvailabilityState.AVAILABLE, 0
+        )
+        for item in (profile, other)
+    }
+    result = RobotSelector().assign(
+        unit, (other, profile), observations, {}, frozenset(), ()
+    )
+    assert result.robot_id == profile.robot_id
+    with pytest.raises(PlanningError, match="battery_below_minimum"):
+        RobotSelector().assign(
+            unit,
+            (replace(profile, minimum_battery=20),),
+            observations,
+            {},
+            frozenset(),
+            (),
+        )
+    result = RobotSelector().assign(
+        unit, (replace(profile, minimum_battery=0),), observations, {}, frozenset(), ()
+    )
+    assert result.robot_id == profile.robot_id

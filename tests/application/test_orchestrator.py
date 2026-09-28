@@ -37,6 +37,12 @@ from custom_components.vacuum_orchestrator.domain.planning import (
     WorkUnit,
 )
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
+from custom_components.vacuum_orchestrator.domain.releases import (
+    ReleaseKind,
+    RoomRelease,
+)
+from custom_components.vacuum_orchestrator.domain.room_registry import RoomRegistry
+from custom_components.vacuum_orchestrator.domain.rooms import Room
 from custom_components.vacuum_orchestrator.domain.types import (
     AttemptState,
     CleaningMode,
@@ -130,13 +136,25 @@ class RecordingAdapter:
         self.cancel_count = 0
         self.fail_dispatch = False
         self.fail_cancel = False
+        self.confirm_completions = True
 
     @property
     def profile(self) -> RobotProfile:
         return self._profile
 
     async def async_observe(self) -> RobotObservation:
-        return self.observation
+        work = self.dispatches[-1][0] if self.dispatches else None
+        assignment = self.dispatches[-1][1] if self.dispatches else None
+        return replace(
+            self.observation,
+            cleaning_active=self.observation.state is RobotAvailabilityState.BUSY
+            if self.observation.cleaning_active is None
+            else self.observation.cleaning_active,
+            normal_end=self.observation.state is RobotAvailabilityState.AVAILABLE,
+            completion_confirmed=self.confirm_completions,
+            observed_operation=work.operation if work else None,
+            completed_targets=assignment.adapter_targets if assignment else (),
+        )
 
     async def async_dispatch(
         self, unit: WorkUnit, assignment: DispatchAssignment
@@ -183,13 +201,33 @@ async def _orchestrator(
     backend: RecordingBackend,
     *adapters: RecordingAdapter,
     states: dict[str, str | None] | None = None,
+    seed_rooms: bool = True,
 ) -> VacuumOrchestrator:
+    if seed_rooms and backend.data is None:
+        rooms = {
+            name: Room(
+                name,
+                name.title(),
+                area_id=name,
+                release=RoomRelease(f"grant-{name}", ReleaseKind.PERMANENT, NOW),
+            )
+            for name in ("kitchen", "hall")
+        }
+        await CriticalOrchestratorRepository(backend).async_commit(
+            replace(
+                OrchestratorState.empty("installation"),
+                room_registry=RoomRegistry(rooms),
+            ),
+            expected_previous_commit_id=-1,
+        )
     orchestrator = VacuumOrchestrator(
         "installation",
         CriticalOrchestratorRepository(backend),
         {adapter.profile.robot_id: adapter for adapter in adapters},
         state_reader=lambda refs: {item: (states or {}).get(item) for item in refs},
-        clock=lambda: NOW,
+        clock=lambda: max(
+            (NOW, *(adapter.observation.observed_at or NOW for adapter in adapters))
+        ),
         id_factory=IdFactory(),
     )
     await orchestrator.async_initialize()
@@ -577,3 +615,21 @@ def test_existing_plan_guard_rejects_incoherent_dispatching_job() -> None:
 
     with pytest.raises(ConflictError, match="job_plan_missing"):
         VacuumOrchestrator._existing_plan(state, job)
+
+
+async def test_robot_pool_change_during_observation_preserves_sample_identity(
+    monkeypatch,
+):
+    backend = RecordingBackend()
+    adapter = RecordingAdapter(backend, "robot")
+    core = await _orchestrator(backend, adapter)
+
+    async def observe_and_remove():
+        await core.async_replace_adapters({})
+        raise RuntimeError("device removed during sample")
+
+    monkeypatch.setattr(adapter, "async_observe", observe_and_remove)
+    samples = await core._observe_robots()
+    assert samples["robot"].source_robot_id == "source-robot"
+    assert samples["robot"].state is RobotAvailabilityState.UNKNOWN
+    assert not core.adapters

@@ -15,13 +15,12 @@ from .capabilities import (
 from .errors import PlanningError
 from .execution import RobotLease
 from .planning import DispatchAssignment, PreferenceResolution, WorkUnit
-from .types import RobotAvailabilityState, SettingsPolicy
+from .types import OperationKind, RobotAvailabilityState, SettingsPolicy
 
 _REQUIRED_START_EVIDENCE = frozenset({StartEvidence.ACTIVITY_START_TRANSITION})
 _REQUIRED_COMPLETION_EVIDENCE = frozenset(
     {
         CompletionEvidence.ACTIVITY_TERMINAL_TRANSITION,
-        CompletionEvidence.CLEANING_HISTORY_TIMESTAMPS,
     }
 )
 
@@ -38,6 +37,12 @@ class RobotObservation:
     observed_at: datetime | None = None
     history_start: datetime | None = None
     history_end: datetime | None = None
+    cleaning_active: bool | None = None
+    normal_end: bool = False
+    error_code: str | None = None
+    observed_operation: OperationKind | None = None
+    completed_targets: tuple[str, ...] = ()
+    completion_confirmed: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -76,7 +81,7 @@ class RobotSelector:
         if any(set(unit.canonical_targets) & targets for targets in active_target_sets):
             raise PlanningError("target_overlap_active")
 
-        successes: list[tuple[tuple[int, int, str], DispatchAssignment]] = []
+        successes: list[tuple[tuple[int, int, int, str], DispatchAssignment]] = []
         failures: list[str] = []
         for profile in candidates:
             try:
@@ -92,8 +97,11 @@ class RobotSelector:
                 continue
             observation = observations[profile.robot_id]
             score = (
+                -len(assignment.preference_resolution.omitted),
                 profile.preference,
-                observation.battery_percentage or -1,
+                observation.battery_percentage
+                if observation.battery_percentage is not None
+                else -1,
                 profile.robot_id,
             )
             successes.append((score, assignment))
@@ -120,6 +128,11 @@ class RobotSelector:
             raise PlanningError("robot_availability_unknown")
         if observation.state is not RobotAvailabilityState.AVAILABLE:
             raise PlanningError(f"robot_{observation.state.value}")
+        if profile.minimum_battery is not None and (
+            observation.battery_percentage is None
+            or observation.battery_percentage < profile.minimum_battery
+        ):
+            raise PlanningError("battery_below_minimum")
         if profile.source_robot_id in blocked_source_robot_ids:
             raise PlanningError("robot_needs_attention")
         if profile.source_robot_id in leases:
@@ -169,6 +182,10 @@ class RobotSelector:
             "mop_route": (unit.preferences.mop_route, capabilities.mop_routes),
         }
         for name, (value, supported) in requested.items():
+            if (name == "vacuum_power" and unit.operation is OperationKind.MOP) or (
+                name != "vacuum_power" and unit.operation is OperationKind.VACUUM
+            ):
+                continue
             if value is None:
                 continue
             (applied if value in supported else omitted).append(name)
@@ -180,10 +197,16 @@ class RobotSelector:
             source_robot_id=profile.source_robot_id,
             adapter=profile.adapter,
             adapter_targets=tuple(
-                capabilities.target_map[target] for target in unit.canonical_targets
+                segment
+                for target in unit.canonical_targets
+                for segment in capabilities.targets_for(target)
             ),
             capability_revision=capabilities.revision,
             preference_resolution=PreferenceResolution(tuple(applied), tuple(omitted)),
+            room_targets={
+                target: capabilities.targets_for(target)
+                for target in unit.canonical_targets
+            },
         )
 
 

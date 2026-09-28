@@ -1,10 +1,16 @@
 """Tests for single-runtime composition and physical ownership."""
 
 from copy import deepcopy
+from dataclasses import replace
+from types import MappingProxyType
 
 import pytest
 from homeassistant.components.vacuum.const import VacuumEntityFeature
-from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigSubentry
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.vacuum_orchestrator.const import (
@@ -17,7 +23,12 @@ from custom_components.vacuum_orchestrator.const import (
     DOMAIN,
     SUBENTRY_TYPE_ROBOT,
 )
+from custom_components.vacuum_orchestrator.domain.due import DueBasis, DuePolicy
 from custom_components.vacuum_orchestrator.domain.errors import ConflictError
+from custom_components.vacuum_orchestrator.domain.intents import JobIntent, TargetRef
+from custom_components.vacuum_orchestrator.domain.releases import ReleaseKind
+from custom_components.vacuum_orchestrator.domain.requirements import StateRequirement
+from custom_components.vacuum_orchestrator.domain.types import CleaningMode, JobState
 from custom_components.vacuum_orchestrator.infrastructure.integrity import JsonObject
 from custom_components.vacuum_orchestrator.runtime import (
     async_get_registry,
@@ -100,3 +111,180 @@ def test_runtime_resolution_rejects_zero_or_multiple_entries(
     registry["two"] = object()  # type: ignore[assignment]
     with pytest.raises(ConflictError, match="multiple"):
         async_get_runtime(hass)
+
+
+async def test_runtime_discovers_robot_and_preserves_explicit_removal(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    MemoryBackend.data = None
+    monkeypatch.setattr(
+        "custom_components.vacuum_orchestrator.runtime.HomeAssistantSnapshotBackend",
+        MemoryBackend,
+    )
+    registry = er.async_get(hass)
+    vacuum = registry.async_get_or_create("vacuum", "demo", "unit")
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
+    entry.add_to_hass(hass)
+    await async_setup_orchestrator(hass, entry)
+    await hass.async_block_till_done()
+    assert len(entry.subentries) == 1
+    subentry = next(iter(entry.subentries.values()))
+    assert subentry.data[CONF_ROBOT_REGISTRY_ID] == vacuum.id
+    runtime = entry.runtime_data
+    hass.config_entries.async_remove_subentry(entry, subentry.subentry_id)
+    await hass.async_block_till_done()
+    assert not entry.subentries
+    assert vacuum.id in entry.data["excluded_robot_registry_ids"]
+    assert entry.runtime_data is runtime
+    registry.async_update_entity(vacuum.entity_id, new_entity_id="vacuum.renamed")
+    await hass.async_block_till_done()
+    assert not entry.subentries
+    await async_unload_orchestrator(hass, entry)
+
+
+async def test_room_state_change_wakes_queue_and_unload_fences_active_job(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    MemoryBackend.data = None
+    monkeypatch.setattr(
+        "custom_components.vacuum_orchestrator.runtime.HomeAssistantSnapshotBackend",
+        MemoryBackend,
+    )
+    registry = er.async_get(hass)
+    vacuum = registry.async_get_or_create(
+        "vacuum", "demo", "unit", suggested_object_id="test"
+    )
+    area = ar.async_get(hass).async_create("Kitchen")
+    registry.async_update_entity_options(
+        vacuum.entity_id, "vacuum", {"area_mapping": {area.id: ["16"]}}
+    )
+    attrs = {
+        "supported_features": int(
+            VacuumEntityFeature.CLEAN_AREA | VacuumEntityFeature.STOP
+        )
+    }
+    hass.states.async_set(vacuum.entity_id, "docked", attrs)
+    hass.states.async_set("binary_sensor.door", "off")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_INSTALLATION_ID: DOMAIN, "auto_discover_robots": False},
+    )
+    entry.add_to_hass(hass)
+    subentry = ConfigSubentry(
+        data=MappingProxyType(
+            {
+                CONF_ROBOT_REGISTRY_ID: vacuum.id,
+                CONF_ROBOT_ENTITY_ID: vacuum.entity_id,
+                CONF_ADAPTER: "home_assistant",
+                CONF_TARGET_AREAS: [area.id],
+                "fixed_mode": "vacuum",
+            }
+        ),
+        subentry_type="robot",
+        title="Robot",
+        unique_id=vacuum.id,
+    )
+    hass.config_entries.async_add_subentry(entry, subentry)
+    calls = []
+
+    async def clean(call: ServiceCall):
+        calls.append(call)
+        hass.states.async_set(vacuum.entity_id, "cleaning", attrs)
+
+    hass.services.async_register("vacuum", "clean_area", clean)
+    await async_setup_orchestrator(hass, entry)
+    await hass.async_block_till_done()
+    orchestrator = entry.runtime_data.orchestrator
+    room = orchestrator.rooms.registry.resolve(area.id)
+    await orchestrator.rooms.async_grant(room.room_id, ReleaseKind.ONCE)
+    await orchestrator.rooms.async_update(
+        room.room_id,
+        lambda current: replace(
+            current, requirements=(StateRequirement("binary_sensor.door"),)
+        ),
+    )
+    job = await orchestrator.async_create_job(
+        JobIntent((TargetRef(area.id),), CleaningMode.VACUUM)
+    )
+    await orchestrator.async_run_queue()
+    await hass.async_block_till_done()
+    assert not calls
+    hass.states.async_set("binary_sensor.door", "on")
+    await hass.async_block_till_done()
+    assert len(calls) == 1
+    assert orchestrator.state.jobs[job].state is JobState.RUNNING
+    assert orchestrator.rooms.registry.resolve(room.room_id).release.consumed
+    await async_unload_orchestrator(hass, entry)
+    assert orchestrator.state.jobs[job].state is JobState.NEEDS_ATTENTION
+    hass.states.async_set("binary_sensor.door", "off")
+    await hass.async_block_till_done()
+    assert len(calls) == 1
+
+
+async def test_occupancy_binding_follows_rename_and_never_reuses_deleted_entity(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    MemoryBackend.data = None
+    monkeypatch.setattr(
+        "custom_components.vacuum_orchestrator.runtime.HomeAssistantSnapshotBackend",
+        MemoryBackend,
+    )
+    registry = er.async_get(hass)
+    sensor = registry.async_get_or_create("binary_sensor", "demo", "occupied")
+    hass.states.async_set(sensor.entity_id, "on")
+    area = ar.async_get(hass).async_create("Room")
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
+    entry.add_to_hass(hass)
+    await async_setup_orchestrator(hass, entry)
+    await hass.async_block_till_done()
+    core = entry.runtime_data.orchestrator
+    room_id = core.rooms.registry.resolve(area.id).room_id
+    await core.rooms.async_update(
+        room_id,
+        lambda room: replace(
+            room,
+            due_policy=DuePolicy(
+                DueBasis.OCCUPIED,
+                3600,
+                occupancy_entity_id=sensor.entity_id,
+                occupancy_entity_registry_id=sensor.id,
+            ),
+        ),
+    )
+    await hass.async_block_till_done()
+    assert core.rooms.registry.resolve(room_id).occupancy.occupied is True
+    epoch = core.rooms.registry.resolve(room_id).occupancy.epoch
+    registry.async_update_entity(
+        sensor.entity_id, new_entity_id="binary_sensor.renamed"
+    )
+    hass.states.async_set("binary_sensor.renamed", "off")
+    await hass.async_block_till_done()
+    assert core.rooms.registry.resolve(room_id).occupancy.occupied is False
+    assert core.rooms.registry.resolve(room_id).occupancy.epoch == epoch
+    registry.async_remove("binary_sensor.renamed")
+    await hass.async_block_till_done()
+    assert core.rooms.registry.resolve(room_id).occupancy.occupied is None
+    assert hass.states.get(sensor.entity_id).state == "on"
+    await async_unload_orchestrator(hass, entry)
+
+
+async def test_home_assistant_stop_closes_runtime_before_later_unload(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+):
+    MemoryBackend.data = None
+    monkeypatch.setattr(
+        "custom_components.vacuum_orchestrator.runtime.HomeAssistantSnapshotBackend",
+        MemoryBackend,
+    )
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
+    entry.add_to_hass(hass)
+    await async_setup_orchestrator(hass, entry)
+    await hass.async_block_till_done()
+    core = entry.runtime_data.orchestrator
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
+    await hass.async_block_till_done()
+    with pytest.raises(ConflictError, match="shutting_down"):
+        await core.async_create_job(
+            JobIntent((TargetRef("room"),), CleaningMode.VACUUM)
+        )
+    await async_unload_orchestrator(hass, entry)

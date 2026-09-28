@@ -1,9 +1,10 @@
 """Tests for single-entry setup and Roborock subentries."""
 
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
-from homeassistant.config_entries import SOURCE_USER
+from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -84,10 +85,14 @@ async def test_robot_subentry_rejects_wrong_or_missing_entity(
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
     entry.add_to_hass(hass)
     wrong = er.async_get(hass).async_get_or_create(
-        "vacuum", "demo", "serial", suggested_object_id="wrong"
+        "vacuum",
+        "demo",
+        "serial",
+        suggested_object_id="wrong",
+        disabled_by=er.RegistryEntryDisabler.USER,
     )
     for entity_id, expected in (
-        (wrong.entity_id, "not_roborock_entity"),
+        (wrong.entity_id, "vacuum_unavailable"),
         ("vacuum.missing", "entity_not_registered"),
     ):
         result = await hass.config_entries.subentries.async_init(
@@ -120,3 +125,77 @@ async def test_pre_release_config_entry_migration_is_single_installation(
 
     unsupported = MockConfigEntry(domain=DOMAIN, data={}, version=99)
     assert not await async_migrate_entry(hass, unsupported)
+
+
+async def test_reconfigure_tracks_renames_and_blocks_active_robot(
+    hass: HomeAssistant, enable_custom_integrations: None
+) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    entity = registry.async_get_or_create("vacuum", "demo", "robot")
+    flow = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_ROBOT), context={"source": SOURCE_USER}
+    )
+    created = await hass.config_entries.subentries.async_configure(
+        flow["flow_id"], {CONF_ROBOT_ENTITY_ID: entity.entity_id}
+    )
+    assert created["type"] == "create_entry"
+    subentry = next(iter(entry.subentries.values()))
+    registry.async_update_entity(entity.entity_id, new_entity_id="vacuum.renamed")
+    flow = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_ROBOT),
+        context={"source": SOURCE_RECONFIGURE, "subentry_id": subentry.subentry_id},
+    )
+    assert flow["step_id"] == "reconfigure"
+    entry.runtime_data = SimpleNamespace(
+        orchestrator=SimpleNamespace(
+            state=SimpleNamespace(
+                robot_leases={"source": SimpleNamespace(robot_id=subentry.subentry_id)}
+            )
+        )
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        flow["flow_id"],
+        {CONF_ROBOT_ENTITY_ID: "vacuum.renamed", CONF_TARGET_AREAS: ["kitchen"]},
+    )
+    assert result["errors"] == {CONF_ROBOT_ENTITY_ID: "robot_busy"}
+    entry.runtime_data.orchestrator.state.robot_leases.clear()
+    result = await hass.config_entries.subentries.async_configure(
+        flow["flow_id"],
+        {CONF_ROBOT_ENTITY_ID: "vacuum.renamed", CONF_TARGET_AREAS: ["kitchen"]},
+    )
+    assert result["type"] == "abort"
+    assert result["reason"] == "reconfigure_successful"
+    assert (
+        entry.subentries[subentry.subentry_id].data[CONF_ROBOT_REGISTRY_ID] == entity.id
+    )
+    assert (
+        entry.subentries[subentry.subentry_id].data[CONF_ROBOT_ENTITY_ID]
+        == "vacuum.renamed"
+    )
+
+
+async def test_reconfigure_cannot_replace_physical_entity(
+    hass: HomeAssistant, enable_custom_integrations: None
+) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    entity = registry.async_get_or_create("vacuum", "demo", "first")
+    other = registry.async_get_or_create("vacuum", "demo", "second")
+    flow = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_ROBOT), context={"source": SOURCE_USER}
+    )
+    await hass.config_entries.subentries.async_configure(
+        flow["flow_id"], {CONF_ROBOT_ENTITY_ID: entity.entity_id}
+    )
+    subentry = next(iter(entry.subentries.values()))
+    flow = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_ROBOT),
+        context={"source": SOURCE_RECONFIGURE, "subentry_id": subentry.subentry_id},
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        flow["flow_id"], {CONF_ROBOT_ENTITY_ID: other.entity_id}
+    )
+    assert result["errors"] == {CONF_ROBOT_ENTITY_ID: "robot_identity_change"}

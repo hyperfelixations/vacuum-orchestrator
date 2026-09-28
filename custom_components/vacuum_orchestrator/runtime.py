@@ -2,36 +2,27 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import cast
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Event, HomeAssistant, callback
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import entity_registry as er
 
-from .adapters.home_assistant_vacuum import HomeAssistantVacuumAdapter
 from .application.orchestrator import VacuumOrchestrator
 from .application.robot_session import RobotOwnershipRegistry
-from .const import (
-    CONF_ADAPTER,
-    CONF_INSTALLATION_ID,
-    CONF_LAST_CLEAN_END_ENTITY_ID,
-    CONF_LAST_CLEAN_START_ENTITY_ID,
-    CONF_ROBOT_ENTITY_ID,
-    CONF_ROBOT_REGISTRY_ID,
-    CONF_TARGET_AREAS,
-    DOMAIN,
-    STORE_VERSION,
-    SUBENTRY_TYPE_ROBOT,
-)
+from .application.room_service import AreaSnapshot
+from .const import CONF_INSTALLATION_ID, DOMAIN, STORE_VERSION
 from .domain.errors import ConflictError
+from .domain.requirements import StateObservation, StateRequirement
 from .infrastructure.critical_repository import (
     CriticalOrchestratorRepository,
     MigratingOrchestratorRepository,
 )
 from .infrastructure.ha_store import HomeAssistantSnapshotBackend
-from .ports.robot import RobotAdapter
+from .runtime_adapters import build_adapters
+from .runtime_controller import RuntimeController
 
 RUNTIME_KEY = f"{DOMAIN}_runtime"
 OWNERSHIP_KEY = f"{DOMAIN}_ownership"
@@ -43,7 +34,7 @@ class VacuumOrchestratorRuntime:
 
     orchestrator: VacuumOrchestrator
     source_robot_ids: tuple[str, ...]
-    unsubscribe_observer: Callable[[], None] | None = None
+    controller: RuntimeController | None = None
 
 
 def async_get_registry(hass: HomeAssistant) -> dict[str, VacuumOrchestratorRuntime]:
@@ -73,37 +64,15 @@ def _ownership_registry(hass: HomeAssistant) -> RobotOwnershipRegistry:
 async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Compose robot adapters and initialize the one global state owner."""
     installation_id = str(entry.data[CONF_INSTALLATION_ID])
-    adapters: dict[str, RobotAdapter] = {}
     source_ids: list[str] = []
     ownership = _ownership_registry(hass)
     try:
-        for subentry_id, subentry in entry.subentries.items():
-            if subentry.subentry_type != SUBENTRY_TYPE_ROBOT:
-                continue
-            data: dict[str, Any] = dict(subentry.data)
-            registry_id = str(data[CONF_ROBOT_REGISTRY_ID])
-            source_robot_id = f"entity_registry:{registry_id}"
-            ownership.claim(source_robot_id, installation_id)
-            source_ids.append(source_robot_id)
-            targets = tuple(str(item) for item in data[CONF_TARGET_AREAS])
-            adapters[subentry_id] = HomeAssistantVacuumAdapter(
-                hass,
-                robot_id=subentry_id,
-                source_robot_id=source_robot_id,
-                entity_id=str(data[CONF_ROBOT_ENTITY_ID]),
-                adapter_name=str(data[CONF_ADAPTER]),
-                target_areas=targets,
-                last_clean_start_entity_id=(
-                    str(data[CONF_LAST_CLEAN_START_ENTITY_ID])
-                    if data.get(CONF_LAST_CLEAN_START_ENTITY_ID)
-                    else None
-                ),
-                last_clean_end_entity_id=(
-                    str(data[CONF_LAST_CLEAN_END_ENTITY_ID])
-                    if data.get(CONF_LAST_CLEAN_END_ENTITY_ID)
-                    else None
-                ),
-            )
+        adapters, aliases = build_adapters(
+            hass, entry, lambda: orchestrator.state.room_registry.rooms
+        )
+        for source_id in set().union(*aliases.values()) if aliases else ():
+            ownership.claim(source_id, installation_id)
+            source_ids.append(source_id)
         repository = MigratingOrchestratorRepository(
             CriticalOrchestratorRepository(
                 HomeAssistantSnapshotBackend(hass, f"{DOMAIN}.{STORE_VERSION}")
@@ -128,44 +97,53 @@ async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> b
                 for reference in references
             }
 
+        def requirement_reader(
+            requirements: tuple[StateRequirement, ...],
+        ) -> dict[str, StateObservation]:
+            observations = {}
+            registry = er.async_get(hass)
+            for requirement in requirements:
+                entity_id = requirement.entity_id
+                if requirement.entity_registry_id is not None:
+                    binding = registry.async_get(requirement.entity_registry_id)
+                    entity_id = (
+                        binding.entity_id
+                        if binding is not None and not binding.disabled
+                        else ""
+                    )
+                value = hass.states.get(entity_id) if entity_id else None
+                observations[requirement.entity_id] = StateObservation(
+                    value.state if value else None,
+                    value.last_reported if value else None,
+                )
+            return observations
+
         orchestrator = VacuumOrchestrator(
             installation_id,
             repository,
             adapters,
             state_reader=state_reader,
+            requirement_reader=requirement_reader,
         )
         await orchestrator.async_initialize()
+        await orchestrator.rooms.async_import_areas(
+            {
+                area.id: AreaSnapshot(area.name, area.floor_id)
+                for area in ar.async_get(hass).async_list_areas()
+            }
+        )
     except Exception:
         for source_robot_id in source_ids:
             ownership.release(source_robot_id, installation_id)
         raise
 
-    watched_by_robot: dict[str, set[str]] = {
-        robot_id: set(adapter.watched_entity_ids)
-        for robot_id, adapter in adapters.items()
-        if isinstance(adapter, HomeAssistantVacuumAdapter)
-    }
-    entity_ids = set().union(*watched_by_robot.values()) if watched_by_robot else set()
-
-    @callback
-    def observation_changed(event: Event[Any]) -> None:
-        entity_id = str(event.data["entity_id"])
-        for robot_id, watched in watched_by_robot.items():
-            if entity_id in watched:
-                hass.async_create_task(
-                    orchestrator.async_process_robot_observation(robot_id),
-                    f"{DOMAIN} observation {robot_id}",
-                )
-
-    unsubscribe = (
-        async_track_state_change_event(hass, entity_ids, observation_changed)
-        if entity_ids
-        else None
+    controller = RuntimeController(
+        hass, entry, orchestrator, ownership, installation_id, aliases
     )
-    runtime = VacuumOrchestratorRuntime(orchestrator, tuple(source_ids), unsubscribe)
+    runtime = VacuumOrchestratorRuntime(orchestrator, tuple(source_ids), controller)
     async_get_registry(hass)[entry.entry_id] = runtime
     entry.runtime_data = runtime
-    entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
+    controller.start()
     return True
 
 
@@ -174,15 +152,6 @@ async def async_unload_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> 
     runtime = async_get_registry(hass).pop(entry.entry_id, None)
     if runtime is None:
         return True
-    if runtime.unsubscribe_observer is not None:
-        runtime.unsubscribe_observer()
-    installation_id = str(entry.data[CONF_INSTALLATION_ID])
-    ownership = _ownership_registry(hass)
-    for source_robot_id in runtime.source_robot_ids:
-        ownership.release(source_robot_id, installation_id)
+    if runtime.controller is not None:
+        await runtime.controller.async_close()
     return True
-
-
-async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload runtime composition after robot-profile changes."""
-    await hass.config_entries.async_reload(entry.entry_id)

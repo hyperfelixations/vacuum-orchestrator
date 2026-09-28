@@ -24,7 +24,7 @@ from tests.domain.test_rooms import receipt
 
 
 async def test_area_import_rename_exclusion_deletion_and_reappearance() -> None:
-    orchestrator = await _orchestrator(RecordingBackend())
+    orchestrator = await _orchestrator(RecordingBackend(), seed_rooms=False)
     service = orchestrator.rooms
     await service.async_import_areas({"kitchen": AreaSnapshot("Kitchen", "floor")})
     room = service.registry.resolve("kitchen")
@@ -51,7 +51,7 @@ async def test_area_import_rename_exclusion_deletion_and_reappearance() -> None:
 
 
 async def test_grant_revoke_and_runtime_facts_cannot_be_patched() -> None:
-    orchestrator = await _orchestrator(RecordingBackend())
+    orchestrator = await _orchestrator(RecordingBackend(), seed_rooms=False)
     service = orchestrator.rooms
     room_id = await service.async_create("Kitchen")
     await service.async_grant(room_id, ReleaseKind.TIMED, 7200)
@@ -71,8 +71,16 @@ async def test_grant_revoke_and_runtime_facts_cannot_be_patched() -> None:
 
 async def test_room_configuration_is_protected_during_execution() -> None:
     backend = RecordingBackend()
-    orchestrator = await _orchestrator(backend, RecordingAdapter(backend, "robot"))
+    adapter = RecordingAdapter(backend, "robot")
+    orchestrator = await _orchestrator(backend, adapter, seed_rooms=False)
     room_id = await orchestrator.rooms.async_create("Kitchen", area_id="kitchen")
+    await orchestrator.rooms.async_grant(room_id, ReleaseKind.PERMANENT)
+    adapter._profile = replace(
+        adapter.profile,
+        capabilities=replace(
+            adapter.profile.capabilities, target_map={room_id: "kitchen"}
+        ),
+    )
     job_id = await orchestrator.async_create_job(_intent())
     await orchestrator.async_start_job(job_id)
     with pytest.raises(ConflictError, match="room_has_active_job"):
@@ -80,7 +88,7 @@ async def test_room_configuration_is_protected_during_execution() -> None:
 
 
 async def test_policy_change_resets_counter_epoch_and_records_restart_gap() -> None:
-    orchestrator = await _orchestrator(RecordingBackend())
+    orchestrator = await _orchestrator(RecordingBackend(), seed_rooms=False)
     service = orchestrator.rooms
     room_id = await service.async_create("Kitchen")
     await service.async_update(

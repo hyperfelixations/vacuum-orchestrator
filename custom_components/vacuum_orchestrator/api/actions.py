@@ -29,9 +29,8 @@ from ..const import (
     SERVICE_START_JOB,
     SERVICE_UPDATE_JOB,
 )
-from ..domain.errors import OrchestratorError, ValidationError
+from ..domain.errors import OrchestratorError
 from ..domain.intents import (
-    CleaningPreferences,
     JobIntent,
     JobIntentPatch,
     TargetRef,
@@ -42,9 +41,11 @@ from ..domain.types import (
     QueueMode,
     SemanticLevel,
     SettingsPolicy,
-    parse_cleaning_mode,
 )
+from ..ha_context import request_context
 from ..runtime import VacuumOrchestratorRuntime, async_get_runtime
+from .configuration import setup_configuration_actions
+from .job_input import CREATE_SCHEMA, _mode, intent_from_data
 from .presentation import present_job, present_queue
 
 ATTR_JOB_ID = "job_id"
@@ -68,36 +69,6 @@ ATTR_OFFSET = "offset"
 ATTR_LIMIT = "limit"
 
 
-def _mode(value: object) -> object:
-    try:
-        return parse_cleaning_mode(value)
-    except ValidationError as err:
-        raise vol.Invalid(str(err)) from err
-
-
-INTENT_FIELDS: dict[Any, Any] = {
-    vol.Required(ATTR_AREAS): vol.All(cv.ensure_list, [cv.string]),
-    vol.Required(ATTR_MODE): _mode,
-    vol.Optional(ATTR_NAME): cv.string,
-    vol.Optional(ATTR_VACUUM_POWER): vol.Coerce(SemanticLevel),
-    vol.Optional(ATTR_MOP_INTENSITY): vol.Coerce(SemanticLevel),
-    vol.Optional(ATTR_MOP_ROUTE): vol.Coerce(MopRoute),
-    vol.Optional(ATTR_PASSES, default=1): vol.All(
-        vol.Coerce(int), vol.Range(min=1, max=10)
-    ),
-    vol.Optional(ATTR_SOURCE): cv.string,
-    vol.Optional(ATTR_REASON): cv.string,
-    vol.Optional(ATTR_NOTE): cv.string,
-    vol.Optional(ATTR_DEDUPE_KEY): cv.string,
-    vol.Optional(ATTR_REQUIRED_ON, default=[]): vol.All(cv.ensure_list, [cv.entity_id]),
-    vol.Optional(ATTR_REQUIRED_OFF, default=[]): vol.All(
-        cv.ensure_list, [cv.entity_id]
-    ),
-    vol.Optional(ATTR_SETTINGS_POLICY, default=SettingsPolicy.BEST_EFFORT): vol.Coerce(
-        SettingsPolicy
-    ),
-}
-CREATE_SCHEMA = vol.Schema(INTENT_FIELDS)
 UPDATE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_JOB_ID): cv.string,
@@ -147,6 +118,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
     """Register integration actions exactly once."""
     if hass.services.has_service(DOMAIN, SERVICE_CREATE_JOB):
         return
+    setup_configuration_actions(hass)
 
     async def create_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
@@ -235,7 +207,9 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         selected = state.queue[offset : offset + limit]
         jobs = [
             present_job(
-                state.jobs[job_id], runtime.orchestrator.readiness_for_job(job_id)
+                state.jobs[job_id],
+                runtime.orchestrator.readiness_for_job(job_id),
+                state.room_registry.rooms,
             )
             for job_id in selected
         ]
@@ -255,7 +229,9 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
             if job.state.value == "queued"
             else None
         )
-        return cast(ServiceResponse, present_job(job, readiness))
+        return cast(
+            ServiceResponse, present_job(job, readiness, state.room_registry.rooms)
+        )
 
     _register(hass, SERVICE_CREATE_JOB, create_job, CREATE_SCHEMA, optional=True)
     _register(hass, SERVICE_UPDATE_JOB, update_job, UPDATE_SCHEMA, optional=True)
@@ -279,10 +255,17 @@ def _register(
     *,
     optional: bool = False,
 ) -> None:
+    async def contextual(call: ServiceCall) -> ServiceResponse | None:
+        with request_context(call.context):
+            try:
+                return cast(ServiceResponse | None, await handler(call))
+            except OrchestratorError as err:
+                raise ServiceValidationError(err.code) from err
+
     hass.services.async_register(
         DOMAIN,
         name,
-        handler,
+        contextual,
         schema=schema,
         supports_response=(
             SupportsResponse.OPTIONAL if optional else SupportsResponse.NONE
@@ -316,24 +299,7 @@ async def _runtime_for_call(
 
 
 def _intent_from_call(call: ServiceCall) -> JobIntent:
-    return JobIntent(
-        areas=tuple(TargetRef(area_id) for area_id in call.data[ATTR_AREAS]),
-        mode=call.data[ATTR_MODE],
-        name=call.data.get(ATTR_NAME),
-        preferences=CleaningPreferences(
-            call.data.get(ATTR_VACUUM_POWER),
-            call.data.get(ATTR_MOP_INTENSITY),
-            call.data.get(ATTR_MOP_ROUTE),
-        ),
-        passes=call.data[ATTR_PASSES],
-        source=call.data.get(ATTR_SOURCE),
-        reason=call.data.get(ATTR_REASON),
-        note=call.data.get(ATTR_NOTE),
-        dedupe_key=call.data.get(ATTR_DEDUPE_KEY),
-        required_on=tuple(call.data[ATTR_REQUIRED_ON]),
-        required_off=tuple(call.data[ATTR_REQUIRED_OFF]),
-        settings_policy=call.data[ATTR_SETTINGS_POLICY],
-    )
+    return intent_from_data(dict(call.data))
 
 
 def _patch_from_call(call: ServiceCall) -> JobIntentPatch:

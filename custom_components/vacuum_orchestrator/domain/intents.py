@@ -80,6 +80,14 @@ class JobIntent:
     def __post_init__(self) -> None:
         if not self.areas:
             raise ValidationError("job_requires_area")
+        if (
+            self.mode is not CleaningMode.MOP
+            and self.preferences.vacuum_power is SemanticLevel.OFF
+        ) or (
+            self.mode is not CleaningMode.VACUUM
+            and self.preferences.mop_intensity is SemanticLevel.OFF
+        ):
+            raise ValidationError("preference_conflicts_with_cleaning_mode")
         area_ids = [target.area_id for target in self.areas]
         if len(area_ids) != len(set(area_ids)):
             raise ValidationError("duplicate_area")

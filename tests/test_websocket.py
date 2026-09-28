@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from homeassistant.components.websocket_api.connection import ActiveConnection
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
 
 from custom_components.vacuum_orchestrator.api import websocket as websocket_api
 from custom_components.vacuum_orchestrator.application.orchestrator import (
@@ -31,12 +31,14 @@ class StubOrchestrator:
         self.state = OrchestratorState.empty("installation").add_job("job", intent, NOW)
         self.listener: Callable[[], None] | None = None
         self.unsubscribed = False
+        self.runtime_id = "runtime"
+        self.runtime_sequence = 1
 
     def readiness_for_job(self, job_id: str) -> object:
         assert job_id == "job"
         return None
 
-    def subscribe(self, listener: Callable[[], None]) -> Callable[[], None]:
+    def subscribe_view(self, listener: Callable[[], None]) -> Callable[[], None]:
         self.listener = listener
 
         def unsubscribe() -> None:
@@ -56,6 +58,9 @@ class Connection:
 
     def send_result(self, message_id: int, result: Any = None) -> None:
         self.results.append((message_id, result))
+
+    def context(self, msg: dict[str, Any]) -> Context:
+        return Context()
 
     def send_error(self, message_id: int, code: str, message: str) -> None:
         self.errors.append((message_id, code, message))
@@ -135,6 +140,8 @@ def test_websocket_subscription_emits_lightweight_commit_notification(
             {
                 "api_version": API_VERSION,
                 "commit_id": 1,
+                "runtime_id": "runtime",
+                "runtime_sequence": 1,
                 "queue_revision": 1,
                 "mode": "idle",
                 "pending_jobs": 1,
@@ -200,4 +207,6 @@ def test_websocket_setup_registers_all_commands(
         websocket_api.websocket_job_get,
         websocket_api.websocket_jobs_list,
         websocket_api.websocket_subscribe,
+        websocket_api.websocket_configuration_get,
+        websocket_api.websocket_configuration_command,
     ]
