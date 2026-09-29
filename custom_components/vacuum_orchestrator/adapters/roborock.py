@@ -14,6 +14,7 @@ from ..domain.planning import DispatchAssignment, WorkUnit
 from ..domain.types import PassScope, RobotAvailabilityState
 from ..ha_context import physical_context
 from ..ports.command_scope import check_command_authorization
+from ..ports.telemetry import TelemetryEvent, report_adapter
 from .home_assistant_vacuum import HomeAssistantVacuumAdapter
 from .settings import available_options, supported_mapping
 
@@ -259,6 +260,7 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
                 int(target.split("_")[1]) for target in assignment.adapter_targets
             )
         )
+        report_adapter(TelemetryEvent.PHYSICAL, "requested")
         await self._hass.services.async_call(
             "vacuum",
             "send_command",

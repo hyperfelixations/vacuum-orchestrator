@@ -47,6 +47,7 @@ from ..domain.types import (
 )
 from ..ha_context import physical_context
 from ..ports.command_scope import check_command_authorization
+from ..ports.telemetry import TelemetryEvent, report_adapter
 from .discovery import candidate_for, resolve_entity_id
 from .settings import async_set_option, available_options, supported_mapping
 
@@ -427,7 +428,11 @@ class HomeAssistantVacuumAdapter:
         if mode is not None and mode_entity is not None:
             await self._ensure_available()
             await async_set_option(
-                self._hass, mode_entity, mode, confirmation_seconds=timeout
+                self._hass,
+                mode_entity,
+                mode,
+                confirmation_seconds=timeout,
+                setting="cleaning_mode",
             )
         elif self._configuration.get("fixed_mode") != unit.operation.value:
             raise ConflictError("unsupported_operation")
@@ -452,6 +457,8 @@ class HomeAssistantVacuumAdapter:
             ),
         ):
             if key not in assignment.preference_resolution.applied:
+                if key in assignment.preference_resolution.omitted:
+                    report_adapter(TelemetryEvent.SETTING, "omitted", key)
                 continue
             option = (
                 self.option_mapping(setting).get(value.value)
@@ -462,7 +469,7 @@ class HomeAssistantVacuumAdapter:
                 raise ConflictError("setting_option_unavailable")
             await self._ensure_available()
             await async_set_option(
-                self._hass, entity_id, option, confirmation_seconds=timeout
+                self._hass, entity_id, option, confirmation_seconds=timeout, setting=key
             )
         observed = self.observed_operation()
         if mode is not None and observed != unit.operation:
@@ -476,6 +483,7 @@ class HomeAssistantVacuumAdapter:
 
     async def _send_clean(self, unit: WorkUnit, assignment: DispatchAssignment) -> None:
         check_command_authorization()
+        report_adapter(TelemetryEvent.PHYSICAL, "requested")
         await self._hass.services.async_call(
             "vacuum",
             "clean_area",
@@ -492,6 +500,7 @@ class HomeAssistantVacuumAdapter:
         if not self.supported_features & VacuumEntityFeature.STOP:
             raise ConflictError("unsupported_cancel_semantics")
         check_command_authorization()
+        report_adapter(TelemetryEvent.PHYSICAL, "requested", "stopped")
         await self._hass.services.async_call(
             "vacuum",
             "stop",

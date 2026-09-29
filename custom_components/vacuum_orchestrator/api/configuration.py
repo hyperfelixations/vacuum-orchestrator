@@ -33,6 +33,7 @@ from ..runtime import async_get_runtime
 from .job_input import CREATE_SCHEMA, intent_from_data
 from .presentation import present_job
 from .room_presentation import present_room
+from .telemetry import command_trace
 
 PAGE = {
     vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
@@ -294,6 +295,14 @@ def query_configuration(
 
 
 async def execute_configuration(
+    hass: HomeAssistant, name: str, data: dict[str, Any]
+) -> dict[str, Any]:
+    """Apply one command with a runtime-local diagnostic request identity."""
+    with command_trace(async_get_runtime(hass).orchestrator.trace, name, data):
+        return await _execute_configuration(hass, name, data)
+
+
+async def _execute_configuration(
     hass: HomeAssistant, name: str, data: dict[str, Any]
 ) -> dict[str, Any]:
     """Route mutations into room commands or the shared HA configuration service."""

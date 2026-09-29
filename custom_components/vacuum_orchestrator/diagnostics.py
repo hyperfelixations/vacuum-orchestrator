@@ -7,37 +7,32 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import API_VERSION, INTEGRATION_VERSION, STORE_VERSION
-from .runtime import VacuumOrchestratorRuntime
+from .infrastructure.telemetry import LoggingSink
+from .runtime import TELEMETRY_KEY, VacuumOrchestratorRuntime, async_get_registry
 
 
 def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
     """Anonymize identifiers consistently within one export; exclude configuration."""
     core = runtime.orchestrator
-    tokens: dict[str, str] = {}
-
-    def anonymize(value: str | None) -> str | None:
-        if value is None:
-            return None
-        if value not in tokens:
-            tokens[value] = f"ref_{len(tokens) + 1}"
-        return tokens[value]
+    sink = core.trace.sink
+    sanitizer = sink if isinstance(sink, LoggingSink) else LoggingSink()
+    anonymize = sanitizer.pseudonym
 
     state = core.state
-    traces = [
-        {
-            key: anonymize(str(value))
-            if key.endswith("_id") and value is not None
-            else value
-            for key, value in record.items()
-        }
-        for record in core.trace.snapshot()
-    ]
+    traces = [sanitizer.sanitize(record) for record in core.trace.snapshot()]
     return {
         "version": INTEGRATION_VERSION,
         "api_version": API_VERSION,
         "store_version": STORE_VERSION,
         "commit_id": state.commit_id,
         "runtime_sequence": core.runtime_sequence,
+        "runtime_id": core.runtime_id,
+        "sink_failures": core.trace.sink_failures,
+        "trace_window": {
+            "recorded": core.trace.sequence,
+            "retained": len(traces),
+            "dropped": core.trace.sequence - len(traces),
+        },
         "mode": state.mode.value,
         "needs_attention": state.needs_attention,
         "totals": {"jobs": len(state.jobs), "rooms": len(state.room_registry.rooms)},
@@ -48,7 +43,9 @@ def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
                 "state": job.state.value,
                 "mode": job.intent.mode.value,
                 "room_ids": [anonymize(item.area_id) for item in job.intent.areas],
-                "failure_code": job.failure_code,
+                "failure_code": sanitizer.sanitize({"reason": job.failure_code}).get(
+                    "reason"
+                ),
             }
             for job in islice(state.jobs.values(), 500)
         ],
@@ -84,4 +81,15 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
     """Provide HA's diagnostic download without raw config-entry or device data."""
-    return build_diagnostics(entry.runtime_data)
+    runtime = async_get_registry(hass).get(entry.entry_id)
+    if isinstance(runtime, VacuumOrchestratorRuntime):
+        return build_diagnostics(runtime)
+    trace = hass.data.get(TELEMETRY_KEY, {}).get(entry.entry_id)
+    sanitizer = trace.sink if trace is not None else LoggingSink()
+    return {
+        "version": INTEGRATION_VERSION,
+        "runtime_loaded": False,
+        "traces": [sanitizer.sanitize(record) for record in trace.snapshot()]
+        if trace is not None
+        else [],
+    }

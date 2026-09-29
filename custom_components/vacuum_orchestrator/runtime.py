@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import cast
 
 from homeassistant.config_entries import ConfigEntry
@@ -13,6 +14,7 @@ from homeassistant.helpers import entity_registry as er
 from .application.orchestrator import VacuumOrchestrator
 from .application.robot_session import RobotOwnershipRegistry
 from .application.room_service import AreaSnapshot
+from .application.tracing import TraceEvent, TraceRecorder
 from .const import CONF_INSTALLATION_ID, DOMAIN, STORE_VERSION
 from .domain.errors import ConflictError
 from .domain.requirements import StateObservation, StateRequirement
@@ -21,11 +23,13 @@ from .infrastructure.critical_repository import (
     MigratingOrchestratorRepository,
 )
 from .infrastructure.ha_store import HomeAssistantSnapshotBackend
+from .infrastructure.telemetry import LoggingSink
 from .runtime_adapters import build_adapters
 from .runtime_controller import RuntimeController
 
 RUNTIME_KEY = f"{DOMAIN}_runtime"
 OWNERSHIP_KEY = f"{DOMAIN}_ownership"
+TELEMETRY_KEY = f"{DOMAIN}_telemetry"
 
 
 @dataclass(slots=True)
@@ -63,10 +67,13 @@ def _ownership_registry(hass: HomeAssistant) -> RobotOwnershipRegistry:
 
 async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Compose robot adapters and initialize the one global state owner."""
-    installation_id = str(entry.data[CONF_INSTALLATION_ID])
     source_ids: list[str] = []
     ownership = _ownership_registry(hass)
+    trace = TraceRecorder(sink=LoggingSink())
+    hass.data[TELEMETRY_KEY] = {entry.entry_id: trace}
+    trace.record(TraceEvent.LIFECYCLE, datetime.now(UTC), stage="starting")
     try:
+        installation_id = str(entry.data[CONF_INSTALLATION_ID])
         adapters, aliases = build_adapters(
             hass, entry, lambda: orchestrator.state.room_registry.rooms
         )
@@ -124,6 +131,7 @@ async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> b
             adapters,
             state_reader=state_reader,
             requirement_reader=requirement_reader,
+            trace=trace,
         )
         await orchestrator.async_initialize()
         await orchestrator.rooms.async_import_areas(
@@ -132,7 +140,8 @@ async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> b
                 for area in ar.async_get(hass).async_list_areas()
             }
         )
-    except Exception:
+    except Exception as err:
+        trace.record(TraceEvent.LIFECYCLE, datetime.now(UTC), stage="failed", error=err)
         for source_robot_id in source_ids:
             ownership.release(source_robot_id, installation_id)
         raise
@@ -144,6 +153,7 @@ async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> b
     async_get_registry(hass)[entry.entry_id] = runtime
     entry.runtime_data = runtime
     controller.start()
+    trace.record(TraceEvent.LIFECYCLE, datetime.now(UTC), stage="ready")
     return True
 
 
@@ -152,6 +162,12 @@ async def async_unload_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> 
     runtime = async_get_registry(hass).pop(entry.entry_id, None)
     if runtime is None:
         return True
+    runtime.orchestrator.trace.record(
+        TraceEvent.LIFECYCLE, datetime.now(UTC), stage="closing"
+    )
     if runtime.controller is not None:
         await runtime.controller.async_close()
+    runtime.orchestrator.trace.record(
+        TraceEvent.LIFECYCLE, datetime.now(UTC), stage="closed"
+    )
     return True

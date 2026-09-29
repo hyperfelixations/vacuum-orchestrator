@@ -1,7 +1,6 @@
 """HA event lifecycle, discovery reconciliation and scheduler wakeup wiring."""
 
 import asyncio
-import logging
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from types import MappingProxyType
@@ -21,6 +20,7 @@ from .application.orchestrator import VacuumOrchestrator
 from .application.robot_session import RobotOwnershipRegistry
 from .application.room_service import AreaSnapshot
 from .application.scheduler import WakeupScheduler
+from .application.tracing import TraceEvent
 from .configuration import validate_robot_configuration
 from .const import (
     API_VERSION,
@@ -35,8 +35,6 @@ from .domain.monitoring import next_deadline
 from .domain.types import OperationKind
 from .repairs import RepairReporter
 from .runtime_adapters import build_adapters
-
-_LOGGER = logging.getLogger(__name__)
 
 
 class RuntimeController:
@@ -144,7 +142,9 @@ class RuntimeController:
             if isinstance(err, OrchestratorError)
             else "runtime_reconciliation_failed"
         )
-        _LOGGER.error("Vacuum Orchestrator runtime paused: %s", self.last_error)
+        self.orchestrator.trace.record(
+            TraceEvent.ERROR, datetime.now(UTC), reason=self.last_error, error=err
+        )
 
     async def _async_work(self) -> None:
         active = frozenset(
@@ -299,9 +299,12 @@ class RuntimeController:
             async with asyncio.timeout(10):
                 await adapter.async_refresh_maps()
         except Exception:
-            # Missing inventory removes native room capabilities; unrelated robots
-            # and global queue management remain usable.
-            _LOGGER.debug("Robot map inventory is unavailable")
+            self.orchestrator.trace.record(
+                TraceEvent.BLOCKED,
+                datetime.now(UTC),
+                robot_id=adapter.profile.robot_id,
+                reason="map_inventory_unavailable",
+            )
 
     def _refresh_watched_entities(self) -> None:
         watched: set[str] = set()

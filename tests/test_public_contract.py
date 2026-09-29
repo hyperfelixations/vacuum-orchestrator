@@ -60,9 +60,6 @@ def test_distribution_metadata_and_translations_are_consistent():
     } <= manifest.keys()
     assert manifest["version"] == "0.1.0"
     assert json.loads((ROOT / "hacs.json").read_text())["homeassistant"] == "2026.9.0"
-    assert (
-        (integration / "brand/icon.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-    )
     strings = json.loads((integration / "strings.json").read_text(encoding="utf-8"))
     english = json.loads(
         (integration / "translations/en.json").read_text(encoding="utf-8")

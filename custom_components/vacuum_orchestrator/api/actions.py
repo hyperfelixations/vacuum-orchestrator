@@ -47,6 +47,7 @@ from ..runtime import VacuumOrchestratorRuntime, async_get_runtime
 from .configuration import setup_configuration_actions
 from .job_input import CREATE_SCHEMA, _mode, intent_from_data
 from .presentation import present_job, present_queue
+from .telemetry import command_trace
 
 ATTR_JOB_ID = "job_id"
 ATTR_AREAS = "areas"
@@ -256,7 +257,11 @@ def _register(
     optional: bool = False,
 ) -> None:
     async def contextual(call: ServiceCall) -> ServiceResponse | None:
-        with request_context(call.context):
+        runtime = await _runtime_for_call(hass, call)
+        with (
+            request_context(call.context),
+            command_trace(runtime.orchestrator.trace, name, call.data),
+        ):
             try:
                 return cast(ServiceResponse | None, await handler(call))
             except OrchestratorError as err:

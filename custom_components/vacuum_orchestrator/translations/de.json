@@ -10,7 +10,10 @@
   },
   "config_subentries": {
     "robot": {
-      "title": "Roboterprofil",
+      "entry_type": "Roboterprofil",
+      "initiate_flow": {
+        "user": "Roboter hinzufügen"
+      },
       "step": {
         "user": {
           "title": "Roboter hinzufügen",

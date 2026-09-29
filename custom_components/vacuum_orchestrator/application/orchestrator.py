@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -40,6 +39,7 @@ from ..domain.types import (
 from ..ports.command_scope import command_origin
 from ..ports.repository import OrchestratorRepository
 from ..ports.robot import RobotAdapter
+from ..ports.telemetry import adapter_reporter
 from .external_observations import apply_external_observation
 from .observation_handler import apply_observation
 from .queue_run_service import QueueRunService
@@ -48,8 +48,6 @@ from .room_readiness import RequirementReader, evaluate_room_readiness
 from .room_service import RoomService
 from .template_service import TemplateService
 from .tracing import TraceEvent, TraceRecorder
-
-_LOGGER = logging.getLogger(__name__)
 
 Clock = Callable[[], datetime]
 IdFactory = Callable[[], str]
@@ -85,6 +83,7 @@ class VacuumOrchestrator:
         requirement_reader: RequirementReader | None = None,
         clock: Clock = _utcnow,
         id_factory: IdFactory = _uuid,
+        trace: TraceRecorder | None = None,
     ) -> None:
         self._installation_id = installation_id
         self._repository = repository
@@ -110,9 +109,10 @@ class VacuumOrchestrator:
         self._sessions: dict[str, RobotSession] = {}
         self._listeners: set[StateListener] = set()
         self._view_listeners: set[StateListener] = set()
-        self.runtime_id = _uuid()
+        self.trace = trace or TraceRecorder()
+        self.runtime_id = self.trace.runtime_id
         self.runtime_sequence = 0
-        self.trace = TraceRecorder()
+        self._availability: dict[str, bool] = {}
         self.rooms = RoomService(self._mutate, lambda: self.state, clock, id_factory)
         self.templates = TemplateService(self._mutate, clock, id_factory)
         self.runs = QueueRunService(self._mutate, clock, id_factory)
@@ -164,6 +164,7 @@ class VacuumOrchestrator:
     async def async_initialize(self) -> OrchestratorState:
         """Load global state and fence unfinished physical ownership."""
         async with self._lock:
+            self.trace.record(TraceEvent.STORAGE, self._clock(), stage="loading")
             loaded = await self._repository.async_load()
             if loaded is None:
                 loaded = OrchestratorState.empty(self._installation_id)
@@ -186,6 +187,9 @@ class VacuumOrchestrator:
                     needs_attention=source_robot_id in loaded.blocked_robots,
                 )
             self._state = loaded
+            self.trace.commit_id = loaded.commit_id
+            self.trace.run_id = loaded.queue_run.run_id if loaded.queue_run else None
+            self.trace.record(TraceEvent.STORAGE, self._clock(), stage="loaded")
             return loaded
 
     def subscribe(self, listener: StateListener) -> Callable[[], None]:
@@ -205,11 +209,17 @@ class VacuumOrchestrator:
     def notify_runtime_change(self) -> None:
         """Invalidate read models without scheduling or persisting a clock tick."""
         self.runtime_sequence += 1
+        self.trace.runtime_sequence = self.runtime_sequence
         for listener in tuple(self._view_listeners):
             try:
                 listener()
-            except Exception:
-                _LOGGER.error("A runtime view listener failed")
+            except Exception as err:
+                self.trace.record(
+                    TraceEvent.ERROR,
+                    self._clock(),
+                    reason="view_listener_failed",
+                    error=err,
+                )
 
     def readiness_for_job(
         self,
@@ -356,13 +366,26 @@ class VacuumOrchestrator:
         for job_id in candidates:
             try:
                 assignment = await self._async_dispatch_job(job_id, None)
-            except (PlanningError, ConflictError):
+            except (PlanningError, ConflictError) as err:
+                if err.code not in {"job_blocked", "job_unknown"}:
+                    self.trace.record(
+                        TraceEvent.BLOCKED,
+                        self._clock(),
+                        job_id=job_id,
+                        reason=err.code,
+                    )
                 continue
             except StorageIntegrityError:
                 raise
-            except Exception:
+            except Exception as err:
                 self._verified_state()
-                _LOGGER.error("Robot dispatch failed; continuing eligible queue work")
+                self.trace.record(
+                    TraceEvent.ERROR,
+                    self._clock(),
+                    job_id=job_id,
+                    reason="dispatch_failed",
+                    error=err,
+                )
                 continue
             if assignment is not None:
                 dispatched.append(assignment)
@@ -391,11 +414,24 @@ class VacuumOrchestrator:
             if adapter is None:
                 raise ConflictError("assigned_robot_missing")
         assert adapter is not None and session is not None and ticket is not None
+        telemetry_token = adapter_reporter.set(
+            lambda event, stage, reason: self.trace.record(
+                event,
+                self._clock(),
+                stage=stage,
+                reason=reason,
+                job_id=job_id,
+                attempt_id=attempt_id,
+                robot_id=attempt.robot_id,
+            )
+        )
         try:
             await session.cancel(ticket, adapter.async_cancel)
         except Exception as err:
             await self._mark_robot_uncertain(attempt_id, err)
             raise
+        finally:
+            adapter_reporter.reset(telemetry_token)
 
     async def async_confirm_cancel(self, job_id: str) -> None:
         """Persist observed cancellation and continue eligible queue work."""
@@ -483,7 +519,14 @@ class VacuumOrchestrator:
             raise ConflictError("unknown_robot")
         try:
             observation = await adapter.async_observe()
-        except Exception:
+        except Exception as err:
+            self.trace.record(
+                TraceEvent.ERROR,
+                self._clock(),
+                robot_id=robot_id,
+                reason="observation_failed",
+                error=err,
+            )
             observation = RobotObservation(
                 robot_id,
                 adapter.profile.source_robot_id,
@@ -493,6 +536,7 @@ class VacuumOrchestrator:
             )
         async with self._lock:
             state = self._verified_state()
+            self._record_availability(observation)
             lease = state.robot_leases.get(observation.source_robot_id)
             self.trace.record(
                 TraceEvent.OBSERVATION,
@@ -501,6 +545,7 @@ class VacuumOrchestrator:
                 attempt_id=lease.attempt_id if lease else None,
                 job_id=state.attempts[lease.attempt_id].job_id if lease else None,
                 state=observation.state.value,
+                reason=observation.reason,
             )
             candidate = (
                 apply_observation(state, observation, self._clock(), self._id_factory)
@@ -655,6 +700,29 @@ class VacuumOrchestrator:
             await self._commit_locked(prepared, sent)
 
         origin_token = command_origin.set(origin or job.origin)
+        telemetry_token = adapter_reporter.set(
+            lambda event, stage, reason: self.trace.record(
+                event,
+                self._clock(),
+                stage=stage,
+                reason=reason,
+                job_id=job_id,
+                attempt_id=attempt_id,
+                robot_id=assignment.robot_id,
+                work_unit_id=unit.work_unit_id,
+                operation=unit.operation.value,
+            )
+        )
+        self.trace.record(
+            TraceEvent.PHYSICAL,
+            self._clock(),
+            stage="selected",
+            job_id=job_id,
+            attempt_id=attempt_id,
+            robot_id=assignment.robot_id,
+            work_unit_id=unit.work_unit_id,
+            operation=unit.operation.value,
+        )
         try:
             await session.dispatch(
                 ticket,
@@ -662,14 +730,30 @@ class VacuumOrchestrator:
                 lambda: self._guard_dispatch(job_id, assignment, unit.operation),
             )
         except StaleCommandError:
+            self.trace.record(
+                TraceEvent.PHYSICAL,
+                self._clock(),
+                stage="stale",
+                job_id=job_id,
+                attempt_id=attempt_id,
+            )
             return None
         except DispatchNotStartedError as err:
+            self.trace.record(
+                TraceEvent.PHYSICAL,
+                self._clock(),
+                stage="rejected",
+                reason=err.code,
+                job_id=job_id,
+                attempt_id=attempt_id,
+            )
             await self._finish_unstarted(attempt_id, err.code)
             raise
         except Exception as err:
             await self._mark_robot_uncertain(attempt_id, err)
             raise
         finally:
+            adapter_reporter.reset(telemetry_token)
             command_origin.reset(origin_token)
         async with self._lock:
             current = self._verified_state()
@@ -684,7 +768,7 @@ class VacuumOrchestrator:
             *(adapter.async_observe() for adapter in adapters.values()),
             return_exceptions=True,
         )
-        return {
+        result = {
             robot_id: (
                 observation
                 if isinstance(observation, RobotObservation)
@@ -697,6 +781,30 @@ class VacuumOrchestrator:
             )
             for robot_id, observation in zip(adapters, observations, strict=True)
         }
+        for observation in result.values():
+            self._record_availability(observation)
+        return result
+
+    def _record_availability(self, observation: RobotObservation) -> None:
+        online = observation.state not in {
+            RobotAvailabilityState.UNKNOWN,
+            RobotAvailabilityState.UNAVAILABLE,
+        }
+        previous = self._availability.get(observation.robot_id)
+        self._availability = {
+            key: value
+            for key, value in self._availability.items()
+            if key in self._adapters
+        }
+        self._availability[observation.robot_id] = online
+        if previous is not online:
+            self.trace.record(
+                TraceEvent.AVAILABILITY,
+                self._clock(),
+                robot_id=observation.robot_id,
+                state="online" if online else "offline",
+                reason=observation.reason,
+            )
 
     def _guard_dispatch(
         self, job_id: str, assignment: DispatchAssignment, operation: OperationKind
@@ -777,14 +885,40 @@ class VacuumOrchestrator:
     async def _commit_locked(
         self, previous: OrchestratorState, candidate: OrchestratorState
     ) -> None:
+        self.trace.record(TraceEvent.STORAGE, self._clock(), stage="committing")
         try:
             await self._repository.async_commit(
                 candidate, expected_previous_commit_id=previous.commit_id
             )
-        except Exception:
+        except Exception as err:
             self._storage_uncertain = True
+            self.trace.record(
+                TraceEvent.STORAGE, self._clock(), stage="failed", error=err
+            )
             raise
         self._state = candidate
+        self.trace.commit_id = candidate.commit_id
+        self.trace.run_id = candidate.queue_run.run_id if candidate.queue_run else None
+        self.trace.record(TraceEvent.STORAGE, self._clock(), stage="committed")
+        if candidate.queue_run != previous.queue_run or candidate.mode != previous.mode:
+            run = candidate.queue_run
+            if run and not run.active:
+                stage = "completed"
+            elif candidate.mode is QueueMode.PAUSED:
+                stage = "paused"
+            elif run is None:
+                stage = "idle"
+            elif previous.queue_run is None or previous.queue_run.run_id != run.run_id:
+                stage = "started"
+            elif run.idle_since:
+                stage = "waiting"
+            elif previous.mode is QueueMode.PAUSED:
+                stage = "resumed"
+            else:
+                stage = "idle_reset"
+            self.trace.record(
+                TraceEvent.QUEUE, self._clock(), state=candidate.mode.value, stage=stage
+            )
         for key, job in candidate.jobs.items():
             if key not in previous.jobs or previous.jobs[key].state != job.state:
                 self.trace.record(
@@ -817,10 +951,22 @@ class VacuumOrchestrator:
         for listener in tuple(self._listeners):
             try:
                 listener()
-            except Exception:
-                _LOGGER.error("A state listener failed after a verified commit")
+            except Exception as err:
+                self.trace.record(
+                    TraceEvent.ERROR,
+                    self._clock(),
+                    reason="commit_listener_failed",
+                    error=err,
+                )
 
     async def _mark_robot_uncertain(self, attempt_id: str, _error: Exception) -> None:
+        self.trace.record(
+            TraceEvent.ERROR,
+            self._clock(),
+            attempt_id=attempt_id,
+            reason="dispatch_failed",
+            error=_error,
+        )
         async with self._lock:
             previous = self._verified_state()
             attempt = previous.attempts[attempt_id]

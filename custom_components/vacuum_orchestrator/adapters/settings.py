@@ -12,6 +12,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from ..domain.errors import ConflictError
 from ..ha_context import physical_context
 from ..ports.command_scope import check_command_authorization
+from ..ports.telemetry import TelemetryEvent, report_adapter
 
 
 def available_options(hass: HomeAssistant, entity_id: str | None) -> tuple[str, ...]:
@@ -28,7 +29,12 @@ def available_options(hass: HomeAssistant, entity_id: str | None) -> tuple[str, 
 
 
 async def async_set_option(
-    hass: HomeAssistant, entity_id: str, option: str, *, confirmation_seconds: float
+    hass: HomeAssistant,
+    entity_id: str,
+    option: str,
+    *,
+    confirmation_seconds: float,
+    setting: str | None = None,
 ) -> None:
     """Require actual state acknowledgement before the next physical command."""
     vacuum = entity_id.startswith("vacuum.")
@@ -44,6 +50,7 @@ async def async_set_option(
     if option not in available_options(hass, entity_id):
         raise ConflictError("setting_option_unavailable")
     if acknowledged():
+        report_adapter(TelemetryEvent.SETTING, "unchanged", setting)
         return
     changed = asyncio.Event()
 
@@ -54,6 +61,7 @@ async def async_set_option(
     unsubscribe = async_track_state_change_event(hass, [entity_id], state_changed)
     try:
         check_command_authorization()
+        report_adapter(TelemetryEvent.SETTING, "requested", setting)
         async with asyncio.timeout(confirmation_seconds):
             await hass.services.async_call(
                 "vacuum" if vacuum else "select",
@@ -68,7 +76,9 @@ async def async_set_option(
                     raise ConflictError("setting_entity_unavailable")
                 await changed.wait()
             check_command_authorization()
+            report_adapter(TelemetryEvent.SETTING, "confirmed", setting)
     except TimeoutError as err:
+        report_adapter(TelemetryEvent.SETTING, "timeout", setting)
         raise ConflictError("setting_confirmation_timeout") from err
     finally:
         unsubscribe()

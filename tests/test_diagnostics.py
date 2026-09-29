@@ -16,7 +16,9 @@ from custom_components.vacuum_orchestrator.diagnostics import (
 )
 from custom_components.vacuum_orchestrator.domain.intents import JobIntent, TargetRef
 from custom_components.vacuum_orchestrator.domain.types import CleaningMode
+from custom_components.vacuum_orchestrator.runtime import async_setup_orchestrator
 from tests.test_configuration_api import call, configured  # noqa: F401
+from tests.test_runtime import _entry
 
 
 @pytest.mark.usefixtures("configured")
@@ -36,7 +38,10 @@ async def test_diagnostics_and_trace_queries_are_bounded_and_sanitized(hass, req
     rendered = json.dumps(export)
     for secret in (room_id, job, "Private room", "Private job", "Never export"):
         assert secret not in rendered
-    assert export["jobs"][0]["job_id"] == export["traces"][0]["job_id"]
+    transitions = [
+        record for record in export["traces"] if record["event"] == "job_transition"
+    ]
+    assert export["jobs"][0]["job_id"] == transitions[0]["job_id"]
     trace = await call(hass, "get_trace", job_id=job, limit=1)
     assert trace["records"][0]["job_id"] == job
     assert (await call(hass, "get_diagnostics"))["jobs"][0]["state"] == "queued"
@@ -53,6 +58,27 @@ def test_trace_ring_drops_oldest_and_keeps_sequence_for_gap_detection():
     trace.snapshot()[0]["state"] = "mutated"
     assert trace.snapshot()[0]["state"] == "queued"
     assert len(trace.snapshot("2")) == 1
+
+
+async def test_setup_failure_keeps_sanitized_diagnostics(hass, monkeypatch, caplog):
+    def fail(*args, **kwargs):
+        raise RuntimeError("private setup details")
+
+    monkeypatch.setattr(
+        "custom_components.vacuum_orchestrator.runtime.build_adapters", fail
+    )
+    entry = _entry()
+    with pytest.raises(RuntimeError):
+        await async_setup_orchestrator(hass, entry)
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["runtime_loaded"] is False
+    assert [row["stage"] for row in result["traces"]] == ["starting", "failed"]
+    assert "private setup details" not in json.dumps(result)
+    assert "private setup details" not in caplog.text
+
+
+async def test_diagnostics_before_any_setup_are_empty(hass):
+    assert (await async_get_config_entry_diagnostics(hass, _entry()))["traces"] == []
 
 
 @pytest.mark.usefixtures("configured")
