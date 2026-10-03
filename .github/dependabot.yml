@@ -1,0 +1,49 @@
+# Security updates arrive one advisory per pull request; routine tooling updates are grouped.
+# Actions are pinned to commit SHAs; Dependabot moves the SHA and its version comment together.
+# The Home Assistant test stack moves with the supported baseline, never through Dependabot.
+
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      tooling:
+        patterns: ["*"]
+        applies-to: version-updates
+    ignore:
+      - dependency-name: homeassistant
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: pytest-homeassistant-custom-component
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: pytest
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: pytest-asyncio
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: pytest-cov
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+        applies-to: version-updates

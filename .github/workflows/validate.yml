@@ -1,0 +1,36 @@
+# hassfest and hacs/action publish no releases Dependabot could follow; both track their default
+# branch as their maintainers prescribe, each in a job with the least permissions it needs.
+
+name: Validate
+
+on:
+  push:
+  schedule:
+    - cron: "0 0 * * 6"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  hassfest:
+    name: Hassfest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
