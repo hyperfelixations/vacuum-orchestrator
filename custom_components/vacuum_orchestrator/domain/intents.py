@@ -126,19 +126,19 @@ class JobIntentPatch:
 
     areas: tuple[TargetRef, ...] | PatchValue = UNSET
     mode: CleaningMode | PatchValue = UNSET
-    name: str | None | PatchValue = UNSET
-    vacuum_power: SemanticLevel | None | PatchValue = UNSET
-    mop_intensity: SemanticLevel | None | PatchValue = UNSET
-    mop_route: MopRoute | None | PatchValue = UNSET
+    name: str | PatchValue | None = UNSET
+    vacuum_power: SemanticLevel | PatchValue | None = UNSET
+    mop_intensity: SemanticLevel | PatchValue | None = UNSET
+    mop_route: MopRoute | PatchValue | None = UNSET
     passes: int | PatchValue = UNSET
-    source: str | None | PatchValue = UNSET
-    reason: str | None | PatchValue = UNSET
-    note: str | None | PatchValue = UNSET
-    dedupe_key: str | None | PatchValue = UNSET
+    source: str | PatchValue | None = UNSET
+    reason: str | PatchValue | None = UNSET
+    note: str | PatchValue | None = UNSET
+    dedupe_key: str | PatchValue | None = UNSET
     required_on: tuple[str, ...] | PatchValue = UNSET
     required_off: tuple[str, ...] | PatchValue = UNSET
     settings_policy: SettingsPolicy | PatchValue = UNSET
-    vendor_extension: VendorExtension | None | PatchValue = UNSET
+    vendor_extension: VendorExtension | PatchValue | None = UNSET
 
     def apply(self, intent: JobIntent) -> JobIntent:
         """Apply only explicitly supplied fields and re-run all invariants."""

@@ -46,7 +46,7 @@ ignore = ["D105", "D107", "D203", "D213", "TID252", "UP040", "UP047"]
 
 [tool.ruff.lint.per-file-ignores]
 "custom_components/vacuum_orchestrator/__init__.py" = ["PLC0415"]
-"tests/**/*.py" = ["D"]
+"tests/**/*.py" = ["ASYNC240", "D"]
 
 [tool.mypy]
 python_version = "3.14"
