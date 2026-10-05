@@ -28,7 +28,7 @@ from .configuration import (
     execute_configuration,
 )
 from .errors import send_websocket_error
-from .presentation import present_job, present_queue
+from .presentation import present_job, present_queue, view_metadata
 
 TYPE_QUEUE_GET = "vacuum_orchestrator/queue/get"
 TYPE_JOB_GET = "vacuum_orchestrator/job/get"
@@ -126,7 +126,9 @@ async def websocket_queue_get(
             for job_id in selected
         ]
         connection.send_result(
-            msg["id"], present_queue(state, jobs, offset=offset, limit=limit)
+            msg["id"],
+            present_queue(state, jobs, offset=offset, limit=limit)
+            | view_metadata(orchestrator),
         )
     except OrchestratorError as err:
         send_websocket_error(connection, msg["id"], err)
@@ -145,14 +147,14 @@ async def websocket_job_get(
         job = orchestrator.state.jobs.get(msg["job_id"])
         if job is None:
             raise ConflictError("unknown_job", msg["job_id"])
-        readiness = (
-            orchestrator.readiness_for_job(job.job_id)
-            if job.job_id in orchestrator.state.queue
-            else None
-        )
         connection.send_result(
             msg["id"],
-            present_job(job, readiness, orchestrator.state.room_registry.rooms),
+            present_job(
+                job,
+                orchestrator.readiness_before_start(job.job_id),
+                orchestrator.state.room_registry.rooms,
+            )
+            | view_metadata(orchestrator),
         )
     except OrchestratorError as err:
         send_websocket_error(connection, msg["id"], err)
@@ -173,7 +175,8 @@ async def websocket_jobs_list(
 ) -> None:
     """Return bounded job-registry history ordered by creation time."""
     try:
-        state = async_get_runtime(hass).orchestrator.state
+        orchestrator = async_get_runtime(hass).orchestrator
+        state = orchestrator.state
         states = set(msg.get("states", JobState))
         ordered = sorted(
             (job for job in state.jobs.values() if job.state in states),
@@ -193,7 +196,8 @@ async def websocket_jobs_list(
                     present_job(job, rooms=state.room_registry.rooms)
                     for job in ordered[offset : offset + limit]
                 ],
-            },
+            }
+            | view_metadata(orchestrator),
         )
     except OrchestratorError as err:
         send_websocket_error(connection, msg["id"], err)

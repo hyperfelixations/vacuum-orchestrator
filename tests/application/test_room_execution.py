@@ -7,6 +7,7 @@ import pytest
 
 from custom_components.vacuum_orchestrator.domain.completion import CompletionQuality
 from custom_components.vacuum_orchestrator.domain.errors import (
+    ConflictError,
     DispatchNotStartedError,
     PlanningError,
 )
@@ -461,3 +462,48 @@ async def test_removed_robot_and_legacy_unscoped_recovery_require_explicit_stop(
     )
     await reloaded.async_resolve_recovery("legacy:unscoped", confirm_stopped=True)
     assert not reloaded.state.needs_attention
+
+
+async def test_readiness_is_reported_before_each_phase_but_never_while_running() -> (
+    None
+):
+    backend = RecordingBackend()
+    adapter = RecordingAdapter(backend, "robot")
+    states = {"binary_sensor.mop_ready": "off"}
+    orchestrator = await _orchestrator(backend, adapter, states=states)
+    await orchestrator.rooms.async_update(
+        "kitchen",
+        lambda room: replace(
+            room,
+            requirements=(
+                StateRequirement(
+                    "binary_sensor.mop_ready", operation=OperationKind.MOP
+                ),
+            ),
+        ),
+    )
+    job = await orchestrator.async_create_job(
+        _intent(mode=CleaningMode.VACUUM_THEN_MOP)
+    )
+    assert orchestrator.readiness_before_start(job) is not None
+    await orchestrator.async_start_job(job)
+    assert orchestrator.readiness_before_start(job) is None
+    attempt_id = orchestrator.state.jobs[job].active_attempt_id
+    await orchestrator.async_confirm_start(attempt_id)
+    await orchestrator.async_record_robot_run(
+        attempt_id, finished_run(orchestrator.state.attempts[attempt_id])
+    )
+
+    assert orchestrator.state.jobs[job].state is JobState.DISPATCHING
+    assert orchestrator.state.jobs[job].active_attempt_id is None
+    report = orchestrator.readiness_before_start(job)
+    assert report is not None
+    assert report.state.value == "blocked"
+    assert [item.entity_id for item in report.requirements] == [
+        "binary_sensor.mop_ready"
+    ]
+    assert report.requirements[0].operation is OperationKind.MOP
+    states["binary_sensor.mop_ready"] = "on"
+    assert orchestrator.readiness_before_start(job).state.value == "ready"
+    with pytest.raises(ConflictError, match="unknown_job"):
+        orchestrator.readiness_before_start("missing")

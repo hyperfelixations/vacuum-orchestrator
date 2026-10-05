@@ -291,6 +291,18 @@ class VacuumOrchestrator:
             else (),
         )
 
+    def readiness_before_start(self, job_id: str) -> ReadinessReport | None:
+        """Explain the next start; running attempts are never re-evaluated."""
+        job = self.state.jobs.get(job_id)
+        if job is None:
+            raise ConflictError("unknown_job", job_id)
+        if job.state is JobState.QUEUED:
+            return self.readiness_for_job(job_id)
+        if job.state is JobState.DISPATCHING and job.active_attempt_id is None:
+            unit = self.state.next_pending_unit(job)
+            return self.readiness_for_job(job_id, operation=unit.operation)
+        return None
+
     async def async_create_job(self, intent: JobIntent) -> str:
         """Create and append a validated robot-independent job."""
         job_id = self._id_factory()

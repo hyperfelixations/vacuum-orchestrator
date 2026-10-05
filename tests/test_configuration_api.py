@@ -30,6 +30,7 @@ from custom_components.vacuum_orchestrator.room_configuration import (
     normalize_room_patch,
 )
 from custom_components.vacuum_orchestrator.runtime import (
+    async_get_runtime,
     async_setup_orchestrator,
     async_unload_orchestrator,
 )
@@ -114,6 +115,12 @@ async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
     assert not (await call(hass, "get_room", room_id=room))["enabled"]
     page = await call(hass, "get_rooms", offset=1, limit=1)
     assert page["total"] == 1 and not page["rooms"]
+    core = async_get_runtime(hass).orchestrator
+    assert (page["commit_id"], page["runtime_id"], page["runtime_sequence"]) == (
+        core.state.commit_id,
+        core.runtime_id,
+        core.runtime_sequence,
+    )
     with pytest.raises(vol.Invalid):
         await call(
             hass, "update_room", room_id=room, configuration={"last_cleaning": {}}
@@ -424,6 +431,7 @@ async def test_execution_query_explains_scoped_blockers_and_applied_preferences(
     before = core.state
     result = await call(hass, "get_job_execution", job_id=job)
     assert core.state is before and not adapter.dispatches
+    assert result["commit_id"] == before.commit_id
     vacuum, mop = result["robots"]
     assert vacuum["eligible"] and vacuum["omitted_preferences"] == ["vacuum_power"]
     assert not mop["eligible"]

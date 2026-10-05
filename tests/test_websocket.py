@@ -45,6 +45,10 @@ class StubOrchestrator:
         assert job_id == "job"
         return None
 
+    def readiness_before_start(self, job_id: str) -> object:
+        assert job_id == "job"
+        return None
+
     def subscribe_view(self, listener: Callable[[], None]) -> Callable[[], None]:
         self.listener = listener
 
@@ -138,7 +142,16 @@ async def test_websocket_queue_job_and_registry_queries(
         "offset": 0,
         "limit": 10,
         "jobs": [connection.results[2][1]["jobs"][0]],
+        "commit_id": 1,
+        "runtime_id": "runtime",
+        "runtime_sequence": 1,
     }
+    for _message_id, result in connection.results:
+        assert (
+            result["commit_id"],
+            result["runtime_id"],
+            result["runtime_sequence"],
+        ) == (1, "runtime", 1)
     assert connection.errors == [(3, "unknown_job", "unknown_job")]
 
 

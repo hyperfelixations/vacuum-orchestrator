@@ -47,7 +47,7 @@ from ..runtime import VacuumOrchestratorRuntime, async_get_runtime
 from .configuration import setup_configuration_actions
 from .errors import service_error
 from .job_input import CREATE_SCHEMA, _mode, intent_from_data
-from .presentation import present_job, present_queue
+from .presentation import present_job, present_queue, view_metadata
 from .telemetry import command_trace
 
 ATTR_JOB_ID = "job_id"
@@ -217,7 +217,8 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         ]
         return cast(
             ServiceResponse,
-            present_queue(state, jobs, offset=offset, limit=limit),
+            present_queue(state, jobs, offset=offset, limit=limit)
+            | view_metadata(runtime.orchestrator),
         )
 
     async def get_job(call: ServiceCall) -> ServiceResponse:
@@ -226,13 +227,14 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         job = state.jobs.get(call.data[ATTR_JOB_ID])
         if job is None:
             raise service_error(ConflictError("unknown_job", call.data[ATTR_JOB_ID]))
-        readiness = (
-            runtime.orchestrator.readiness_for_job(job.job_id)
-            if job.state.value == "queued"
-            else None
-        )
         return cast(
-            ServiceResponse, present_job(job, readiness, state.room_registry.rooms)
+            ServiceResponse,
+            present_job(
+                job,
+                runtime.orchestrator.readiness_before_start(job.job_id),
+                state.room_registry.rooms,
+            )
+            | view_metadata(runtime.orchestrator),
         )
 
     _register(hass, SERVICE_CREATE_JOB, create_job, CREATE_SCHEMA, optional=True)

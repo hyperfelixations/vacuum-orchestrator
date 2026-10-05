@@ -3,11 +3,24 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from ..const import API_VERSION
 from ..domain.queue import Job, OrchestratorState
 from ..domain.readiness import ReadinessReport
 from ..domain.rooms import Room
+
+if TYPE_CHECKING:
+    from ..application.orchestrator import VacuumOrchestrator
+
+
+def view_metadata(core: VacuumOrchestrator) -> dict[str, object]:
+    """Identify the committed and transient view a read response belongs to."""
+    return {
+        "commit_id": core.state.commit_id,
+        "runtime_id": core.runtime_id,
+        "runtime_sequence": core.runtime_sequence,
+    }
 
 
 def present_job(

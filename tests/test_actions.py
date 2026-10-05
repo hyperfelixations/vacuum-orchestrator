@@ -117,6 +117,10 @@ async def test_actions_need_no_config_entry_or_revision_and_accept_mode_aliases(
     assert queried["note"] == "edited"
     assert queue["jobs"][0][ATTR_JOB_ID] == job_id
     assert "config_entry_id" not in queue
+    for response in (queried, queue):
+        assert response["commit_id"] == queue["commit_id"] > 0
+        assert response["runtime_id"]
+        assert response["runtime_sequence"] >= 1
 
 
 async def test_queue_management_actions_are_simple_and_response_is_optional(

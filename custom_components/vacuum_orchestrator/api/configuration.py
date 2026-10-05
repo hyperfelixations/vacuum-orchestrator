@@ -32,7 +32,7 @@ from ..room_configuration import (
 from ..runtime import async_get_runtime
 from .errors import service_error
 from .job_input import CREATE_SCHEMA, intent_from_data
-from .presentation import present_job
+from .presentation import present_job, view_metadata
 from .room_presentation import present_room
 from .telemetry import command_trace
 
@@ -105,9 +105,9 @@ async def async_query_configuration(
     hass: HomeAssistant, name: str, data: dict[str, Any]
 ) -> dict[str, Any]:
     """Include live per-robot explanations without performing physical commands."""
-    if name != "get_job_execution":
-        return query_configuration(hass, name, data)
     core = async_get_runtime(hass).orchestrator
+    if name != "get_job_execution":
+        return query_configuration(hass, name, data) | view_metadata(core)
     explanations = await explain_job(core, data["job_id"])
     job = core.state.jobs[data["job_id"]]
     return {
@@ -154,7 +154,7 @@ async def async_query_configuration(
             for attempt in core.state.attempts.values()
             if attempt.job_id == job.job_id
         ],
-    }
+    } | view_metadata(core)
 
 
 def page(items: list[dict[str, Any]], data: dict[str, Any], key: str) -> dict[str, Any]:
