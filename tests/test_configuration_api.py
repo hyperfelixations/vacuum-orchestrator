@@ -109,7 +109,13 @@ async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
     )
     assert grant["grant_id"]
     assert (await call(hass, "get_room", room_id=room))["released"]
-    await call(hass, "revoke_room", room_id=room)
+    revoked = await call(hass, "revoke_room", room_id=room)
+    assert revoked == {
+        "api_version": 2,
+        "commit_id": async_get_runtime(hass).orchestrator.state.commit_id,
+        "room_id": room,
+    }
+    assert revoked["commit_id"] > grant["commit_id"]
     assert not (await call(hass, "get_room", room_id=room))["released"]
     await call(hass, "remove_room", room_id=room)
     assert not (await call(hass, "get_room", room_id=room))["enabled"]

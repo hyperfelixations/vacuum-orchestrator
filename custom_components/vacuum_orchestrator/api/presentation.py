@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-from ..const import API_VERSION
+from ..const import API_VERSION, INTEGRATION_VERSION
 from ..domain.queue import Job, OrchestratorState
 from ..domain.readiness import ReadinessReport
 from ..domain.rooms import Room
@@ -106,6 +106,7 @@ def present_queue(
     """Serialize one stable page of the pending queue."""
     return {
         "api_version": API_VERSION,
+        "integration_version": INTEGRATION_VERSION,
         "commit_id": state.commit_id,
         "queue_revision": state.queue_revision,
         "mode": state.mode.value,

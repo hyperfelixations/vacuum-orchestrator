@@ -372,6 +372,7 @@ async def _execute_configuration(
         result["room_id"] = core.rooms.registry.resolve(room_id).room_id
     if robot_id is not None:
         result["robot_id"] = robot_id
+    result["commit_id"] = core.state.commit_id
     return result
 
 

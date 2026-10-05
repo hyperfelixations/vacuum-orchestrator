@@ -26,6 +26,7 @@ from custom_components.vacuum_orchestrator.api.actions import (
 from custom_components.vacuum_orchestrator.const import (
     CONF_INSTALLATION_ID,
     DOMAIN,
+    INTEGRATION_VERSION,
     SERVICE_CANCEL_JOB,
     SERVICE_CREATE_JOB,
     SERVICE_DELETE_JOB,
@@ -117,6 +118,7 @@ async def test_actions_need_no_config_entry_or_revision_and_accept_mode_aliases(
     assert queried["note"] == "edited"
     assert queue["jobs"][0][ATTR_JOB_ID] == job_id
     assert "config_entry_id" not in queue
+    assert queue["integration_version"] == INTEGRATION_VERSION
     for response in (queried, queue):
         assert response["commit_id"] == queue["commit_id"] > 0
         assert response["runtime_id"]
@@ -156,8 +158,15 @@ async def test_queue_management_actions_are_simple_and_response_is_optional(
     await hass.services.async_call(
         DOMAIN,
         SERVICE_MOVE_JOB,
+        {ATTR_JOB_ID: second[ATTR_JOB_ID], "direction": "bottom"},
+        blocking=True,
+    )
+    moved = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_MOVE_JOB,
         {ATTR_JOB_ID: second[ATTR_JOB_ID], "direction": "top"},
         blocking=True,
+        return_response=True,
     )
     response = await hass.services.async_call(
         DOMAIN,
@@ -166,12 +175,15 @@ async def test_queue_management_actions_are_simple_and_response_is_optional(
         blocking=True,
         return_response=True,
     )
-    await hass.services.async_call(DOMAIN, SERVICE_PAUSE_QUEUE, {}, blocking=True)
-    await hass.services.async_call(
+    paused = await hass.services.async_call(
+        DOMAIN, SERVICE_PAUSE_QUEUE, {}, blocking=True, return_response=True
+    )
+    cancelled = await hass.services.async_call(
         DOMAIN,
         SERVICE_CANCEL_JOB,
         {ATTR_JOB_ID: first[ATTR_JOB_ID]},
         blocking=True,
+        return_response=True,
     )
     retry = await hass.services.async_call(
         DOMAIN,
@@ -181,14 +193,29 @@ async def test_queue_management_actions_are_simple_and_response_is_optional(
         return_response=True,
     )
     assert retry is not None
-    await hass.services.async_call(
+    deleted = await hass.services.async_call(
         DOMAIN,
         SERVICE_DELETE_JOB,
         {ATTR_JOB_ID: retry[ATTR_JOB_ID]},
         blocking=True,
+        return_response=True,
     )
 
-    assert response == {"dispatched": 0, "robot_ids": []}
+    responses = [first, moved, response, paused, cancelled, retry, deleted]
+    assert all(item is not None for item in responses)
+    commit_ids = [item["commit_id"] for item in responses if item is not None]
+    assert commit_ids == sorted(commit_ids) and commit_ids[0] > 0
+    assert all(item["api_version"] == 2 for item in responses if item is not None)
+    assert moved is not None and moved[ATTR_JOB_ID] == second[ATTR_JOB_ID]
+    assert response is not None and response["dispatched"] == 0
+    assert response["robot_ids"] == []
+    assert paused == {"api_version": 2, "commit_id": commit_ids[3], "mode": "paused"}
+    assert cancelled == {
+        "api_version": 2,
+        "commit_id": commit_ids[4],
+        ATTR_JOB_ID: first[ATTR_JOB_ID],
+    }
+    assert deleted is not None and deleted[ATTR_JOB_ID] == retry[ATTR_JOB_ID]
 
 
 async def test_action_fields_support_complete_create_and_partial_clear(
@@ -264,8 +291,12 @@ async def test_action_fields_support_complete_create_and_partial_clear(
         return_response=True,
     )
 
-    assert updated == {ATTR_JOB_ID: job_id}
     assert queried is not None
+    assert updated == {
+        "api_version": 2,
+        "commit_id": created["commit_id"] + 1,
+        ATTR_JOB_ID: job_id,
+    }
     assert queried[ATTR_AREAS] == ["hall"]
     assert queried[ATTR_VACUUM_POWER] is None
     assert queried["source"] is None

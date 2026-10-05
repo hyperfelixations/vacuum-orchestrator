@@ -222,6 +222,10 @@ All action names use the prefix `vacuum_orchestrator.`. Pausing lets already
 started jobs finish, including their remaining phases. Retrying creates a new
 job; a room released for one job needs a new permission for that retry.
 
+Every action can return a response, for example through `response_variable` in
+a script. Commands return `api_version`, `commit_id` and the affected IDs, such
+as `job_id`.
+
 You can keep adding and moving jobs while the queue is running. Blocked jobs
 stay waiting, while other executable jobs can proceed.
 

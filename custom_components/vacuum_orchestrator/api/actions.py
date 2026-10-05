@@ -13,8 +13,10 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import config_validation as cv
+from homeassistant.util.json import JsonObjectType
 
 from ..const import (
+    API_VERSION,
     DOMAIN,
     SERVICE_CANCEL_JOB,
     SERVICE_CREATE_JOB,
@@ -127,7 +129,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         job_id = await _translate_errors(
             runtime.orchestrator.async_create_job(_intent_from_call(call))
         )
-        return _optional_response(call, {ATTR_JOB_ID: job_id})
+        return _command_response(call, runtime, {ATTR_JOB_ID: job_id})
 
     async def update_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
@@ -136,21 +138,23 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
                 call.data[ATTR_JOB_ID], _patch_from_call(call)
             )
         )
-        return _optional_response(call, {ATTR_JOB_ID: call.data[ATTR_JOB_ID]})
+        return _command_response(call, runtime, {ATTR_JOB_ID: call.data[ATTR_JOB_ID]})
 
-    async def delete_job(call: ServiceCall) -> None:
+    async def delete_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
         await _translate_errors(
             runtime.orchestrator.async_delete_job(call.data[ATTR_JOB_ID])
         )
+        return _command_response(call, runtime, {ATTR_JOB_ID: call.data[ATTR_JOB_ID]})
 
-    async def move_job(call: ServiceCall) -> None:
+    async def move_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
         await _translate_errors(
             runtime.orchestrator.async_move_job(
                 call.data[ATTR_JOB_ID], call.data[ATTR_DIRECTION]
             )
         )
+        return _command_response(call, runtime, {ATTR_JOB_ID: call.data[ATTR_JOB_ID]})
 
     async def start_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
@@ -159,8 +163,9 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
                 call.data[ATTR_JOB_ID], call.data.get(ATTR_ROBOT_ID)
             )
         )
-        return _optional_response(
+        return _command_response(
             call,
+            runtime,
             {
                 ATTR_JOB_ID: call.data[ATTR_JOB_ID],
                 ATTR_ROBOT_ID: assignment.robot_id,
@@ -171,35 +176,40 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
     async def run_queue(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
         assignments = await _translate_errors(runtime.orchestrator.async_run_queue())
-        return _optional_response(
+        return _command_response(
             call,
+            runtime,
             {
                 "dispatched": len(assignments),
                 "robot_ids": [item.robot_id for item in assignments],
             },
         )
 
-    async def pause_queue(call: ServiceCall) -> None:
+    async def pause_queue(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
         await _translate_errors(
             runtime.orchestrator.async_set_queue_mode(QueueMode.PAUSED)
+        )
+        return _command_response(
+            call, runtime, {ATTR_MODE: runtime.orchestrator.state.mode.value}
         )
 
     async def resume_queue(call: ServiceCall) -> ServiceResponse | None:
         return await run_queue(call)
 
-    async def cancel_job(call: ServiceCall) -> None:
+    async def cancel_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
         await _translate_errors(
             runtime.orchestrator.async_cancel_job(call.data[ATTR_JOB_ID])
         )
+        return _command_response(call, runtime, {ATTR_JOB_ID: call.data[ATTR_JOB_ID]})
 
     async def retry_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
         job_id = await _translate_errors(
             runtime.orchestrator.async_retry_job(call.data[ATTR_JOB_ID])
         )
-        return _optional_response(call, {ATTR_JOB_ID: job_id})
+        return _command_response(call, runtime, {ATTR_JOB_ID: job_id})
 
     async def get_queue(call: ServiceCall) -> ServiceResponse:
         runtime = await _runtime_for_call(hass, call, require_admin=False)
@@ -237,28 +247,21 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
             | view_metadata(runtime.orchestrator),
         )
 
-    _register(hass, SERVICE_CREATE_JOB, create_job, CREATE_SCHEMA, optional=True)
-    _register(hass, SERVICE_UPDATE_JOB, update_job, UPDATE_SCHEMA, optional=True)
+    _register(hass, SERVICE_CREATE_JOB, create_job, CREATE_SCHEMA)
+    _register(hass, SERVICE_UPDATE_JOB, update_job, UPDATE_SCHEMA)
     _register(hass, SERVICE_DELETE_JOB, delete_job, JOB_SCHEMA)
     _register(hass, SERVICE_MOVE_JOB, move_job, MOVE_SCHEMA)
-    _register(hass, SERVICE_START_JOB, start_job, START_SCHEMA, optional=True)
-    _register(hass, SERVICE_RUN_QUEUE, run_queue, EMPTY_SCHEMA, optional=True)
+    _register(hass, SERVICE_START_JOB, start_job, START_SCHEMA)
+    _register(hass, SERVICE_RUN_QUEUE, run_queue, EMPTY_SCHEMA)
     _register(hass, SERVICE_PAUSE_QUEUE, pause_queue, EMPTY_SCHEMA)
-    _register(hass, SERVICE_RESUME_QUEUE, resume_queue, EMPTY_SCHEMA, optional=True)
+    _register(hass, SERVICE_RESUME_QUEUE, resume_queue, EMPTY_SCHEMA)
     _register(hass, SERVICE_CANCEL_JOB, cancel_job, JOB_SCHEMA)
-    _register(hass, SERVICE_RETRY_JOB, retry_job, JOB_SCHEMA, optional=True)
+    _register(hass, SERVICE_RETRY_JOB, retry_job, JOB_SCHEMA)
     _register_query(hass, SERVICE_GET_QUEUE, get_queue, GET_QUEUE_SCHEMA)
     _register_query(hass, SERVICE_GET_JOB, get_job, JOB_SCHEMA)
 
 
-def _register(
-    hass: HomeAssistant,
-    name: str,
-    handler: Any,
-    schema: vol.Schema,
-    *,
-    optional: bool = False,
-) -> None:
+def _register(hass: HomeAssistant, name: str, handler: Any, schema: vol.Schema) -> None:
     async def contextual(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
         with (
@@ -275,9 +278,7 @@ def _register(
         name,
         contextual,
         schema=schema,
-        supports_response=(
-            SupportsResponse.OPTIONAL if optional else SupportsResponse.NONE
-        ),
+        supports_response=SupportsResponse.OPTIONAL,
     )
 
 
@@ -340,10 +341,16 @@ def _patch_from_call(call: ServiceCall) -> JobIntentPatch:
     return JobIntentPatch(**values)  # type: ignore[arg-type]
 
 
-def _optional_response(
-    call: ServiceCall, response: ServiceResponse
+def _command_response(
+    call: ServiceCall, runtime: VacuumOrchestratorRuntime, ids: JsonObjectType
 ) -> ServiceResponse | None:
-    return response if call.return_response else None
+    if not call.return_response:
+        return None
+    return {
+        "api_version": API_VERSION,
+        "commit_id": runtime.orchestrator.state.commit_id,
+        **ids,
+    }
 
 
 async def _translate_errors(awaitable: Any) -> Any:
