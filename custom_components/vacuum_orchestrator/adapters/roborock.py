@@ -276,10 +276,33 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
     async def async_observe(self) -> RobotObservation:
         """Separate floor cleaning from mapping, mop washing and dock activity."""
         observation = await super().async_observe()
-        status = self.role_value("status")
-        if status is None or observation.state is RobotAvailabilityState.UNKNOWN:
+        if observation.state is RobotAvailabilityState.UNKNOWN:
             return observation
-        continuing = self.role_value("in_cleaning") == "on"
+        flag = self.role_value("in_cleaning")
+        # Bound but unusable roles fail closed; see internal dev doc "Adapter".
+        continuing = flag == "on" or (flag is None and self.role_bound("in_cleaning"))
+        status = self.role_value("status")
+        if status is None:
+            if self.role_bound("status"):
+                return replace(
+                    observation,
+                    state=RobotAvailabilityState.UNAVAILABLE
+                    if observation.error_code
+                    else RobotAvailabilityState.BUSY,
+                    cleaning_active=None,
+                    normal_end=False,
+                    reason="status_unusable",
+                )
+            if not continuing:
+                return observation
+            return replace(
+                observation,
+                state=RobotAvailabilityState.UNAVAILABLE
+                if observation.error_code
+                else RobotAvailabilityState.BUSY,
+                normal_end=False,
+                reason="cleaning_continues",
+            )
         error = observation.error_code or (status if status in _ERROR_STATES else None)
         idle = status in _IDLE_STATES and not continuing and not error
         return replace(

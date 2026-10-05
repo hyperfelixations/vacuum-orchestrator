@@ -25,7 +25,7 @@ from custom_components.vacuum_orchestrator.domain.types import (
 )
 
 
-def setup_robot(hass: HomeAssistant, *, rooms=None, config=None):
+def setup_robot(hass: HomeAssistant, *, rooms=None, config=None, unbound=()):
     registry = er.async_get(hass)
     vacuum = registry.async_get_or_create(
         "vacuum", "roborock", "unit", suggested_object_id="test"
@@ -57,6 +57,7 @@ def setup_robot(hass: HomeAssistant, *, rooms=None, config=None):
         hass.states.async_set(
             entity.entity_id, value, {"options": options} if options else {}
         )
+    roles.update(dict.fromkeys(unbound))
     hass.states.async_set(
         vacuum.entity_id,
         "docked",
@@ -230,6 +231,91 @@ async def test_charge_during_ongoing_cleaning_and_errors_do_not_complete(
     assert (await adapter.async_observe()).cleaning_active is True
     hass.states.async_set("vacuum.test", "unavailable")
     assert (await adapter.async_observe()).state is RobotAvailabilityState.UNKNOWN
+
+
+@pytest.mark.parametrize("status", ["unknown", "unavailable"])
+async def test_unusable_bound_status_never_ends_an_active_run(
+    hass: HomeAssistant, status: str
+) -> None:
+    adapter, _, _ = setup_robot(hass)
+    hass.states.async_set("binary_sensor.in_cleaning", "on")
+    hass.states.async_set("sensor.status", "segment_cleaning")
+    assert (await adapter.async_observe()).cleaning_active is True
+    hass.states.async_set("sensor.status", status)
+    observed = await adapter.async_observe()
+    assert observed.state is RobotAvailabilityState.BUSY
+    assert observed.normal_end is False
+    assert observed.cleaning_active is None
+    hass.states.async_set("binary_sensor.in_cleaning", "off")
+    observed = await adapter.async_observe()
+    assert observed.state is RobotAvailabilityState.BUSY
+    assert observed.normal_end is False
+    hass.states.async_set("sensor.error", "main_brush_jammed")
+    observed = await adapter.async_observe()
+    assert observed.state is RobotAvailabilityState.UNAVAILABLE
+    assert observed.error_code == "main_brush_jammed"
+
+
+@pytest.mark.parametrize("flag", ["unknown", "unavailable"])
+async def test_unusable_cleaning_flag_blocks_idle_and_normal_end(
+    hass: HomeAssistant, flag: str
+) -> None:
+    adapter, _, _ = setup_robot(hass)
+    hass.states.async_set("binary_sensor.in_cleaning", flag)
+    observed = await adapter.async_observe()
+    assert observed.state is RobotAvailabilityState.BUSY
+    assert observed.normal_end is False
+    assert observed.cleaning_active is False
+
+
+async def test_unbound_status_still_honors_the_cleaning_flag(
+    hass: HomeAssistant,
+) -> None:
+    adapter, _, _ = setup_robot(hass, unbound=("status",))
+    observed = await adapter.async_observe()
+    assert observed.state is RobotAvailabilityState.AVAILABLE
+    assert observed.normal_end is True
+    hass.states.async_set("binary_sensor.in_cleaning", "on")
+    observed = await adapter.async_observe()
+    assert observed.state is RobotAvailabilityState.BUSY
+    assert observed.normal_end is False
+    hass.states.async_set("binary_sensor.in_cleaning", "unavailable")
+    assert (await adapter.async_observe()).normal_end is False
+    hass.states.async_set("sensor.error", "main_brush_jammed")
+    observed = await adapter.async_observe()
+    assert observed.state is RobotAvailabilityState.UNAVAILABLE
+    assert observed.normal_end is False
+
+
+async def test_unbound_status_and_flag_keep_the_generic_observation(
+    hass: HomeAssistant,
+) -> None:
+    adapter, _, _ = setup_robot(hass, unbound=("status", "in_cleaning"))
+    observed = await adapter.async_observe()
+    assert observed.state is RobotAvailabilityState.AVAILABLE
+    assert observed.normal_end is True
+    hass.states.async_set("vacuum.test", "cleaning")
+    observed = await adapter.async_observe()
+    assert observed.cleaning_active is True
+    assert observed.normal_end is False
+
+
+async def test_normal_roborock_start_and_end_still_complete(
+    hass: HomeAssistant,
+) -> None:
+    adapter, _, _ = setup_robot(hass)
+    hass.states.async_set("binary_sensor.in_cleaning", "on")
+    hass.states.async_set("sensor.status", "segment_cleaning")
+    observed = await adapter.async_observe()
+    assert (observed.cleaning_active, observed.normal_end) == (True, False)
+    hass.states.async_set("sensor.status", "returning_home")
+    observed = await adapter.async_observe()
+    assert (observed.cleaning_active, observed.normal_end) == (False, False)
+    hass.states.async_set("binary_sensor.in_cleaning", "off")
+    hass.states.async_set("sensor.status", "charging")
+    observed = await adapter.async_observe()
+    assert observed.state is RobotAvailabilityState.AVAILABLE
+    assert (observed.cleaning_active, observed.normal_end) == (False, True)
 
 
 async def test_ambiguous_map_names_and_invalid_inventory_fail_closed(

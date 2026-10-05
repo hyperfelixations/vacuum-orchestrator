@@ -107,6 +107,13 @@ class HomeAssistantVacuumAdapter:
             )
         return self._legacy_roles.get(role)
 
+    def role_bound(self, role: str) -> bool:
+        """Return whether a binding exists, even if its entity is unusable now."""
+        return (
+            self._roles.get(role) is not None
+            or self._legacy_roles.get(role) is not None
+        )
+
     def role_value(self, role: str) -> str | None:
         """Return only usable companion states."""
         entity_id = self.role_entity(role)
