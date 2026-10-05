@@ -117,8 +117,11 @@ async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
     }
     assert revoked["commit_id"] > grant["commit_id"]
     assert not (await call(hass, "get_room", room_id=room))["released"]
-    await call(hass, "remove_room", room_id=room)
+    await call(hass, "disable_room", room_id=room)
     assert not (await call(hass, "get_room", room_id=room))["enabled"]
+    enabled = await call(hass, "enable_room", room_id=room)
+    assert enabled["room_id"] == room
+    assert (await call(hass, "get_room", room_id=room))["enabled"]
     page = await call(hass, "get_rooms", offset=1, limit=1)
     assert page["total"] == 1 and not page["rooms"]
     core = async_get_runtime(hass).orchestrator

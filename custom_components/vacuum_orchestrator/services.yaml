@@ -287,11 +287,16 @@ update_room:
       required: true
       selector:
         object: {}
-remove_room:
-  name: Remove room
-  description: Disable a room while preserving history and preventing automatic reimport.
+disable_room:
+  name: Disable room
+  description: Exclude a room from new jobs while preserving history and preventing
+    automatic reimport.
   fields: &id005
     room_id: *id004
+enable_room:
+  name: Enable room
+  description: Make a disabled room available for new jobs again.
+  fields: *id005
 release_room:
   name: Release room
   description: Allow new jobs permanently, for exactly one started job, for a duration,

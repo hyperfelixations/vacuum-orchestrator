@@ -33,7 +33,7 @@ async def test_area_import_rename_exclusion_deletion_and_reappearance() -> None:
     commit_id = orchestrator.state.commit_id
     await service.async_import_areas({"kitchen": AreaSnapshot("Kitchen", "floor")})
     assert orchestrator.state.commit_id == commit_id
-    await service.async_remove(room.room_id)
+    await service.async_disable(room.room_id)
     await service.async_import_areas({"kitchen": AreaSnapshot("Renamed", "floor")})
     renamed = service.registry.resolve("kitchen")
     assert renamed.room_id == room.room_id
@@ -48,6 +48,8 @@ async def test_area_import_rename_exclusion_deletion_and_reappearance() -> None:
     )
     await service.async_import_areas({"kitchen": AreaSnapshot("Remote name")})
     assert service.registry.resolve("kitchen").name == "Custom"
+    await service.async_enable(room.room_id)
+    assert service.registry.resolve("kitchen").enabled
 
 
 async def test_grant_revoke_and_runtime_facts_cannot_be_patched() -> None:
@@ -84,7 +86,7 @@ async def test_room_configuration_is_protected_during_execution() -> None:
     job_id = await orchestrator.async_create_job(_intent())
     await orchestrator.async_start_job(job_id)
     with pytest.raises(ConflictError, match="room_has_active_job"):
-        await orchestrator.rooms.async_remove(room_id)
+        await orchestrator.rooms.async_disable(room_id)
 
 
 async def test_policy_change_resets_counter_epoch_and_records_restart_gap() -> None:

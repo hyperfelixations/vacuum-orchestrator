@@ -154,7 +154,7 @@ async def test_failed_automatic_job_stays_suppressed_until_cleaning_or_explicit_
 
 async def test_excluded_rooms_and_unknown_due_do_not_create_work():
     core = await setup_due()
-    await core.rooms.async_remove("kitchen")
+    await core.rooms.async_disable("kitchen")
     await core.templates.async_save("Rule", _intent(), automatic=True)
     await core.templates.async_generate_due()
     assert not core.state.jobs

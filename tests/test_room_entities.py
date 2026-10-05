@@ -81,7 +81,7 @@ async def test_room_entity_values_commands_and_clock_are_derived(hass, request):
     assert last.async_write_ha_state.call_count == 2
     assert core.state.commit_id == commit
     last._call_on_remove_callbacks()
-    await core.rooms.async_remove(room_id)
+    await core.rooms.async_disable(room_id)
     assert not last.available
 
 

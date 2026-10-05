@@ -70,7 +70,8 @@ COMMANDS: dict[str, vol.Schema] = {
     "update_room": vol.Schema(
         {**ROOM_ID, vol.Required("configuration"): ROOM_PATCH_SCHEMA}
     ),
-    "remove_room": vol.Schema(ROOM_ID),
+    "disable_room": vol.Schema(ROOM_ID),
+    "enable_room": vol.Schema(ROOM_ID),
     "release_room": vol.Schema(
         {
             **ROOM_ID,
@@ -345,8 +346,10 @@ async def _execute_configuration(
         await core.rooms.async_update(
             data["room_id"], lambda room: apply_room_patch(room, values)
         )
-    elif name == "remove_room":
-        await core.rooms.async_remove(data["room_id"])
+    elif name == "disable_room":
+        await core.rooms.async_disable(data["room_id"])
+    elif name == "enable_room":
+        await core.rooms.async_enable(data["room_id"])
     elif name == "release_room":
         result["grant_id"] = await core.rooms.async_grant(
             data["room_id"], ReleaseKind(data["kind"]), data.get("duration_seconds")

@@ -103,9 +103,13 @@ class RoomService:
 
         await self._mutate(mutate)
 
-    async def async_remove(self, room_id: str) -> None:
+    async def async_disable(self, room_id: str) -> None:
         """Exclude a room while preserving historical identity and import exclusion."""
         await self.async_update(room_id, lambda room: replace(room, enabled=False))
+
+    async def async_enable(self, room_id: str) -> None:
+        """Make a disabled room selectable again with its history intact."""
+        await self.async_update(room_id, lambda room: replace(room, enabled=True))
 
     async def async_grant(
         self, room_id: str, kind: ReleaseKind, duration_seconds: float | None = None
