@@ -71,6 +71,7 @@ class RuntimeController:
         self._occupancy_dirty: set[str] = set()
         self._restart = True
         self._closed = False
+        self._fingerprint: dict[str, object] | None = None
         self.last_error: str | None = None
         self.repairs = RepairReporter(hass, orchestrator)
         self.scheduler = WakeupScheduler(
@@ -119,6 +120,7 @@ class RuntimeController:
                 "runtime_id": self.orchestrator.runtime_id,
                 "runtime_sequence": self.orchestrator.runtime_sequence,
                 "commit_id": self.orchestrator.state.commit_id,
+                "changed": sorted(self.orchestrator.changed_scopes),
             },
         )
         async_dispatcher_send(self.hass, SIGNAL_VIEW_CHANGED)
@@ -190,7 +192,6 @@ class RuntimeController:
             )
         self._restart = False
         self._occupancy_dirty.clear()
-        self.orchestrator.notify_runtime_change()
         for robot_id, adapter in self.orchestrator.adapters.items():
             lease = self.orchestrator.state.robot_leases.get(
                 adapter.profile.source_robot_id
@@ -214,8 +215,44 @@ class RuntimeController:
         await self.orchestrator.templates.async_generate_due()
         await self.orchestrator.async_dispatch_available()
         await self.orchestrator.async_reconcile_queue_run()
+        self._notify_view_changes(rebuild)
         self.repairs.update()
         self.last_error = None
+
+    def _notify_view_changes(self, rebuild: bool) -> None:
+        """Notify only when an uncommitted read projection changed."""
+        core = self.orchestrator
+        now = datetime.now(UTC)
+        fingerprint: dict[str, object] = {
+            "jobs": tuple(
+                core.readiness_for_job(job_id) for job_id in core.state.queue
+            ),
+            "robots": tuple(
+                (robot_id, adapter.profile)
+                for robot_id, adapter in core.adapters.items()
+            ),
+            "rooms": tuple(
+                (
+                    room_id,
+                    room.released(now),
+                    room.due(OperationKind.VACUUM, now).state,
+                    room.due(OperationKind.MOP, now).state,
+                )
+                for room_id, room in core.rooms.registry.rooms.items()
+            ),
+        }
+        previous, self._fingerprint = self._fingerprint, fingerprint
+        scopes = {
+            scope
+            for scope, value in fingerprint.items()
+            if previous is None or previous[scope] != value
+        }
+        if "jobs" in scopes:
+            scopes.add("queue")
+        if rebuild:
+            scopes.add("robots")
+        if scopes:
+            core.notify_runtime_change(frozenset(scopes))
 
     async def _async_discover(self) -> None:
         current = {

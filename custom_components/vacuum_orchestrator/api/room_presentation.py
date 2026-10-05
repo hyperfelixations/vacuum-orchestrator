@@ -12,12 +12,7 @@ from ..infrastructure.room_codec import encode_room
 def present_room(room: Room, now: datetime) -> dict[str, Any]:
     """Expose policy, provenance, effective grant and derived due state."""
     result = dict(encode_room(room))
-    result["released"] = bool(
-        room.enabled
-        and not room.area_missing
-        and room.release
-        and room.release.allows_new_job(now)
-    )
+    result["released"] = room.released(now)
     result["due"] = {
         operation.value: {
             **asdict(report),

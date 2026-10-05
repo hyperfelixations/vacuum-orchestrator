@@ -97,6 +97,8 @@ def present_queue(
         "queue_revision": state.queue_revision,
         "mode": state.mode.value,
         "needs_attention": state.needs_attention,
+        "active_count": state.active_job_count,
+        "attention_count": state.attention_job_count,
         "recovery_targets": [
             {
                 "robot_id": state.robot_leases[source_id].robot_id

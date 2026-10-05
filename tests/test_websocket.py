@@ -4,6 +4,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, cast
 
+import pytest
+import voluptuous as vol
 from homeassistant.components.websocket_api.connection import ActiveConnection
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -18,7 +20,7 @@ from custom_components.vacuum_orchestrator.const import (
 )
 from custom_components.vacuum_orchestrator.domain.intents import JobIntent, TargetRef
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
-from custom_components.vacuum_orchestrator.domain.types import CleaningMode
+from custom_components.vacuum_orchestrator.domain.types import CleaningMode, JobState
 from custom_components.vacuum_orchestrator.runtime import (
     RUNTIME_KEY,
     VacuumOrchestratorRuntime,
@@ -37,6 +39,7 @@ class StubOrchestrator:
         self.unsubscribed = False
         self.runtime_id = "runtime"
         self.runtime_sequence = 1
+        self.changed_scopes = frozenset({"queue", "jobs"})
 
     def readiness_for_job(self, job_id: str) -> object:
         assert job_id == "job"
@@ -169,6 +172,9 @@ def test_websocket_subscription_emits_lightweight_commit_notification(
                 "mode": "idle",
                 "pending_jobs": 1,
                 "needs_attention": False,
+                "active_count": 0,
+                "attention_count": 0,
+                "changed": ["jobs", "queue"],
             },
         )
     ]
@@ -249,3 +255,49 @@ def test_websocket_setup_registers_all_commands(
         websocket_api.websocket_configuration_get,
         websocket_api.websocket_configuration_command,
     ]
+
+
+async def test_jobs_list_filters_by_state_and_validates_states(
+    hass: HomeAssistant,
+) -> None:
+    _install_runtime(hass, StubOrchestrator())
+    connection = Connection()
+    active = cast(ActiveConnection, connection)
+    for message_id, states in ((1, ["queued"]), (2, ["running", "canceling"])):
+        websocket_api.websocket_jobs_list(
+            hass,
+            active,
+            {
+                "id": message_id,
+                "type": websocket_api.TYPE_JOBS_LIST,
+                "offset": 0,
+                "limit": 10,
+                "states": [JobState(item) for item in states],
+            },
+        )
+    await hass.async_block_till_done()
+
+    assert connection.results[0][1]["total"] == 1
+    assert connection.results[1][1]["total"] == 0
+    schema = websocket_api.websocket_jobs_list._ws_schema
+    assert schema({"id": 3, "type": websocket_api.TYPE_JOBS_LIST, "states": "queued"})[
+        "states"
+    ] == [JobState.QUEUED]
+    for invalid in (["polished"], []):
+        with pytest.raises(vol.Invalid):
+            schema({"id": 4, "type": websocket_api.TYPE_JOBS_LIST, "states": invalid})
+
+
+async def test_queue_page_reports_active_and_attention_counts(
+    hass: HomeAssistant,
+) -> None:
+    _install_runtime(hass, StubOrchestrator())
+    connection = Connection()
+    websocket_api.websocket_queue_get(
+        hass,
+        cast(ActiveConnection, connection),
+        {"id": 1, "type": websocket_api.TYPE_QUEUE_GET, "offset": 0, "limit": 10},
+    )
+    await hass.async_block_till_done()
+    result = connection.results[0][1]
+    assert (result["active_count"], result["attention_count"]) == (0, 0)

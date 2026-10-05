@@ -13,7 +13,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
-from .domain.types import JobState, OperationKind
+from .domain.types import OperationKind
 from .room_entities import RoomEntity, setup_room_entities
 from .runtime import VacuumOrchestratorRuntime
 
@@ -152,11 +152,7 @@ class ActiveJobCountSensor(_OrchestratorSensor):
     @property
     def native_value(self) -> int:
         """Return active job count."""
-        active = {JobState.DISPATCHING, JobState.RUNNING, JobState.CANCELING}
-        return sum(
-            job.state in active
-            for job in self._runtime.orchestrator.state.jobs.values()
-        )
+        return self._runtime.orchestrator.state.active_job_count
 
 
 class AttentionJobCountSensor(_OrchestratorSensor):
@@ -168,7 +164,4 @@ class AttentionJobCountSensor(_OrchestratorSensor):
     @property
     def native_value(self) -> int:
         """Return unresolved job count."""
-        return sum(
-            job.state is JobState.NEEDS_ATTENTION
-            for job in self._runtime.orchestrator.state.jobs.values()
-        )
+        return self._runtime.orchestrator.state.attention_job_count

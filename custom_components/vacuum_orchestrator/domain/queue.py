@@ -117,6 +117,16 @@ class OrchestratorState:
         return cls(installation_id, 0, 0, QueueMode.IDLE, (), {}, {})
 
     @property
+    def active_job_count(self) -> int:
+        """Return jobs that are starting, running or being cancelled."""
+        return sum(job.state in _ACTIVE for job in self.jobs.values())
+
+    @property
+    def attention_job_count(self) -> int:
+        """Return jobs with unresolved physical ownership."""
+        return sum(job.state is JobState.NEEDS_ATTENTION for job in self.jobs.values())
+
+    @property
     def needs_attention(self) -> bool:
         """Return whether any robot or job has unresolved physical ownership."""
         return bool(self.blocked_robots) or any(

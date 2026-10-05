@@ -125,6 +125,15 @@ class Room:
             self, occupancy=occupancy, last_cleaning=effective, last_confirmed=confirmed
         )
 
+    def released(self, now: datetime) -> bool:
+        """Return whether new jobs may currently be admitted for this room."""
+        return bool(
+            self.enabled
+            and not self.area_missing
+            and self.release
+            and self.release.allows_new_job(now)
+        )
+
     def due(self, operation: OperationKind, now: datetime) -> DueReport:
         """Project due state without mutating counters or persisting clock ticks."""
         if operation not in {OperationKind.VACUUM, OperationKind.MOP}:

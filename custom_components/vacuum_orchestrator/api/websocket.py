@@ -18,6 +18,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from ..const import API_VERSION, SIGNAL_VIEW_CHANGED
 from ..domain.errors import ConflictError, OrchestratorError, ValidationError
+from ..domain.types import JobState
 from ..ha_context import request_context
 from ..runtime import async_get_runtime
 from .configuration import (
@@ -157,7 +158,15 @@ async def websocket_job_get(
         send_websocket_error(connection, msg["id"], err)
 
 
-@websocket_command({vol.Required("type"): TYPE_JOBS_LIST, **PAGE_FIELDS})
+@websocket_command(
+    {
+        vol.Required("type"): TYPE_JOBS_LIST,
+        **PAGE_FIELDS,
+        vol.Optional("states"): vol.All(
+            cv.ensure_list, [vol.Coerce(JobState)], vol.Length(min=1)
+        ),
+    }
+)
 @async_response
 async def websocket_jobs_list(
     hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
@@ -165,8 +174,9 @@ async def websocket_jobs_list(
     """Return bounded job-registry history ordered by creation time."""
     try:
         state = async_get_runtime(hass).orchestrator.state
+        states = set(msg.get("states", JobState))
         ordered = sorted(
-            state.jobs.values(),
+            (job for job in state.jobs.values() if job.state in states),
             key=lambda job: (job.created_at, job.job_id),
             reverse=True,
         )
@@ -225,4 +235,7 @@ def _view_event(hass: HomeAssistant) -> dict[str, Any]:
         "mode": state.mode.value,
         "pending_jobs": len(state.queue),
         "needs_attention": state.needs_attention,
+        "active_count": state.active_job_count,
+        "attention_count": state.attention_job_count,
+        "changed": sorted(orchestrator.changed_scopes),
     }

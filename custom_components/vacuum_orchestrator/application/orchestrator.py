@@ -59,6 +59,48 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+VIEW_SCOPES = frozenset({"queue", "jobs", "rooms", "robots", "templates"})
+
+
+def changed_scopes(
+    previous: OrchestratorState, candidate: OrchestratorState
+) -> frozenset[str]:
+    """Name the public read models whose committed data differs."""
+    return frozenset(
+        scope
+        for scope, fields in (
+            (
+                "jobs",
+                (
+                    "jobs",
+                    "plans",
+                    "assignments",
+                    "attempts",
+                    "work_unit_states",
+                    "robot_runs",
+                    "correlations",
+                ),
+            ),
+            (
+                "queue",
+                (
+                    "queue",
+                    "queue_revision",
+                    "mode",
+                    "queue_run",
+                    "queue_grace_seconds",
+                    "blocked_robots",
+                    "jobs",
+                ),
+            ),
+            ("rooms", ("room_registry",)),
+            ("robots", ("robot_leases", "blocked_robots")),
+            ("templates", ("templates",)),
+        )
+        if any(getattr(previous, name) != getattr(candidate, name) for name in fields)
+    )
+
+
 def _uuid() -> str:
     return str(uuid4())
 
@@ -112,6 +154,7 @@ class VacuumOrchestrator:
         self.trace = trace or TraceRecorder()
         self.runtime_id = self.trace.runtime_id
         self.runtime_sequence = 0
+        self.changed_scopes: frozenset[str] = VIEW_SCOPES
         self._availability: dict[str, bool] = {}
         self.rooms = RoomService(self._mutate, lambda: self.state, clock, id_factory)
         self.templates = TemplateService(self._mutate, clock, id_factory)
@@ -206,8 +249,9 @@ class VacuumOrchestrator:
         self._view_listeners.add(listener)
         return lambda: self._view_listeners.discard(listener)
 
-    def notify_runtime_change(self) -> None:
+    def notify_runtime_change(self, scopes: frozenset[str] = VIEW_SCOPES) -> None:
         """Invalidate read models without scheduling or persisting a clock tick."""
+        self.changed_scopes = scopes
         self.runtime_sequence += 1
         self.trace.runtime_sequence = self.runtime_sequence
         for listener in tuple(self._view_listeners):
@@ -967,7 +1011,7 @@ class VacuumOrchestrator:
                     if attempt.completion_quality
                     else None,
                 )
-        self.notify_runtime_change()
+        self.notify_runtime_change(changed_scopes(previous, candidate))
         for listener in tuple(self._listeners):
             try:
                 listener()
