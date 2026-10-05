@@ -6,12 +6,16 @@ from typing import Any, cast
 
 from homeassistant.components.websocket_api.connection import ActiveConnection
 from homeassistant.core import Context, HomeAssistant
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from custom_components.vacuum_orchestrator.api import websocket as websocket_api
 from custom_components.vacuum_orchestrator.application.orchestrator import (
     VacuumOrchestrator,
 )
-from custom_components.vacuum_orchestrator.const import API_VERSION
+from custom_components.vacuum_orchestrator.const import (
+    API_VERSION,
+    SIGNAL_VIEW_CHANGED,
+)
 from custom_components.vacuum_orchestrator.domain.intents import JobIntent, TargetRef
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
 from custom_components.vacuum_orchestrator.domain.types import CleaningMode
@@ -130,15 +134,16 @@ def test_websocket_subscription_emits_lightweight_commit_notification(
         {"id": 5, "type": websocket_api.TYPE_SUBSCRIBE},
     )
     assert connection.results == [(5, None)]
-    assert orchestrator.listener is not None
+    assert connection.events == []
 
-    orchestrator.listener()
+    async_dispatcher_send(hass, SIGNAL_VIEW_CHANGED)
 
     assert connection.events == [
         (
             5,
             {
                 "api_version": API_VERSION,
+                "loaded": True,
                 "commit_id": 1,
                 "runtime_id": "runtime",
                 "runtime_sequence": 1,
@@ -150,7 +155,29 @@ def test_websocket_subscription_emits_lightweight_commit_notification(
         )
     ]
     connection.subscriptions[5]()
-    assert orchestrator.unsubscribed
+    async_dispatcher_send(hass, SIGNAL_VIEW_CHANGED)
+    assert len(connection.events) == 1
+
+
+def test_subscription_follows_the_currently_loaded_runtime(
+    hass: HomeAssistant,
+) -> None:
+    hass.data[RUNTIME_KEY] = {}
+    connection = Connection()
+    websocket_api.websocket_subscribe(
+        hass,
+        cast(ActiveConnection, connection),
+        {"id": 7, "type": websocket_api.TYPE_SUBSCRIBE},
+    )
+    assert connection.results == [(7, None)]
+    assert connection.events == [(7, {"api_version": API_VERSION, "loaded": False})]
+
+    reloaded = StubOrchestrator()
+    reloaded.runtime_id = "reloaded"
+    _install_runtime(hass, reloaded)
+    async_dispatcher_send(hass, SIGNAL_VIEW_CHANGED)
+    assert connection.events[-1][1]["runtime_id"] == "reloaded"
+    assert connection.events[-1][1]["loaded"] is True
 
 
 async def test_websocket_handlers_report_unloaded_runtime(
@@ -175,15 +202,9 @@ async def test_websocket_handlers_report_unloaded_runtime(
         active,
         {"id": 3, "type": websocket_api.TYPE_JOBS_LIST, "offset": 0, "limit": 10},
     )
-    websocket_api.websocket_subscribe(
-        hass,
-        active,
-        {"id": 4, "type": websocket_api.TYPE_SUBSCRIBE},
-    )
     await hass.async_block_till_done()
 
     assert [item[1] for item in connection.errors] == [
-        "orchestrator_not_loaded",
         "orchestrator_not_loaded",
         "orchestrator_not_loaded",
         "orchestrator_not_loaded",

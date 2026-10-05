@@ -3,9 +3,11 @@
 from copy import deepcopy
 from dataclasses import replace
 from types import MappingProxyType
+from typing import cast
 
 import pytest
 from homeassistant.components.vacuum.const import VacuumEntityFeature
+from homeassistant.components.websocket_api.connection import ActiveConnection
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -13,8 +15,13 @@ from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.vacuum_orchestrator.api.websocket import (
+    TYPE_SUBSCRIBE,
+    websocket_subscribe,
+)
 from custom_components.vacuum_orchestrator.const import (
     ADAPTER_ROBOROCK,
+    API_VERSION,
     CONF_ADAPTER,
     CONF_INSTALLATION_ID,
     CONF_ROBOT_ENTITY_ID,
@@ -36,6 +43,7 @@ from custom_components.vacuum_orchestrator.runtime import (
     async_setup_orchestrator,
     async_unload_orchestrator,
 )
+from tests.test_websocket import Connection
 
 
 class MemoryBackend:
@@ -288,3 +296,38 @@ async def test_home_assistant_stop_closes_runtime_before_later_unload(
             JobIntent((TargetRef("room"),), CleaningMode.VACUUM)
         )
     await async_unload_orchestrator(hass, entry)
+
+
+async def test_view_subscription_survives_runtime_reload(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    MemoryBackend.data = None
+    monkeypatch.setattr(
+        "custom_components.vacuum_orchestrator.runtime.HomeAssistantSnapshotBackend",
+        MemoryBackend,
+    )
+    hass.states.async_set(
+        "vacuum.roborock",
+        "docked",
+        {"supported_features": int(VacuumEntityFeature.CLEAN_AREA)},
+    )
+    entry = _entry()
+    entry.add_to_hass(hass)
+    assert await async_setup_orchestrator(hass, entry)
+    await hass.async_block_till_done()
+    first_runtime = async_get_runtime(hass).orchestrator.runtime_id
+    connection = Connection()
+    websocket_subscribe(
+        hass, cast(ActiveConnection, connection), {"id": 1, "type": TYPE_SUBSCRIBE}
+    )
+
+    assert await async_unload_orchestrator(hass, entry)
+    assert connection.events[-1] == (1, {"api_version": API_VERSION, "loaded": False})
+    assert await async_setup_orchestrator(hass, entry)
+    await hass.async_block_till_done()
+
+    event = connection.events[-1][1]
+    assert event["loaded"] is True
+    assert event["runtime_id"] == async_get_runtime(hass).orchestrator.runtime_id
+    assert event["runtime_id"] != first_runtime
+    assert await async_unload_orchestrator(hass, entry)

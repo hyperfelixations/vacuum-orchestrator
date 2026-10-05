@@ -12,6 +12,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .adapters.discovery import discover_robots, resolve_entity_id
 from .adapters.home_assistant_vacuum import HomeAssistantVacuumAdapter
@@ -27,6 +28,7 @@ from .const import (
     CONF_ROBOT_ENTITY_ID,
     CONF_ROBOT_REGISTRY_ID,
     DOMAIN,
+    SIGNAL_VIEW_CHANGED,
     SUBENTRY_TYPE_ROBOT,
 )
 from .domain.due import DueBasis, DueState
@@ -119,6 +121,7 @@ class RuntimeController:
                 "commit_id": self.orchestrator.state.commit_id,
             },
         )
+        async_dispatcher_send(self.hass, SIGNAL_VIEW_CHANGED)
 
     @callback
     def _state_changed(self, event: Event[Any]) -> None:

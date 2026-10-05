@@ -14,8 +14,9 @@ from homeassistant.components.websocket_api.decorators import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from ..const import API_VERSION
+from ..const import API_VERSION, SIGNAL_VIEW_CHANGED
 from ..domain.errors import OrchestratorError
 from ..ha_context import request_context
 from ..runtime import async_get_runtime
@@ -189,29 +190,35 @@ async def websocket_jobs_list(
 def websocket_subscribe(
     hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Subscribe a card to lightweight commit notifications."""
-    try:
-        orchestrator = async_get_runtime(hass).orchestrator
-    except OrchestratorError as err:
-        connection.send_error(msg["id"], err.code, str(err))
-        return
+    """Subscribe to view changes of whichever runtime is loaded, across reloads."""
 
     @callback
     def state_changed() -> None:
-        state = orchestrator.state
-        connection.send_event(
-            msg["id"],
-            {
-                "api_version": API_VERSION,
-                "commit_id": state.commit_id,
-                "runtime_id": orchestrator.runtime_id,
-                "runtime_sequence": orchestrator.runtime_sequence,
-                "queue_revision": state.queue_revision,
-                "mode": state.mode.value,
-                "pending_jobs": len(state.queue),
-                "needs_attention": state.needs_attention,
-            },
-        )
+        connection.send_event(msg["id"], _view_event(hass))
 
-    connection.subscriptions[msg["id"]] = orchestrator.subscribe_view(state_changed)
+    connection.subscriptions[msg["id"]] = async_dispatcher_connect(
+        hass, SIGNAL_VIEW_CHANGED, state_changed
+    )
     connection.send_result(msg["id"])
+    event = _view_event(hass)
+    if not event["loaded"]:
+        connection.send_event(msg["id"], event)
+
+
+def _view_event(hass: HomeAssistant) -> dict[str, Any]:
+    try:
+        orchestrator = async_get_runtime(hass).orchestrator
+    except OrchestratorError:
+        return {"api_version": API_VERSION, "loaded": False}
+    state = orchestrator.state
+    return {
+        "api_version": API_VERSION,
+        "loaded": True,
+        "commit_id": state.commit_id,
+        "runtime_id": orchestrator.runtime_id,
+        "runtime_sequence": orchestrator.runtime_sequence,
+        "queue_revision": state.queue_revision,
+        "mode": state.mode.value,
+        "pending_jobs": len(state.queue),
+        "needs_attention": state.needs_attention,
+    }

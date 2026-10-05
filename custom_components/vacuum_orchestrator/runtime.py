@@ -10,12 +10,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .application.orchestrator import VacuumOrchestrator
 from .application.robot_session import RobotOwnershipRegistry
 from .application.room_service import AreaSnapshot
 from .application.tracing import TraceEvent, TraceRecorder
-from .const import CONF_INSTALLATION_ID, DOMAIN, STORE_VERSION
+from .const import CONF_INSTALLATION_ID, DOMAIN, SIGNAL_VIEW_CHANGED, STORE_VERSION
 from .domain.errors import ConflictError
 from .domain.requirements import StateObservation, StateRequirement
 from .infrastructure.critical_repository import (
@@ -170,4 +171,5 @@ async def async_unload_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> 
     runtime.orchestrator.trace.record(
         TraceEvent.LIFECYCLE, datetime.now(UTC), stage="closed"
     )
+    async_dispatcher_send(hass, SIGNAL_VIEW_CHANGED)
     return True
