@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 import voluptuous as vol
 from homeassistant.core import Context, HomeAssistant
-from homeassistant.exceptions import ServiceValidationError, Unauthorized
+from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import area_registry as ar
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -40,6 +40,7 @@ from custom_components.vacuum_orchestrator.const import (
     SERVICE_UPDATE_JOB,
 )
 from custom_components.vacuum_orchestrator.infrastructure.integrity import JsonObject
+from tests.errors import raises_code
 
 
 @pytest.fixture(autouse=True)
@@ -272,7 +273,7 @@ async def test_action_validation_permissions_and_unloaded_runtime_are_clear(
 ) -> None:
     assert await async_setup_component(hass, DOMAIN, {})
 
-    with pytest.raises(ServiceValidationError, match="orchestrator_not_loaded"):
+    with raises_code("orchestrator_not_loaded"):
         await hass.services.async_call(
             DOMAIN,
             SERVICE_CREATE_JOB,
@@ -313,7 +314,7 @@ async def test_non_admin_commands_and_unknown_queries_are_rejected(
             return_response=True,
             context=Context(user_id=hass_read_only_user.id),
         )
-    with pytest.raises(ServiceValidationError, match="unknown_job"):
+    with raises_code("unknown_job"):
         await hass.services.async_call(
             DOMAIN,
             SERVICE_GET_JOB,
@@ -322,7 +323,7 @@ async def test_non_admin_commands_and_unknown_queries_are_rejected(
             return_response=True,
             context=Context(user_id=hass_read_only_user.id),
         )
-    with pytest.raises(ServiceValidationError, match="job_blocked"):
+    with raises_code("job_blocked"):
         created = await hass.services.async_call(
             DOMAIN,
             SERVICE_CREATE_JOB,

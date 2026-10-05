@@ -57,6 +57,7 @@ class Connection:
     def __init__(self) -> None:
         self.results: list[tuple[int, Any]] = []
         self.errors: list[tuple[int, str, str]] = []
+        self.translations: list[tuple[int, str, str | None, Any]] = []
         self.events: list[tuple[int, Any]] = []
         self.subscriptions: dict[int, Callable[[], None]] = {}
 
@@ -66,8 +67,25 @@ class Connection:
     def context(self, msg: dict[str, Any]) -> Context:
         return Context()
 
-    def send_error(self, message_id: int, code: str, message: str) -> None:
+    def send_error(
+        self,
+        message_id: int,
+        code: str,
+        message: str,
+        translation_key: str | None = None,
+        translation_domain: str | None = None,
+        translation_placeholders: dict[str, Any] | None = None,
+    ) -> None:
         self.errors.append((message_id, code, message))
+        if translation_key is not None:
+            self.translations.append(
+                (
+                    message_id,
+                    translation_key,
+                    translation_domain,
+                    translation_placeholders,
+                )
+            )
 
     def send_event(self, message_id: int, event: Any) -> None:
         self.events.append((message_id, event))

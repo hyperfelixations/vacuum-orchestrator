@@ -11,7 +11,7 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
-from homeassistant.exceptions import ServiceValidationError, Unauthorized
+from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import config_validation as cv
 
 from ..const import (
@@ -29,7 +29,7 @@ from ..const import (
     SERVICE_START_JOB,
     SERVICE_UPDATE_JOB,
 )
-from ..domain.errors import OrchestratorError
+from ..domain.errors import ConflictError, OrchestratorError
 from ..domain.intents import (
     JobIntent,
     JobIntentPatch,
@@ -45,6 +45,7 @@ from ..domain.types import (
 from ..ha_context import request_context
 from ..runtime import VacuumOrchestratorRuntime, async_get_runtime
 from .configuration import setup_configuration_actions
+from .errors import service_error
 from .job_input import CREATE_SCHEMA, _mode, intent_from_data
 from .presentation import present_job, present_queue
 from .telemetry import command_trace
@@ -224,7 +225,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         state = runtime.orchestrator.state
         job = state.jobs.get(call.data[ATTR_JOB_ID])
         if job is None:
-            raise ServiceValidationError("unknown_job")
+            raise service_error(ConflictError("unknown_job", call.data[ATTR_JOB_ID]))
         readiness = (
             runtime.orchestrator.readiness_for_job(job.job_id)
             if job.state.value == "queued"
@@ -265,7 +266,7 @@ def _register(
             try:
                 return cast(ServiceResponse | None, await handler(call))
             except OrchestratorError as err:
-                raise ServiceValidationError(err.code) from err
+                raise service_error(err) from err
 
     hass.services.async_register(
         DOMAIN,
@@ -300,7 +301,7 @@ async def _runtime_for_call(
     try:
         return async_get_runtime(hass)
     except OrchestratorError as err:
-        raise ServiceValidationError(str(err)) from err
+        raise service_error(err) from err
 
 
 def _intent_from_call(call: ServiceCall) -> JobIntent:
@@ -347,4 +348,4 @@ async def _translate_errors(awaitable: Any) -> Any:
     try:
         return await awaitable
     except OrchestratorError as err:
-        raise ServiceValidationError(str(err)) from err
+        raise service_error(err) from err

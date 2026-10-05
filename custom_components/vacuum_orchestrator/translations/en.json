@@ -87,5 +87,751 @@
       "title": "Cleaning recovery required",
       "description": "Check get_queue recovery_targets. Verify the affected robot has stopped before resolve_recovery. No cleaning success is assumed."
     }
+  },
+  "exceptions": {
+    "active_attempt_missing": {
+      "message": "The active job has no execution attempt"
+    },
+    "active_job_attempt_mismatch": {
+      "message": "Stored data is inconsistent: an active job references an invalid attempt"
+    },
+    "admission_scope_changed": {
+      "message": "The rooms admitted for this job changed"
+    },
+    "already_configured": {
+      "message": "This robot is already configured"
+    },
+    "ambiguous_legacy_mop_route": {
+      "message": "Stored legacy data has conflicting mop routes"
+    },
+    "ambiguous_legacy_operation_sequence": {
+      "message": "Stored legacy data has an ambiguous operation sequence"
+    },
+    "ambiguous_legacy_pass_count": {
+      "message": "Stored legacy data has conflicting pass counts"
+    },
+    "ambiguous_legacy_pass_scope": {
+      "message": "Stored legacy data has conflicting pass scopes"
+    },
+    "ambiguous_legacy_vacuum_level": {
+      "message": "Stored legacy data has conflicting suction levels"
+    },
+    "ambiguous_legacy_vendor_extension": {
+      "message": "Stored legacy data has conflicting vendor extensions"
+    },
+    "ambiguous_legacy_water_level": {
+      "message": "Stored legacy data has conflicting water levels"
+    },
+    "ambiguous_map_inventory": {
+      "message": "The robot reports the same map more than once"
+    },
+    "ambiguous_mode_mapping": {
+      "message": "Several cleaning modes map to the same robot option"
+    },
+    "ambiguous_room_alias": {
+      "message": "The room reference matches more than one room"
+    },
+    "assigned_robot_missing": {
+      "message": "The robot assigned to this job is no longer configured"
+    },
+    "assignment_room_mapping_invalid": {
+      "message": "The robot assignment does not cover the job's rooms consistently"
+    },
+    "assignment_work_unit_mismatch": {
+      "message": "The robot assignment belongs to a different work step"
+    },
+    "atomic_writes_required": {
+      "message": "The storage backend does not guarantee atomic writes"
+    },
+    "attempt_command_not_sent": {
+      "message": "The cleaning command for this attempt has not been sent"
+    },
+    "attempt_lease_missing": {
+      "message": "The robot reservation for this attempt is missing"
+    },
+    "attempt_ledger_reference_mismatch": {
+      "message": "Stored data is inconsistent: an attempt references unknown data"
+    },
+    "attempt_not_awaiting_start": {
+      "message": "The attempt is not waiting for a cleaning start"
+    },
+    "attempt_not_completable": {
+      "message": "The attempt cannot be completed in its current state"
+    },
+    "attempt_not_prepared": {
+      "message": "The attempt is no longer being prepared"
+    },
+    "attempt_ownership_conflict": {
+      "message": "The attempt no longer belongs to this job"
+    },
+    "battery_below_minimum": {
+      "message": "The robot's battery is below the configured minimum"
+    },
+    "cancel_not_requested": {
+      "message": "No cancellation was requested for this job"
+    },
+    "capabilities_changed": {
+      "message": "The robot's capabilities changed since the job was planned"
+    },
+    "capabilities_changed_before_dispatch": {
+      "message": "The robot's capabilities changed before the start"
+    },
+    "cleaning_mode_conflicts_with_fixed_mode": {
+      "message": "The robot's current cleaning mode conflicts with the requested mode"
+    },
+    "cleaning_mode_not_confirmed": {
+      "message": "The robot did not confirm the requested cleaning mode"
+    },
+    "cleaning_projection_mismatch": {
+      "message": "Stored room cleaning data does not match the cleaning records"
+    },
+    "completion_in_future": {
+      "message": "A cleaning completion cannot lie in the future"
+    },
+    "consumed_release_requires_job": {
+      "message": "A used one-time release must reference its job"
+    },
+    "contradictory_state_requirement": {
+      "message": "The same entity cannot be required both on and off"
+    },
+    "correlation_identity_mismatch": {
+      "message": "The robot run evidence belongs to a different attempt"
+    },
+    "correlation_ledger_reference_mismatch": {
+      "message": "Stored data is inconsistent: run evidence references unknown data"
+    },
+    "critical_commit_missing_after_save": {
+      "message": "The saved state could not be read back"
+    },
+    "critical_commit_readback_mismatch": {
+      "message": "The saved state differs from the intended state"
+    },
+    "critical_commit_semantic_mismatch": {
+      "message": "The saved state does not decode to the intended state"
+    },
+    "critical_storage_state_uncertain": {
+      "message": "The stored state is uncertain; reload the integration before making changes"
+    },
+    "critical_storage_unreadable": {
+      "message": "The stored state cannot be read"
+    },
+    "dedupe_key_already_queued": {
+      "message": "A waiting job with the same deduplication key already exists"
+    },
+    "due_requires_single_operation": {
+      "message": "Due state is only available for vacuuming or mopping"
+    },
+    "duplicate_active_physical_robot": {
+      "message": "Two active robot profiles refer to the same physical robot"
+    },
+    "duplicate_area": {
+      "message": "The same room is listed more than once"
+    },
+    "duplicate_area_mapping": {
+      "message": "Another room already uses this area"
+    },
+    "duplicate_physical_robot": {
+      "message": "Several robot profiles refer to the same physical robot"
+    },
+    "duplicate_queue_job": {
+      "message": "A job appears more than once in the queue"
+    },
+    "duplicate_room_binding": {
+      "message": "The room has more than one binding for the same robot and map"
+    },
+    "duplicate_work_unit_identity": {
+      "message": "Stored data is inconsistent: a work step identifier is duplicated"
+    },
+    "empty_adapter_targets": {
+      "message": "The robot assignment contains no cleaning targets"
+    },
+    "empty_allowed_operations": {
+      "message": "At least one cleaning operation must be allowed"
+    },
+    "empty_capability_revision": {
+      "message": "The robot capability snapshot has no revision"
+    },
+    "empty_dedupe_key": {
+      "message": "The deduplication key cannot be empty"
+    },
+    "empty_installation_id": {
+      "message": "The installation identifier cannot be empty"
+    },
+    "empty_job_update": {
+      "message": "The update does not change any field"
+    },
+    "empty_map_context": {
+      "message": "The map reference cannot be empty"
+    },
+    "empty_name": {
+      "message": "The name cannot be empty"
+    },
+    "empty_note": {
+      "message": "The note cannot be empty; omit it or set it to null"
+    },
+    "empty_reason": {
+      "message": "The reason cannot be empty; omit it or set it to null"
+    },
+    "empty_source": {
+      "message": "The source cannot be empty; omit it or set it to null"
+    },
+    "empty_target": {
+      "message": "A room reference cannot be empty"
+    },
+    "entity_not_registered": {
+      "message": "The vacuum entity is not in the entity registry"
+    },
+    "execution_identity_conflict": {
+      "message": "The execution identifiers conflict with existing data"
+    },
+    "expected_boolean": {
+      "message": "Stored data is invalid: a true/false value was expected"
+    },
+    "expected_finite_number": {
+      "message": "Stored data is invalid: a finite number was expected"
+    },
+    "expected_integer": {
+      "message": "Stored data is invalid: an integer was expected"
+    },
+    "expected_list": {
+      "message": "Stored data is invalid: a list was expected"
+    },
+    "expected_object": {
+      "message": "Stored data is invalid: an object was expected"
+    },
+    "expected_optional_string": {
+      "message": "Stored data is invalid: text or null was expected"
+    },
+    "expected_pair": {
+      "message": "Stored data is invalid: a key-value pair was expected"
+    },
+    "expected_pair_list": {
+      "message": "Stored data is invalid: a list of key-value pairs was expected"
+    },
+    "expected_string": {
+      "message": "Stored data is invalid: text was expected"
+    },
+    "expected_string_list": {
+      "message": "Stored data is invalid: a list of texts was expected"
+    },
+    "external_receipt_requires_confirmation": {
+      "message": "A cleaning record from outside Vacuum Orchestrator needs confirmed evidence"
+    },
+    "inactive_job_has_active_attempt": {
+      "message": "Stored data is inconsistent: a finished job still has an active attempt"
+    },
+    "installation_storage_ownership_mismatch": {
+      "message": "The stored state belongs to a different installation"
+    },
+    "insufficient_completion_evidence": {
+      "message": "The robot cannot report a reliable cleaning completion"
+    },
+    "insufficient_start_evidence": {
+      "message": "The robot cannot report a reliable cleaning start"
+    },
+    "invalid_accepted_states": {
+      "message": "The accepted states of a requirement are invalid"
+    },
+    "invalid_adapter": {
+      "message": "The robot adapter is not supported"
+    },
+    "invalid_battery_percentage": {
+      "message": "The robot reported an invalid battery level"
+    },
+    "invalid_cleaning_mode": {
+      "message": "The cleaning mode is invalid"
+    },
+    "invalid_cleaning_projection": {
+      "message": "The room's last-cleaning values are invalid"
+    },
+    "invalid_confirmed_projection": {
+      "message": "The room's last confirmed cleaning values are invalid"
+    },
+    "invalid_duration": {
+      "message": "The duration must be a finite number of seconds that is not negative"
+    },
+    "invalid_execution_attempt": {
+      "message": "The execution attempt is invalid"
+    },
+    "invalid_execution_plan": {
+      "message": "The execution plan is invalid"
+    },
+    "invalid_home_assistant_store_data": {
+      "message": "The stored Home Assistant data has an invalid structure"
+    },
+    "invalid_home_assistant_store_wrapper": {
+      "message": "The Home Assistant storage file has an invalid structure"
+    },
+    "invalid_identifier": {
+      "message": "An identifier is empty, too long or has surrounding spaces"
+    },
+    "invalid_legacy_storage_payload": {
+      "message": "Stored legacy data is invalid"
+    },
+    "invalid_map_inventory": {
+      "message": "The robot reported an invalid map list"
+    },
+    "invalid_minimum_battery": {
+      "message": "The minimum battery level must be between 0 and 100"
+    },
+    "invalid_occupancy_epoch": {
+      "message": "The occupancy period is invalid"
+    },
+    "invalid_occupancy_states": {
+      "message": "The occupied and unoccupied states must differ"
+    },
+    "invalid_operation": {
+      "message": "The cleaning operation is invalid"
+    },
+    "invalid_option_mapping": {
+      "message": "A robot option mapping is invalid"
+    },
+    "invalid_parameters": {
+      "message": "The request parameters are invalid"
+    },
+    "invalid_pass_capability": {
+      "message": "The robot's pass capability is invalid"
+    },
+    "invalid_pass_count": {
+      "message": "The number of passes must be between 1 and 10"
+    },
+    "invalid_receipt_rooms": {
+      "message": "A cleaning record must name at least one room, each only once"
+    },
+    "invalid_required_off": {
+      "message": "The entities required to be off are invalid or duplicated"
+    },
+    "invalid_required_on": {
+      "message": "The entities required to be on are invalid or duplicated"
+    },
+    "invalid_requirements": {
+      "message": "The requirements are invalid"
+    },
+    "invalid_robot_configuration": {
+      "message": "The robot configuration is invalid"
+    },
+    "invalid_robot_enabled": {
+      "message": "The robot's enabled setting must be true or false"
+    },
+    "invalid_robot_identity": {
+      "message": "The robot identity is invalid"
+    },
+    "invalid_robot_lease": {
+      "message": "The robot reservation is invalid"
+    },
+    "invalid_robot_preference": {
+      "message": "The robot preference must be between -100 and 100"
+    },
+    "invalid_role_entity": {
+      "message": "An entity assigned to a robot role is invalid"
+    },
+    "invalid_role_mapping": {
+      "message": "The robot role mapping is invalid"
+    },
+    "invalid_room_admission": {
+      "message": "The room admission is invalid"
+    },
+    "invalid_room_configuration": {
+      "message": "The room configuration is invalid"
+    },
+    "invalid_room_name": {
+      "message": "The room name is empty, too long or has surrounding spaces"
+    },
+    "invalid_room_targets": {
+      "message": "The room's robot targets are invalid"
+    },
+    "invalid_snapshot_envelope": {
+      "message": "The stored snapshot has an invalid integrity envelope"
+    },
+    "invalid_storage_payload": {
+      "message": "The stored state is invalid"
+    },
+    "invalid_target_areas": {
+      "message": "The robot's target areas are invalid"
+    },
+    "invalid_vendor_extension_namespace": {
+      "message": "The vendor extension namespace is invalid"
+    },
+    "invalid_vendor_extension_parameters": {
+      "message": "The vendor extension parameters are invalid"
+    },
+    "job_already_exists": {
+      "message": "A job with this identifier already exists"
+    },
+    "job_blocked": {
+      "message": "The job's start conditions are not met"
+    },
+    "job_conditions_not_satisfied": {
+      "message": "No robot currently meets the job's conditions"
+    },
+    "job_has_no_pending_work_unit": {
+      "message": "The job has no remaining work step"
+    },
+    "job_not_cancellable": {
+      "message": "The job can no longer be cancelled"
+    },
+    "job_not_deletable": {
+      "message": "Only waiting or finished jobs can be deleted"
+    },
+    "job_not_dispatchable": {
+      "message": "The job cannot be started in its current state"
+    },
+    "job_not_dispatching": {
+      "message": "The job is not being started"
+    },
+    "job_not_editable": {
+      "message": "Only waiting jobs can be edited"
+    },
+    "job_not_movable": {
+      "message": "Only waiting jobs can be moved"
+    },
+    "job_not_retryable": {
+      "message": "Only finished jobs can be retried"
+    },
+    "job_not_startable": {
+      "message": "The job was not started"
+    },
+    "job_plan_identity_conflict": {
+      "message": "The job already has a different plan"
+    },
+    "job_plan_missing": {
+      "message": "The job's plan is missing"
+    },
+    "job_plan_reference_mismatch": {
+      "message": "Stored data is inconsistent: a job references an unknown plan"
+    },
+    "job_plan_semantics_mismatch": {
+      "message": "Stored data is inconsistent: a plan does not match its job"
+    },
+    "job_requires_area": {
+      "message": "A job needs at least one room"
+    },
+    "job_storage_key_mismatch": {
+      "message": "Stored data is inconsistent: a job is stored under the wrong key"
+    },
+    "job_unknown": {
+      "message": "The state of the job's start conditions is unknown"
+    },
+    "legacy_import_verification_failed": {
+      "message": "Imported legacy data could not be verified"
+    },
+    "map_inventory_unavailable": {
+      "message": "The robot's map list is unavailable"
+    },
+    "map_read_failed": {
+      "message": "The robot's map list could not be read"
+    },
+    "mixed_map_contexts": {
+      "message": "All rooms of a job must be on the same map"
+    },
+    "multiple_orchestrator_entries_loaded": {
+      "message": "More than one Vacuum Orchestrator entry is loaded"
+    },
+    "naive_datetime": {
+      "message": "Stored data is invalid: a timestamp has no time zone"
+    },
+    "negative_robot_generation": {
+      "message": "Stored data is invalid: a robot generation is negative"
+    },
+    "negative_storage_revision": {
+      "message": "Stored data is invalid: the revision is negative"
+    },
+    "no_eligible_robot": {
+      "message": "No robot can run this job now"
+    },
+    "no_robot_configured": {
+      "message": "No robot is configured"
+    },
+    "non_monotonic_commit": {
+      "message": "The state changed concurrently; retry the action"
+    },
+    "non_monotonic_observation": {
+      "message": "An occupancy observation is older than the previous one"
+    },
+    "occupancy_source_required": {
+      "message": "Usage-based due times need an occupancy entity"
+    },
+    "orchestrator_not_initialized": {
+      "message": "Vacuum Orchestrator is not initialized yet"
+    },
+    "orchestrator_not_loaded": {
+      "message": "Vacuum Orchestrator is not loaded"
+    },
+    "orchestrator_shutting_down": {
+      "message": "Vacuum Orchestrator is shutting down"
+    },
+    "overlapping_room_mapping": {
+      "message": "Two rooms map to overlapping robot targets"
+    },
+    "plan_storage_key_mismatch": {
+      "message": "Stored data is inconsistent: a plan is stored under the wrong key"
+    },
+    "preference_conflicts_with_cleaning_mode": {
+      "message": "A setting of off conflicts with the cleaning mode"
+    },
+    "preparation_timeout": {
+      "message": "Preparing the robot took too long; no cleaning command was sent"
+    },
+    "queue_contains_non_queued_job": {
+      "message": "The queue contains a job that is not waiting"
+    },
+    "queue_grace_out_of_range": {
+      "message": "The queue grace time must be between 0 and 86400 seconds"
+    },
+    "queue_references_unknown_job": {
+      "message": "The queue references an unknown job"
+    },
+    "queue_run_binding_requires_run_release": {
+      "message": "Only queue-run releases can be bound to a queue run"
+    },
+    "queue_run_time_order": {
+      "message": "The queue run times are out of order"
+    },
+    "queued_job_missing_from_queue": {
+      "message": "A waiting job is missing from the queue"
+    },
+    "readiness_changed_before_start": {
+      "message": "The start conditions changed before the cleaning command"
+    },
+    "receipt_evidence_required": {
+      "message": "A cleaning record needs at least one piece of evidence"
+    },
+    "receipt_identity_conflict": {
+      "message": "A different cleaning record with this identifier already exists"
+    },
+    "receipt_registry_mismatch": {
+      "message": "The cleaning records do not match the rooms"
+    },
+    "receipt_room_mismatch": {
+      "message": "The cleaning record does not include this room"
+    },
+    "release_duration_mismatch": {
+      "message": "Only timed releases accept a duration, and they require one"
+    },
+    "release_expiry_mismatch": {
+      "message": "Only timed releases have an expiry time"
+    },
+    "release_expiry_not_future": {
+      "message": "The release expiry must be in the future"
+    },
+    "release_queue_run_mismatch": {
+      "message": "Stored data is inconsistent: a release references a different queue run"
+    },
+    "release_reservation_mismatch": {
+      "message": "The one-time release is reserved for a different job"
+    },
+    "release_reservation_requires_once": {
+      "message": "Only one-time releases can be reserved for a job"
+    },
+    "requirement_binding_missing": {
+      "message": "The entity of a requirement is no longer available"
+    },
+    "robot_already_executing": {
+      "message": "The robot is already running a job"
+    },
+    "robot_availability_unknown": {
+      "message": "The robot's availability is unknown"
+    },
+    "robot_busy": {
+      "message": "The robot is busy"
+    },
+    "robot_generation_not_monotonic": {
+      "message": "The robot command sequence is out of order"
+    },
+    "robot_generation_not_reserved": {
+      "message": "The robot command sequence was not reserved"
+    },
+    "robot_identity_change": {
+      "message": "A robot profile cannot be moved to a different robot"
+    },
+    "robot_lease_reference_mismatch": {
+      "message": "Stored data is inconsistent: a robot reservation references unknown data"
+    },
+    "robot_limit_reached": {
+      "message": "The maximum number of robots is reached"
+    },
+    "robot_needs_attention": {
+      "message": "The robot needs attention before it can receive commands"
+    },
+    "robot_not_available": {
+      "message": "The robot is not available"
+    },
+    "robot_not_needing_recovery": {
+      "message": "The robot does not need recovery"
+    },
+    "robot_session_already_owned": {
+      "message": "The robot is already reserved for another attempt"
+    },
+    "robot_session_owner_mismatch": {
+      "message": "The robot is reserved for a different attempt"
+    },
+    "robot_stopped_confirmation_required": {
+      "message": "Confirm that the robot has stopped to resolve recovery"
+    },
+    "robot_unavailable": {
+      "message": "The robot is unavailable or reports an error"
+    },
+    "robot_unknown": {
+      "message": "The robot's state is unknown"
+    },
+    "room_admission_job_mismatch": {
+      "message": "Stored data is inconsistent: a room admission references an unknown job"
+    },
+    "room_already_exists": {
+      "message": "A room with this identifier already exists"
+    },
+    "room_configuration_changes_runtime_state": {
+      "message": "Cleaning history and releases cannot be changed through the room configuration"
+    },
+    "room_has_active_job": {
+      "message": "The room has an active job"
+    },
+    "room_identity_mismatch": {
+      "message": "The room identifier does not match"
+    },
+    "room_not_released": {
+      "message": "The room is not released for new jobs"
+    },
+    "room_unavailable": {
+      "message": "The room is disabled or its area is missing"
+    },
+    "run_correlation_identity_conflict": {
+      "message": "The robot run is already linked to a different attempt"
+    },
+    "setting_confirmation_timeout": {
+      "message": "The robot did not confirm a setting in time"
+    },
+    "setting_entity_unavailable": {
+      "message": "The entity for a robot setting is unavailable"
+    },
+    "setting_option_unavailable": {
+      "message": "The robot does not offer a requested setting"
+    },
+    "settings_failed": {
+      "message": "Applying the robot settings failed; no cleaning command was sent"
+    },
+    "snapshot_digest_mismatch": {
+      "message": "The stored state failed its integrity check"
+    },
+    "source_robot_already_leased": {
+      "message": "The physical robot is already reserved"
+    },
+    "source_robot_already_owned": {
+      "message": "The physical robot is already managed by another installation"
+    },
+    "source_robot_mismatch": {
+      "message": "The command targets a different physical robot"
+    },
+    "source_robot_owner_mismatch": {
+      "message": "The physical robot is managed by another installation"
+    },
+    "stale_attempt_ownership": {
+      "message": "The command belongs to an outdated attempt"
+    },
+    "stale_robot_generation": {
+      "message": "The command was superseded by a newer robot command"
+    },
+    "start_rejected": {
+      "message": "The cleaning start was rejected before the command was sent"
+    },
+    "target_overlap_active": {
+      "message": "A room of this job is already being cleaned"
+    },
+    "template_disabled": {
+      "message": "The template is disabled"
+    },
+    "template_identity_mismatch": {
+      "message": "The template identifier does not match"
+    },
+    "template_unknown_room": {
+      "message": "The template references an unknown room"
+    },
+    "timeout_out_of_range": {
+      "message": "Timeouts can be at most 86400 seconds"
+    },
+    "timezone_required": {
+      "message": "A timestamp needs a time zone"
+    },
+    "unknown_area": {
+      "message": "The area does not exist"
+    },
+    "unknown_attempt": {
+      "message": "The execution attempt does not exist"
+    },
+    "unknown_entity_role": {
+      "message": "The robot role is unknown"
+    },
+    "unknown_job": {
+      "message": "The job does not exist"
+    },
+    "unknown_robot": {
+      "message": "The robot does not exist"
+    },
+    "unknown_robot_configuration_field": {
+      "message": "The robot configuration contains an unknown field"
+    },
+    "unknown_room": {
+      "message": "The room does not exist"
+    },
+    "unknown_template": {
+      "message": "The template does not exist"
+    },
+    "unmapped_target": {
+      "message": "The robot has no target for at least one room of this job"
+    },
+    "unsupported_cancel_semantics": {
+      "message": "The robot does not support stopping"
+    },
+    "unsupported_cleaning_preference": {
+      "message": "The robot does not support a required cleaning setting"
+    },
+    "unsupported_home_assistant_store_wrapper": {
+      "message": "The Home Assistant storage file has an unsupported version"
+    },
+    "unsupported_legacy_job_state": {
+      "message": "Stored legacy data contains an unsupported job state"
+    },
+    "unsupported_legacy_pass_scope": {
+      "message": "Stored legacy data contains an unsupported pass scope"
+    },
+    "unsupported_legacy_queue_mode": {
+      "message": "Stored legacy data contains an unsupported queue mode"
+    },
+    "unsupported_legacy_requirement_state": {
+      "message": "Stored legacy data contains an unsupported requirement state"
+    },
+    "unsupported_legacy_storage_schema": {
+      "message": "Stored legacy data has an unsupported schema"
+    },
+    "unsupported_map_context": {
+      "message": "The robot is not on the map required by the job"
+    },
+    "unsupported_operation": {
+      "message": "The robot does not support this cleaning mode"
+    },
+    "unsupported_pass_count": {
+      "message": "The robot does not support this number of passes"
+    },
+    "unsupported_pass_scope": {
+      "message": "The robot does not support passes in this form"
+    },
+    "unsupported_previous_storage_schema": {
+      "message": "The previous storage file has an unsupported schema"
+    },
+    "unsupported_robot_protocol": {
+      "message": "The robot protocol is not supported"
+    },
+    "unsupported_storage_schema": {
+      "message": "The stored state has an unsupported schema"
+    },
+    "unsupported_vendor_extension": {
+      "message": "The robot does not support the vendor extension"
+    },
+    "vacuum_unavailable": {
+      "message": "The vacuum entity is unavailable or not supported"
+    },
+    "work_unit_state_ledger_mismatch": {
+      "message": "Stored data is inconsistent: work step states do not match the plans"
+    }
   }
 }

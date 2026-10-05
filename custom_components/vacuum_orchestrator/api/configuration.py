@@ -11,7 +11,7 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
-from homeassistant.exceptions import ServiceValidationError, Unauthorized
+from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import config_validation as cv
 
@@ -30,6 +30,7 @@ from ..room_configuration import (
     normalize_room_patch,
 )
 from ..runtime import async_get_runtime
+from .errors import service_error
 from .job_input import CREATE_SCHEMA, intent_from_data
 from .presentation import present_job
 from .room_presentation import present_room
@@ -423,7 +424,7 @@ def setup_configuration_actions(hass: HomeAssistant) -> None:
                         )
                     )
             except OrchestratorError as err:
-                raise ServiceValidationError(err.code) from err
+                raise service_error(err) from err
             return cast(ServiceResponse, result) if call.return_response else None
 
         return handle

@@ -87,5 +87,751 @@
       "title": "Wiederherstellung erforderlich",
       "description": "recovery_targets in get_queue prüfen. Vor resolve_recovery sicherstellen, dass der betroffene Roboter gestoppt ist. Reinigungserfolg wird nicht angenommen."
     }
+  },
+  "exceptions": {
+    "active_attempt_missing": {
+      "message": "Der aktive Auftrag hat keinen Ausführungsversuch"
+    },
+    "active_job_attempt_mismatch": {
+      "message": "Gespeicherte Daten sind inkonsistent: Ein aktiver Auftrag verweist auf einen ungültigen Versuch"
+    },
+    "admission_scope_changed": {
+      "message": "Die für diesen Auftrag zugelassenen Räume haben sich geändert"
+    },
+    "already_configured": {
+      "message": "Dieser Roboter ist bereits eingerichtet"
+    },
+    "ambiguous_legacy_mop_route": {
+      "message": "Gespeicherte Altdaten enthalten widersprüchliche Wischrouten"
+    },
+    "ambiguous_legacy_operation_sequence": {
+      "message": "Gespeicherte Altdaten enthalten eine mehrdeutige Arbeitsfolge"
+    },
+    "ambiguous_legacy_pass_count": {
+      "message": "Gespeicherte Altdaten enthalten widersprüchliche Durchgangszahlen"
+    },
+    "ambiguous_legacy_pass_scope": {
+      "message": "Gespeicherte Altdaten enthalten widersprüchliche Durchgangsbereiche"
+    },
+    "ambiguous_legacy_vacuum_level": {
+      "message": "Gespeicherte Altdaten enthalten widersprüchliche Saugstufen"
+    },
+    "ambiguous_legacy_vendor_extension": {
+      "message": "Gespeicherte Altdaten enthalten widersprüchliche Herstellererweiterungen"
+    },
+    "ambiguous_legacy_water_level": {
+      "message": "Gespeicherte Altdaten enthalten widersprüchliche Wasserstufen"
+    },
+    "ambiguous_map_inventory": {
+      "message": "Der Roboter meldet dieselbe Karte mehrfach"
+    },
+    "ambiguous_mode_mapping": {
+      "message": "Mehrere Reinigungsmodi verweisen auf dieselbe Roboteroption"
+    },
+    "ambiguous_room_alias": {
+      "message": "Die Raumangabe passt zu mehr als einem Raum"
+    },
+    "assigned_robot_missing": {
+      "message": "Der diesem Auftrag zugewiesene Roboter ist nicht mehr eingerichtet"
+    },
+    "assignment_room_mapping_invalid": {
+      "message": "Die Roboterzuweisung deckt die Räume des Auftrags nicht konsistent ab"
+    },
+    "assignment_work_unit_mismatch": {
+      "message": "Die Roboterzuweisung gehört zu einem anderen Arbeitsschritt"
+    },
+    "atomic_writes_required": {
+      "message": "Der Speicher garantiert keine atomaren Schreibvorgänge"
+    },
+    "attempt_command_not_sent": {
+      "message": "Der Reinigungsbefehl für diesen Versuch wurde noch nicht gesendet"
+    },
+    "attempt_lease_missing": {
+      "message": "Die Roboterreservierung für diesen Versuch fehlt"
+    },
+    "attempt_ledger_reference_mismatch": {
+      "message": "Gespeicherte Daten sind inkonsistent: Ein Versuch verweist auf unbekannte Daten"
+    },
+    "attempt_not_awaiting_start": {
+      "message": "Der Versuch wartet nicht auf einen Reinigungsstart"
+    },
+    "attempt_not_completable": {
+      "message": "Der Versuch kann in seinem aktuellen Zustand nicht abgeschlossen werden"
+    },
+    "attempt_not_prepared": {
+      "message": "Der Versuch wird nicht mehr vorbereitet"
+    },
+    "attempt_ownership_conflict": {
+      "message": "Der Versuch gehört nicht mehr zu diesem Auftrag"
+    },
+    "battery_below_minimum": {
+      "message": "Der Akku des Roboters liegt unter dem eingestellten Minimum"
+    },
+    "cancel_not_requested": {
+      "message": "Für diesen Auftrag wurde kein Abbruch angefordert"
+    },
+    "capabilities_changed": {
+      "message": "Die Fähigkeiten des Roboters haben sich seit der Planung geändert"
+    },
+    "capabilities_changed_before_dispatch": {
+      "message": "Die Fähigkeiten des Roboters haben sich vor dem Start geändert"
+    },
+    "cleaning_mode_conflicts_with_fixed_mode": {
+      "message": "Der aktuelle Reinigungsmodus des Roboters widerspricht dem angeforderten Modus"
+    },
+    "cleaning_mode_not_confirmed": {
+      "message": "Der Roboter hat den angeforderten Reinigungsmodus nicht bestätigt"
+    },
+    "cleaning_projection_mismatch": {
+      "message": "Gespeicherte Reinigungswerte des Raums passen nicht zu den Reinigungsbelegen"
+    },
+    "completion_in_future": {
+      "message": "Ein Reinigungsabschluss kann nicht in der Zukunft liegen"
+    },
+    "consumed_release_requires_job": {
+      "message": "Eine verbrauchte Einmalfreigabe muss auf ihren Auftrag verweisen"
+    },
+    "contradictory_state_requirement": {
+      "message": "Dieselbe Entität kann nicht gleichzeitig als ein und aus verlangt werden"
+    },
+    "correlation_identity_mismatch": {
+      "message": "Der Nachweis des Roboterlaufs gehört zu einem anderen Versuch"
+    },
+    "correlation_ledger_reference_mismatch": {
+      "message": "Gespeicherte Daten sind inkonsistent: Ein Laufnachweis verweist auf unbekannte Daten"
+    },
+    "critical_commit_missing_after_save": {
+      "message": "Der gespeicherte Zustand konnte nicht zurückgelesen werden"
+    },
+    "critical_commit_readback_mismatch": {
+      "message": "Der gespeicherte Zustand weicht vom beabsichtigten Zustand ab"
+    },
+    "critical_commit_semantic_mismatch": {
+      "message": "Der gespeicherte Zustand ergibt beim Lesen nicht den beabsichtigten Zustand"
+    },
+    "critical_storage_state_uncertain": {
+      "message": "Der gespeicherte Zustand ist unsicher; lade die Integration neu, bevor du Änderungen vornimmst"
+    },
+    "critical_storage_unreadable": {
+      "message": "Der gespeicherte Zustand kann nicht gelesen werden"
+    },
+    "dedupe_key_already_queued": {
+      "message": "Ein wartender Auftrag mit demselben Duplikatschlüssel existiert bereits"
+    },
+    "due_requires_single_operation": {
+      "message": "Fälligkeit gibt es nur für Saugen oder Wischen"
+    },
+    "duplicate_active_physical_robot": {
+      "message": "Zwei aktive Roboterprofile verweisen auf denselben physischen Roboter"
+    },
+    "duplicate_area": {
+      "message": "Derselbe Raum ist mehrfach angegeben"
+    },
+    "duplicate_area_mapping": {
+      "message": "Ein anderer Raum verwendet diesen Bereich bereits"
+    },
+    "duplicate_physical_robot": {
+      "message": "Mehrere Roboterprofile verweisen auf denselben physischen Roboter"
+    },
+    "duplicate_queue_job": {
+      "message": "Ein Auftrag kommt mehrfach in der Warteschlange vor"
+    },
+    "duplicate_room_binding": {
+      "message": "Der Raum hat mehrere Zuordnungen für denselben Roboter und dieselbe Karte"
+    },
+    "duplicate_work_unit_identity": {
+      "message": "Gespeicherte Daten sind inkonsistent: Eine Arbeitsschrittkennung ist doppelt vorhanden"
+    },
+    "empty_adapter_targets": {
+      "message": "Die Roboterzuweisung enthält keine Reinigungsziele"
+    },
+    "empty_allowed_operations": {
+      "message": "Mindestens eine Reinigungsart muss erlaubt sein"
+    },
+    "empty_capability_revision": {
+      "message": "Der Fähigkeitsstand des Roboters hat keine Revision"
+    },
+    "empty_dedupe_key": {
+      "message": "Der Duplikatschlüssel darf nicht leer sein"
+    },
+    "empty_installation_id": {
+      "message": "Die Installationskennung darf nicht leer sein"
+    },
+    "empty_job_update": {
+      "message": "Die Änderung enthält kein Feld"
+    },
+    "empty_map_context": {
+      "message": "Die Kartenangabe darf nicht leer sein"
+    },
+    "empty_name": {
+      "message": "Der Name darf nicht leer sein"
+    },
+    "empty_note": {
+      "message": "Die Notiz darf nicht leer sein; lass sie weg oder setze sie auf null"
+    },
+    "empty_reason": {
+      "message": "Der Grund darf nicht leer sein; lass ihn weg oder setze ihn auf null"
+    },
+    "empty_source": {
+      "message": "Die Quelle darf nicht leer sein; lass sie weg oder setze sie auf null"
+    },
+    "empty_target": {
+      "message": "Eine Raumangabe darf nicht leer sein"
+    },
+    "entity_not_registered": {
+      "message": "Die Saugroboter-Entität ist nicht im Entitätsregister"
+    },
+    "execution_identity_conflict": {
+      "message": "Die Ausführungskennungen widersprechen vorhandenen Daten"
+    },
+    "expected_boolean": {
+      "message": "Gespeicherte Daten sind ungültig: Ein Wahr/Falsch-Wert wurde erwartet"
+    },
+    "expected_finite_number": {
+      "message": "Gespeicherte Daten sind ungültig: Eine endliche Zahl wurde erwartet"
+    },
+    "expected_integer": {
+      "message": "Gespeicherte Daten sind ungültig: Eine ganze Zahl wurde erwartet"
+    },
+    "expected_list": {
+      "message": "Gespeicherte Daten sind ungültig: Eine Liste wurde erwartet"
+    },
+    "expected_object": {
+      "message": "Gespeicherte Daten sind ungültig: Ein Objekt wurde erwartet"
+    },
+    "expected_optional_string": {
+      "message": "Gespeicherte Daten sind ungültig: Text oder null wurde erwartet"
+    },
+    "expected_pair": {
+      "message": "Gespeicherte Daten sind ungültig: Ein Schlüssel-Wert-Paar wurde erwartet"
+    },
+    "expected_pair_list": {
+      "message": "Gespeicherte Daten sind ungültig: Eine Liste von Schlüssel-Wert-Paaren wurde erwartet"
+    },
+    "expected_string": {
+      "message": "Gespeicherte Daten sind ungültig: Text wurde erwartet"
+    },
+    "expected_string_list": {
+      "message": "Gespeicherte Daten sind ungültig: Eine Textliste wurde erwartet"
+    },
+    "external_receipt_requires_confirmation": {
+      "message": "Ein Reinigungsbeleg von außerhalb des Vacuum Orchestrators braucht einen bestätigten Nachweis"
+    },
+    "inactive_job_has_active_attempt": {
+      "message": "Gespeicherte Daten sind inkonsistent: Ein beendeter Auftrag hat noch einen aktiven Versuch"
+    },
+    "installation_storage_ownership_mismatch": {
+      "message": "Der gespeicherte Zustand gehört zu einer anderen Installation"
+    },
+    "insufficient_completion_evidence": {
+      "message": "Der Roboter kann keinen verlässlichen Reinigungsabschluss melden"
+    },
+    "insufficient_start_evidence": {
+      "message": "Der Roboter kann keinen verlässlichen Reinigungsstart melden"
+    },
+    "invalid_accepted_states": {
+      "message": "Die akzeptierten Zustände einer Bedingung sind ungültig"
+    },
+    "invalid_adapter": {
+      "message": "Der Roboteradapter wird nicht unterstützt"
+    },
+    "invalid_battery_percentage": {
+      "message": "Der Roboter hat einen ungültigen Akkustand gemeldet"
+    },
+    "invalid_cleaning_mode": {
+      "message": "Der Reinigungsmodus ist ungültig"
+    },
+    "invalid_cleaning_projection": {
+      "message": "Die Werte der letzten Reinigung des Raums sind ungültig"
+    },
+    "invalid_confirmed_projection": {
+      "message": "Die Werte der letzten bestätigten Reinigung des Raums sind ungültig"
+    },
+    "invalid_duration": {
+      "message": "Die Dauer muss eine endliche, nicht negative Anzahl Sekunden sein"
+    },
+    "invalid_execution_attempt": {
+      "message": "Der Ausführungsversuch ist ungültig"
+    },
+    "invalid_execution_plan": {
+      "message": "Der Ausführungsplan ist ungültig"
+    },
+    "invalid_home_assistant_store_data": {
+      "message": "Die gespeicherten Home-Assistant-Daten haben eine ungültige Struktur"
+    },
+    "invalid_home_assistant_store_wrapper": {
+      "message": "Die Home-Assistant-Speicherdatei hat eine ungültige Struktur"
+    },
+    "invalid_identifier": {
+      "message": "Eine Kennung ist leer, zu lang oder hat umgebende Leerzeichen"
+    },
+    "invalid_legacy_storage_payload": {
+      "message": "Gespeicherte Altdaten sind ungültig"
+    },
+    "invalid_map_inventory": {
+      "message": "Der Roboter hat eine ungültige Kartenliste gemeldet"
+    },
+    "invalid_minimum_battery": {
+      "message": "Der Mindestakkustand muss zwischen 0 und 100 liegen"
+    },
+    "invalid_occupancy_epoch": {
+      "message": "Der Belegungszeitraum ist ungültig"
+    },
+    "invalid_occupancy_states": {
+      "message": "Die Zustände für belegt und unbelegt müssen sich unterscheiden"
+    },
+    "invalid_operation": {
+      "message": "Die Reinigungsart ist ungültig"
+    },
+    "invalid_option_mapping": {
+      "message": "Eine Zuordnung von Roboteroptionen ist ungültig"
+    },
+    "invalid_parameters": {
+      "message": "Die Anfrageparameter sind ungültig"
+    },
+    "invalid_pass_capability": {
+      "message": "Die Durchgangsfähigkeit des Roboters ist ungültig"
+    },
+    "invalid_pass_count": {
+      "message": "Die Anzahl der Durchgänge muss zwischen 1 und 10 liegen"
+    },
+    "invalid_receipt_rooms": {
+      "message": "Ein Reinigungsbeleg muss mindestens einen Raum nennen, jeden nur einmal"
+    },
+    "invalid_required_off": {
+      "message": "Die Entitäten, die aus sein müssen, sind ungültig oder doppelt"
+    },
+    "invalid_required_on": {
+      "message": "Die Entitäten, die ein sein müssen, sind ungültig oder doppelt"
+    },
+    "invalid_requirements": {
+      "message": "Die Bedingungen sind ungültig"
+    },
+    "invalid_robot_configuration": {
+      "message": "Die Roboterkonfiguration ist ungültig"
+    },
+    "invalid_robot_enabled": {
+      "message": "Die Aktivierung des Roboters muss wahr oder falsch sein"
+    },
+    "invalid_robot_identity": {
+      "message": "Die Roboteridentität ist ungültig"
+    },
+    "invalid_robot_lease": {
+      "message": "Die Roboterreservierung ist ungültig"
+    },
+    "invalid_robot_preference": {
+      "message": "Die Roboterpräferenz muss zwischen -100 und 100 liegen"
+    },
+    "invalid_role_entity": {
+      "message": "Eine einer Roboterrolle zugewiesene Entität ist ungültig"
+    },
+    "invalid_role_mapping": {
+      "message": "Die Zuordnung der Roboterrollen ist ungültig"
+    },
+    "invalid_room_admission": {
+      "message": "Die Raumzulassung ist ungültig"
+    },
+    "invalid_room_configuration": {
+      "message": "Die Raumkonfiguration ist ungültig"
+    },
+    "invalid_room_name": {
+      "message": "Der Raumname ist leer, zu lang oder hat umgebende Leerzeichen"
+    },
+    "invalid_room_targets": {
+      "message": "Die Roboterziele des Raums sind ungültig"
+    },
+    "invalid_snapshot_envelope": {
+      "message": "Der gespeicherte Snapshot hat einen ungültigen Integritätsumschlag"
+    },
+    "invalid_storage_payload": {
+      "message": "Der gespeicherte Zustand ist ungültig"
+    },
+    "invalid_target_areas": {
+      "message": "Die Zielbereiche des Roboters sind ungültig"
+    },
+    "invalid_vendor_extension_namespace": {
+      "message": "Der Namensraum der Herstellererweiterung ist ungültig"
+    },
+    "invalid_vendor_extension_parameters": {
+      "message": "Die Parameter der Herstellererweiterung sind ungültig"
+    },
+    "job_already_exists": {
+      "message": "Ein Auftrag mit dieser Kennung existiert bereits"
+    },
+    "job_blocked": {
+      "message": "Die Startbedingungen des Auftrags sind nicht erfüllt"
+    },
+    "job_conditions_not_satisfied": {
+      "message": "Kein Roboter erfüllt derzeit die Bedingungen des Auftrags"
+    },
+    "job_has_no_pending_work_unit": {
+      "message": "Der Auftrag hat keinen verbleibenden Arbeitsschritt"
+    },
+    "job_not_cancellable": {
+      "message": "Der Auftrag kann nicht mehr abgebrochen werden"
+    },
+    "job_not_deletable": {
+      "message": "Nur wartende oder beendete Aufträge können gelöscht werden"
+    },
+    "job_not_dispatchable": {
+      "message": "Der Auftrag kann in seinem aktuellen Zustand nicht gestartet werden"
+    },
+    "job_not_dispatching": {
+      "message": "Der Auftrag wird gerade nicht gestartet"
+    },
+    "job_not_editable": {
+      "message": "Nur wartende Aufträge können bearbeitet werden"
+    },
+    "job_not_movable": {
+      "message": "Nur wartende Aufträge können verschoben werden"
+    },
+    "job_not_retryable": {
+      "message": "Nur beendete Aufträge können wiederholt werden"
+    },
+    "job_not_startable": {
+      "message": "Der Auftrag wurde nicht gestartet"
+    },
+    "job_plan_identity_conflict": {
+      "message": "Der Auftrag hat bereits einen anderen Plan"
+    },
+    "job_plan_missing": {
+      "message": "Der Plan des Auftrags fehlt"
+    },
+    "job_plan_reference_mismatch": {
+      "message": "Gespeicherte Daten sind inkonsistent: Ein Auftrag verweist auf einen unbekannten Plan"
+    },
+    "job_plan_semantics_mismatch": {
+      "message": "Gespeicherte Daten sind inkonsistent: Ein Plan passt nicht zu seinem Auftrag"
+    },
+    "job_requires_area": {
+      "message": "Ein Auftrag braucht mindestens einen Raum"
+    },
+    "job_storage_key_mismatch": {
+      "message": "Gespeicherte Daten sind inkonsistent: Ein Auftrag ist unter dem falschen Schlüssel gespeichert"
+    },
+    "job_unknown": {
+      "message": "Der Zustand der Startbedingungen des Auftrags ist unbekannt"
+    },
+    "legacy_import_verification_failed": {
+      "message": "Importierte Altdaten konnten nicht überprüft werden"
+    },
+    "map_inventory_unavailable": {
+      "message": "Die Kartenliste des Roboters ist nicht verfügbar"
+    },
+    "map_read_failed": {
+      "message": "Die Kartenliste des Roboters konnte nicht gelesen werden"
+    },
+    "mixed_map_contexts": {
+      "message": "Alle Räume eines Auftrags müssen auf derselben Karte liegen"
+    },
+    "multiple_orchestrator_entries_loaded": {
+      "message": "Mehr als ein Vacuum-Orchestrator-Eintrag ist geladen"
+    },
+    "naive_datetime": {
+      "message": "Gespeicherte Daten sind ungültig: Ein Zeitstempel hat keine Zeitzone"
+    },
+    "negative_robot_generation": {
+      "message": "Gespeicherte Daten sind ungültig: Eine Robotergeneration ist negativ"
+    },
+    "negative_storage_revision": {
+      "message": "Gespeicherte Daten sind ungültig: Die Revision ist negativ"
+    },
+    "no_eligible_robot": {
+      "message": "Kein Roboter kann diesen Auftrag jetzt ausführen"
+    },
+    "no_robot_configured": {
+      "message": "Es ist kein Roboter eingerichtet"
+    },
+    "non_monotonic_commit": {
+      "message": "Der Zustand wurde gleichzeitig geändert; wiederhole die Aktion"
+    },
+    "non_monotonic_observation": {
+      "message": "Eine Belegungsbeobachtung ist älter als die vorherige"
+    },
+    "occupancy_source_required": {
+      "message": "Nutzungsbasierte Fälligkeit braucht eine Belegungsentität"
+    },
+    "orchestrator_not_initialized": {
+      "message": "Vacuum Orchestrator ist noch nicht initialisiert"
+    },
+    "orchestrator_not_loaded": {
+      "message": "Vacuum Orchestrator ist nicht geladen"
+    },
+    "orchestrator_shutting_down": {
+      "message": "Vacuum Orchestrator wird beendet"
+    },
+    "overlapping_room_mapping": {
+      "message": "Zwei Räume verweisen auf überlappende Roboterziele"
+    },
+    "plan_storage_key_mismatch": {
+      "message": "Gespeicherte Daten sind inkonsistent: Ein Plan ist unter dem falschen Schlüssel gespeichert"
+    },
+    "preference_conflicts_with_cleaning_mode": {
+      "message": "Eine ausgeschaltete Einstellung widerspricht dem Reinigungsmodus"
+    },
+    "preparation_timeout": {
+      "message": "Die Vorbereitung des Roboters dauerte zu lange; es wurde kein Reinigungsbefehl gesendet"
+    },
+    "queue_contains_non_queued_job": {
+      "message": "Die Warteschlange enthält einen Auftrag, der nicht wartet"
+    },
+    "queue_grace_out_of_range": {
+      "message": "Die Nachlaufzeit der Warteschlange muss zwischen 0 und 86400 Sekunden liegen"
+    },
+    "queue_references_unknown_job": {
+      "message": "Die Warteschlange verweist auf einen unbekannten Auftrag"
+    },
+    "queue_run_binding_requires_run_release": {
+      "message": "Nur Freigaben für einen Warteschlangenlauf können an einen Lauf gebunden werden"
+    },
+    "queue_run_time_order": {
+      "message": "Die Zeiten des Warteschlangenlaufs sind nicht in der richtigen Reihenfolge"
+    },
+    "queued_job_missing_from_queue": {
+      "message": "Ein wartender Auftrag fehlt in der Warteschlange"
+    },
+    "readiness_changed_before_start": {
+      "message": "Die Startbedingungen haben sich vor dem Reinigungsbefehl geändert"
+    },
+    "receipt_evidence_required": {
+      "message": "Ein Reinigungsbeleg braucht mindestens einen Nachweis"
+    },
+    "receipt_identity_conflict": {
+      "message": "Ein anderer Reinigungsbeleg mit dieser Kennung existiert bereits"
+    },
+    "receipt_registry_mismatch": {
+      "message": "Die Reinigungsbelege passen nicht zu den Räumen"
+    },
+    "receipt_room_mismatch": {
+      "message": "Der Reinigungsbeleg enthält diesen Raum nicht"
+    },
+    "release_duration_mismatch": {
+      "message": "Nur zeitlich begrenzte Freigaben haben eine Dauer, und sie brauchen eine"
+    },
+    "release_expiry_mismatch": {
+      "message": "Nur zeitlich begrenzte Freigaben haben einen Ablaufzeitpunkt"
+    },
+    "release_expiry_not_future": {
+      "message": "Der Ablauf der Freigabe muss in der Zukunft liegen"
+    },
+    "release_queue_run_mismatch": {
+      "message": "Gespeicherte Daten sind inkonsistent: Eine Freigabe verweist auf einen anderen Warteschlangenlauf"
+    },
+    "release_reservation_mismatch": {
+      "message": "Die Einmalfreigabe ist für einen anderen Auftrag reserviert"
+    },
+    "release_reservation_requires_once": {
+      "message": "Nur Einmalfreigaben können für einen Auftrag reserviert werden"
+    },
+    "requirement_binding_missing": {
+      "message": "Die Entität einer Bedingung ist nicht mehr verfügbar"
+    },
+    "robot_already_executing": {
+      "message": "Der Roboter führt bereits einen Auftrag aus"
+    },
+    "robot_availability_unknown": {
+      "message": "Die Verfügbarkeit des Roboters ist unbekannt"
+    },
+    "robot_busy": {
+      "message": "Der Roboter ist beschäftigt"
+    },
+    "robot_generation_not_monotonic": {
+      "message": "Die Befehlsfolge des Roboters ist nicht in der richtigen Reihenfolge"
+    },
+    "robot_generation_not_reserved": {
+      "message": "Die Befehlsfolge des Roboters wurde nicht reserviert"
+    },
+    "robot_identity_change": {
+      "message": "Ein Roboterprofil kann nicht auf einen anderen Roboter umgestellt werden"
+    },
+    "robot_lease_reference_mismatch": {
+      "message": "Gespeicherte Daten sind inkonsistent: Eine Roboterreservierung verweist auf unbekannte Daten"
+    },
+    "robot_limit_reached": {
+      "message": "Die maximale Anzahl an Robotern ist erreicht"
+    },
+    "robot_needs_attention": {
+      "message": "Der Roboter braucht Aufmerksamkeit, bevor er Befehle erhalten kann"
+    },
+    "robot_not_available": {
+      "message": "Der Roboter ist nicht verfügbar"
+    },
+    "robot_not_needing_recovery": {
+      "message": "Der Roboter braucht keine Wiederherstellung"
+    },
+    "robot_session_already_owned": {
+      "message": "Der Roboter ist bereits für einen anderen Versuch reserviert"
+    },
+    "robot_session_owner_mismatch": {
+      "message": "Der Roboter ist für einen anderen Versuch reserviert"
+    },
+    "robot_stopped_confirmation_required": {
+      "message": "Bestätige, dass der Roboter angehalten hat, um die Wiederherstellung abzuschließen"
+    },
+    "robot_unavailable": {
+      "message": "Der Roboter ist nicht verfügbar oder meldet einen Fehler"
+    },
+    "robot_unknown": {
+      "message": "Der Zustand des Roboters ist unbekannt"
+    },
+    "room_admission_job_mismatch": {
+      "message": "Gespeicherte Daten sind inkonsistent: Eine Raumzulassung verweist auf einen unbekannten Auftrag"
+    },
+    "room_already_exists": {
+      "message": "Ein Raum mit dieser Kennung existiert bereits"
+    },
+    "room_configuration_changes_runtime_state": {
+      "message": "Reinigungsverlauf und Freigaben können nicht über die Raumkonfiguration geändert werden"
+    },
+    "room_has_active_job": {
+      "message": "Der Raum hat einen aktiven Auftrag"
+    },
+    "room_identity_mismatch": {
+      "message": "Die Raumkennung passt nicht"
+    },
+    "room_not_released": {
+      "message": "Der Raum ist nicht für neue Aufträge freigegeben"
+    },
+    "room_unavailable": {
+      "message": "Der Raum ist deaktiviert oder sein Bereich fehlt"
+    },
+    "run_correlation_identity_conflict": {
+      "message": "Der Roboterlauf ist bereits einem anderen Versuch zugeordnet"
+    },
+    "setting_confirmation_timeout": {
+      "message": "Der Roboter hat eine Einstellung nicht rechtzeitig bestätigt"
+    },
+    "setting_entity_unavailable": {
+      "message": "Die Entität für eine Robotereinstellung ist nicht verfügbar"
+    },
+    "setting_option_unavailable": {
+      "message": "Der Roboter bietet eine angeforderte Einstellung nicht an"
+    },
+    "settings_failed": {
+      "message": "Das Anwenden der Robotereinstellungen ist fehlgeschlagen; es wurde kein Reinigungsbefehl gesendet"
+    },
+    "snapshot_digest_mismatch": {
+      "message": "Der gespeicherte Zustand hat die Integritätsprüfung nicht bestanden"
+    },
+    "source_robot_already_leased": {
+      "message": "Der physische Roboter ist bereits reserviert"
+    },
+    "source_robot_already_owned": {
+      "message": "Der physische Roboter wird bereits von einer anderen Installation verwaltet"
+    },
+    "source_robot_mismatch": {
+      "message": "Der Befehl betrifft einen anderen physischen Roboter"
+    },
+    "source_robot_owner_mismatch": {
+      "message": "Der physische Roboter wird von einer anderen Installation verwaltet"
+    },
+    "stale_attempt_ownership": {
+      "message": "Der Befehl gehört zu einem veralteten Versuch"
+    },
+    "stale_robot_generation": {
+      "message": "Der Befehl wurde durch einen neueren Roboterbefehl ersetzt"
+    },
+    "start_rejected": {
+      "message": "Der Reinigungsstart wurde abgelehnt, bevor der Befehl gesendet wurde"
+    },
+    "target_overlap_active": {
+      "message": "Ein Raum dieses Auftrags wird bereits gereinigt"
+    },
+    "template_disabled": {
+      "message": "Die Vorlage ist deaktiviert"
+    },
+    "template_identity_mismatch": {
+      "message": "Die Vorlagenkennung passt nicht"
+    },
+    "template_unknown_room": {
+      "message": "Die Vorlage verweist auf einen unbekannten Raum"
+    },
+    "timeout_out_of_range": {
+      "message": "Zeitlimits dürfen höchstens 86400 Sekunden betragen"
+    },
+    "timezone_required": {
+      "message": "Ein Zeitstempel braucht eine Zeitzone"
+    },
+    "unknown_area": {
+      "message": "Der Bereich existiert nicht"
+    },
+    "unknown_attempt": {
+      "message": "Der Ausführungsversuch existiert nicht"
+    },
+    "unknown_entity_role": {
+      "message": "Die Roboterrolle ist unbekannt"
+    },
+    "unknown_job": {
+      "message": "Der Auftrag existiert nicht"
+    },
+    "unknown_robot": {
+      "message": "Der Roboter existiert nicht"
+    },
+    "unknown_robot_configuration_field": {
+      "message": "Die Roboterkonfiguration enthält ein unbekanntes Feld"
+    },
+    "unknown_room": {
+      "message": "Der Raum existiert nicht"
+    },
+    "unknown_template": {
+      "message": "Die Vorlage existiert nicht"
+    },
+    "unmapped_target": {
+      "message": "Der Roboter hat für mindestens einen Raum dieses Auftrags kein Ziel"
+    },
+    "unsupported_cancel_semantics": {
+      "message": "Der Roboter unterstützt kein Anhalten"
+    },
+    "unsupported_cleaning_preference": {
+      "message": "Der Roboter unterstützt eine verlangte Reinigungseinstellung nicht"
+    },
+    "unsupported_home_assistant_store_wrapper": {
+      "message": "Die Home-Assistant-Speicherdatei hat eine nicht unterstützte Version"
+    },
+    "unsupported_legacy_job_state": {
+      "message": "Gespeicherte Altdaten enthalten einen nicht unterstützten Auftragszustand"
+    },
+    "unsupported_legacy_pass_scope": {
+      "message": "Gespeicherte Altdaten enthalten einen nicht unterstützten Durchgangsbereich"
+    },
+    "unsupported_legacy_queue_mode": {
+      "message": "Gespeicherte Altdaten enthalten einen nicht unterstützten Warteschlangenmodus"
+    },
+    "unsupported_legacy_requirement_state": {
+      "message": "Gespeicherte Altdaten enthalten einen nicht unterstützten Bedingungszustand"
+    },
+    "unsupported_legacy_storage_schema": {
+      "message": "Gespeicherte Altdaten haben ein nicht unterstütztes Schema"
+    },
+    "unsupported_map_context": {
+      "message": "Der Roboter ist nicht auf der vom Auftrag verlangten Karte"
+    },
+    "unsupported_operation": {
+      "message": "Der Roboter unterstützt diesen Reinigungsmodus nicht"
+    },
+    "unsupported_pass_count": {
+      "message": "Der Roboter unterstützt diese Anzahl an Durchgängen nicht"
+    },
+    "unsupported_pass_scope": {
+      "message": "Der Roboter unterstützt Durchgänge in dieser Form nicht"
+    },
+    "unsupported_previous_storage_schema": {
+      "message": "Die vorherige Speicherdatei hat ein nicht unterstütztes Schema"
+    },
+    "unsupported_robot_protocol": {
+      "message": "Das Roboterprotokoll wird nicht unterstützt"
+    },
+    "unsupported_storage_schema": {
+      "message": "Der gespeicherte Zustand hat ein nicht unterstütztes Schema"
+    },
+    "unsupported_vendor_extension": {
+      "message": "Der Roboter unterstützt die Herstellererweiterung nicht"
+    },
+    "vacuum_unavailable": {
+      "message": "Die Saugroboter-Entität ist nicht verfügbar oder wird nicht unterstützt"
+    },
+    "work_unit_state_ledger_mismatch": {
+      "message": "Gespeicherte Daten sind inkonsistent: Zustände der Arbeitsschritte passen nicht zu den Plänen"
+    }
   }
 }

@@ -17,7 +17,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from ..const import API_VERSION, SIGNAL_VIEW_CHANGED
-from ..domain.errors import OrchestratorError
+from ..domain.errors import ConflictError, OrchestratorError, ValidationError
 from ..ha_context import request_context
 from ..runtime import async_get_runtime
 from .configuration import (
@@ -26,6 +26,7 @@ from .configuration import (
     async_query_configuration,
     execute_configuration,
 )
+from .errors import send_websocket_error
 from .presentation import present_job, present_queue
 
 TYPE_QUEUE_GET = "vacuum_orchestrator/queue/get"
@@ -68,10 +69,12 @@ async def websocket_configuration_get(
         connection.send_result(
             msg["id"], await async_query_configuration(hass, msg["query"], data)
         )
-    except vol.Invalid:
-        connection.send_error(msg["id"], "invalid_parameters", "invalid_parameters")
+    except vol.Invalid as err:
+        send_websocket_error(
+            connection, msg["id"], ValidationError("invalid_parameters", str(err))
+        )
     except OrchestratorError as err:
-        connection.send_error(msg["id"], err.code, err.code)
+        send_websocket_error(connection, msg["id"], err)
 
 
 @websocket_command(
@@ -93,10 +96,12 @@ async def websocket_configuration_command(
             connection.send_result(
                 msg["id"], await execute_configuration(hass, msg["command"], data)
             )
-    except vol.Invalid:
-        connection.send_error(msg["id"], "invalid_parameters", "invalid_parameters")
+    except vol.Invalid as err:
+        send_websocket_error(
+            connection, msg["id"], ValidationError("invalid_parameters", str(err))
+        )
     except OrchestratorError as err:
-        connection.send_error(msg["id"], err.code, err.code)
+        send_websocket_error(connection, msg["id"], err)
 
 
 @websocket_command({vol.Required("type"): TYPE_QUEUE_GET, **PAGE_FIELDS})
@@ -123,7 +128,7 @@ async def websocket_queue_get(
             msg["id"], present_queue(state, jobs, offset=offset, limit=limit)
         )
     except OrchestratorError as err:
-        connection.send_error(msg["id"], err.code, str(err))
+        send_websocket_error(connection, msg["id"], err)
 
 
 @websocket_command(
@@ -138,8 +143,7 @@ async def websocket_job_get(
         orchestrator = async_get_runtime(hass).orchestrator
         job = orchestrator.state.jobs.get(msg["job_id"])
         if job is None:
-            connection.send_error(msg["id"], "unknown_job", "unknown_job")
-            return
+            raise ConflictError("unknown_job", msg["job_id"])
         readiness = (
             orchestrator.readiness_for_job(job.job_id)
             if job.job_id in orchestrator.state.queue
@@ -150,7 +154,7 @@ async def websocket_job_get(
             present_job(job, readiness, orchestrator.state.room_registry.rooms),
         )
     except OrchestratorError as err:
-        connection.send_error(msg["id"], err.code, str(err))
+        send_websocket_error(connection, msg["id"], err)
 
 
 @websocket_command({vol.Required("type"): TYPE_JOBS_LIST, **PAGE_FIELDS})
@@ -182,7 +186,7 @@ async def websocket_jobs_list(
             },
         )
     except OrchestratorError as err:
-        connection.send_error(msg["id"], err.code, str(err))
+        send_websocket_error(connection, msg["id"], err)
 
 
 @websocket_command({vol.Required("type"): TYPE_SUBSCRIBE})

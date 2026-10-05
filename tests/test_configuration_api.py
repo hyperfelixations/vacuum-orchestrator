@@ -8,7 +8,7 @@ import pytest
 import voluptuous as vol
 from homeassistant.components.vacuum.const import VacuumEntityFeature
 from homeassistant.core import Context, ServiceCall
-from homeassistant.exceptions import ServiceValidationError, Unauthorized
+from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -34,6 +34,7 @@ from custom_components.vacuum_orchestrator.runtime import (
     async_unload_orchestrator,
 )
 from tests.application.test_orchestrator import RecordingAdapter, RecordingBackend
+from tests.errors import raises_code
 from tests.test_runtime import MemoryBackend
 from tests.test_websocket import Connection
 
@@ -117,9 +118,9 @@ async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
         await call(
             hass, "update_room", room_id=room, configuration={"last_cleaning": {}}
         )
-    with pytest.raises(ServiceValidationError, match="release_duration_mismatch"):
+    with raises_code("release_duration_mismatch"):
         await call(hass, "release_room", room_id=room, kind="once", duration_seconds=10)
-    with pytest.raises(ServiceValidationError, match="unknown_room"):
+    with raises_code("unknown_room"):
         await call(hass, "get_room", room_id="missing")
 
 
@@ -164,7 +165,7 @@ async def test_robot_configuration_actions_share_validation_and_idle_guard(
         .entity_registry_id
         == sensor.id
     )
-    with pytest.raises(ServiceValidationError, match="already_configured"):
+    with raises_code("already_configured"):
         await call(
             hass, "add_robot", configuration={"robot_entity_id": vacuum.entity_id}
         )
@@ -369,9 +370,7 @@ async def test_public_configuration_rejects_mistyped_fields_and_missing_area(
     hass, configured
 ):
     vacuum = er.async_get(hass).async_get_or_create("vacuum", "demo", "guarded")
-    with pytest.raises(
-        ServiceValidationError, match="unknown_robot_configuration_field"
-    ):
+    with raises_code("unknown_robot_configuration_field"):
         await call(
             hass,
             "add_robot",
@@ -380,10 +379,10 @@ async def test_public_configuration_rejects_mistyped_fields_and_missing_area(
                 "mimimum_battery": 20,
             },
         )
-    with pytest.raises(ServiceValidationError, match="unknown_area"):
+    with raises_code("unknown_area"):
         await call(hass, "create_room", name="Office", area_id="missing")
     room = (await call(hass, "create_room", name="Office"))["room_id"]
-    with pytest.raises(ServiceValidationError, match="unknown_area"):
+    with raises_code("unknown_area"):
         await call(
             hass, "update_room", room_id=room, configuration={"area_id": "missing"}
         )
@@ -449,5 +448,5 @@ async def test_execution_query_explains_scoped_blockers_and_applied_preferences(
     )
     await hass.async_block_till_done(wait_background_tasks=True)
     assert connection.results[0][1] == result
-    with pytest.raises(ServiceValidationError, match="unknown_job"):
+    with raises_code("unknown_job"):
         await call(hass, "get_job_execution", job_id="missing")
