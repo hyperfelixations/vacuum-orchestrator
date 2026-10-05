@@ -189,6 +189,14 @@ def test_start_run_and_cancel_deadlines_are_persistent_and_distinct() -> None:
     assert next_deadline(replace(ATTEMPT, state=AttemptState.SUCCEEDED)) is None
 
 
+def test_preparation_has_no_observation_deadline() -> None:
+    prepared = replace(ATTEMPT, state=AttemptState.PREPARED, command_boundary_at=None)
+    assert next_deadline(prepared) is None
+    assert evaluate(prepared, now=NOW + timedelta(hours=1)).action is (
+        MonitorAction.WAIT
+    )
+
+
 def test_out_of_order_observations_do_not_advance_and_cannot_evade_timeouts() -> None:
     old = replace(IDLE, observed_at=NOW - timedelta(seconds=1))
     assert evaluate(observation=old).reason == "observation_out_of_order"

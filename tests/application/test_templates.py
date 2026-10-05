@@ -127,7 +127,7 @@ async def test_failed_automatic_job_stays_suppressed_until_cleaning_or_explicit_
     async def failed(*_args):
         raise DispatchNotStartedError("settings_failed")
 
-    monkeypatch.setattr(adapter, "async_dispatch", failed)
+    monkeypatch.setattr(adapter, "async_prepare", failed)
     with pytest.raises(DispatchNotStartedError):
         await core.async_start_job(job)
     await core.async_delete_job(job)

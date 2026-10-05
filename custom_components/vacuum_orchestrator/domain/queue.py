@@ -737,14 +737,26 @@ class OrchestratorState:
             correlations=correlations,
         )
 
-    def require_attention_for_active_leases(self, now: datetime) -> OrchestratorState:
-        """Conservatively isolate every unfinished source robot after restart."""
+    def resolve_interrupted_leases(self, now: datetime) -> OrchestratorState:
+        """Finish attempts without a command boundary; isolate all others."""
         state = self
         for lease in tuple(self.robot_leases.values()):
             attempt = state.attempts[lease.attempt_id]
-            if attempt.state is not AttemptState.RECOVERY_REQUIRED:
+            if attempt.state is AttemptState.RECOVERY_REQUIRED:
+                continue
+            if attempt.command_boundary_at is not None:
                 state = state.require_robot_attention(
                     attempt.attempt_id, None, None, now
+                )
+            elif state.jobs[attempt.job_id].state is JobState.CANCELING:
+                state = state.confirm_cancel(attempt.job_id, now, never_started=True)
+            else:
+                state = state.fail_job(
+                    attempt.job_id,
+                    attempt.attempt_id,
+                    "interrupted_before_start",
+                    now,
+                    never_started=True,
                 )
         return state
 

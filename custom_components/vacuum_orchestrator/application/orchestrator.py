@@ -36,7 +36,7 @@ from ..domain.types import (
     QueueMode,
     RobotAvailabilityState,
 )
-from ..ports.command_scope import command_origin
+from ..ports.command_scope import check_command_authorization, command_origin
 from ..ports.repository import OrchestratorRepository
 from ..ports.robot import RobotAdapter
 from ..ports.telemetry import adapter_reporter
@@ -147,7 +147,7 @@ class VacuumOrchestrator:
         async with self._lock:
             self._closing = True
             state = self.state
-            candidate = state.require_attention_for_active_leases(self._clock())
+            candidate = state.resolve_interrupted_leases(self._clock())
             try:
                 if candidate is not state:
                     await self._commit_locked(state, candidate)
@@ -174,7 +174,7 @@ class VacuumOrchestrator:
             if loaded.installation_id != self._installation_id:
                 raise StorageIntegrityError("installation_storage_ownership_mismatch")
             if loaded.robot_leases:
-                candidate = loaded.require_attention_for_active_leases(self._clock())
+                candidate = loaded.resolve_interrupted_leases(self._clock())
                 if candidate is not loaded:
                     await self._repository.async_commit(
                         candidate, expected_previous_commit_id=loaded.commit_id
@@ -696,8 +696,20 @@ class VacuumOrchestrator:
             )
             session.fence(generation, needs_attention=False)
             ticket = session.reserve(attempt_id)
-            sent = prepared.mark_command_sent(attempt_id, self._clock())
-            await self._commit_locked(prepared, sent)
+
+        async def prepare() -> None:
+            try:
+                async with asyncio.timeout(attempt.policy.start_seconds):
+                    await adapter.async_prepare(unit, assignment)
+            except TimeoutError as err:
+                raise DispatchNotStartedError("preparation_timeout") from err
+
+        async def boundary() -> None:
+            async with self._lock:
+                check_command_authorization()
+                current = self._verified_state()
+                sent = current.mark_command_sent(attempt_id, self._clock())
+                await self._commit_locked(current, sent)
 
         origin_token = command_origin.set(origin or job.origin)
         telemetry_token = adapter_reporter.set(
@@ -726,7 +738,9 @@ class VacuumOrchestrator:
         try:
             await session.dispatch(
                 ticket,
-                lambda: adapter.async_dispatch(unit, assignment),
+                prepare,
+                boundary,
+                lambda: adapter.async_start(unit, assignment),
                 lambda: self._guard_dispatch(job_id, assignment, unit.operation),
             )
         except StaleCommandError:

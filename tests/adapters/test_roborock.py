@@ -23,6 +23,7 @@ from custom_components.vacuum_orchestrator.domain.types import (
     SemanticLevel,
     SettingsPolicy,
 )
+from tests.adapters.dispatching import dispatch
 
 
 def setup_robot(hass: HomeAssistant, *, rooms=None, config=None, unbound=()):
@@ -142,7 +143,7 @@ async def test_native_segments_preserve_all_targets_and_repeats(
     assert adapter.profile.capabilities.target_map == {"kitchen": ("0_16", "0_17")}
     assert adapter.profile.capabilities.operations == frozenset(OperationKind)
     work = unit(passes=3)
-    await adapter.async_dispatch(work, await assignment(adapter, work))
+    await dispatch(adapter, work, await assignment(adapter, work))
     assert [call.service for call in calls] == ["send_command"]
     assert calls[0].data == {
         "entity_id": "vacuum.test",
@@ -163,7 +164,7 @@ async def test_map_changes_or_disappearing_segments_reject_the_entire_assignment
     planned = await assignment(adapter, work)
     inventory["maps"][0]["rooms"].pop("17")
     with pytest.raises(ConflictError, match="capabilities_changed"):
-        await adapter.async_dispatch(work, planned)
+        await dispatch(adapter, work, planned)
     assert calls == []
     assert adapter.profile.capabilities.target_map == {}
     hass.states.async_set(
@@ -189,7 +190,7 @@ async def test_custom_room_uses_explicit_map_scoped_binding(
     await adapter.async_refresh_maps()
     assert adapter.profile.capabilities.target_map == {"custom": ("0_16", "0_17")}
     work = unit(targets=("custom",))
-    await adapter.async_dispatch(work, await assignment(adapter, work))
+    await dispatch(adapter, work, await assignment(adapter, work))
     assert calls[0].data["params"] == [{"segments": [16, 17], "repeat": 1}]
 
 
@@ -318,6 +319,19 @@ async def test_normal_roborock_start_and_end_still_complete(
     assert (observed.cleaning_active, observed.normal_end) == (False, True)
 
 
+async def test_start_without_refreshed_inventory_never_sends_segments(
+    hass: HomeAssistant,
+) -> None:
+    adapter, _, calls = setup_robot(hass)
+    work = unit()
+    await adapter.async_refresh_maps()
+    planned = await assignment(adapter, work)
+    adapter._maps = None
+    with pytest.raises(DispatchNotStartedError, match="map_inventory_unavailable"):
+        await adapter.async_start(work, planned)
+    assert calls == []
+
+
 async def test_ambiguous_map_names_and_invalid_inventory_fail_closed(
     hass: HomeAssistant,
 ) -> None:
@@ -352,7 +366,7 @@ async def test_non_v1_uses_only_public_area_action_without_native_repeat(
     )
     await adapter.async_refresh_maps()
     work = unit()
-    await adapter.async_dispatch(work, await assignment(adapter, work))
+    await dispatch(adapter, work, await assignment(adapter, work))
     assert calls[0].service == "clean_area"
     assert adapter.profile.capabilities.passes.maximum == 1
 
@@ -376,7 +390,7 @@ async def test_preferences_that_change_mode_block_cleaning(hass: HomeAssistant) 
         unit(), preferences=CleaningPreferences(mop_intensity=SemanticLevel.LOW)
     )
     with pytest.raises(ConflictError, match="cleaning_mode_not_confirmed"):
-        await adapter.async_dispatch(work, await assignment(adapter, work))
+        await dispatch(adapter, work, await assignment(adapter, work))
     assert calls == []
 
 
@@ -393,5 +407,5 @@ async def test_map_read_failure_is_proven_before_start(
 
     monkeypatch.setattr(adapter, "async_refresh_maps", failed_read)
     with pytest.raises(DispatchNotStartedError, match="map_read_failed"):
-        await adapter.async_dispatch(work, selected)
+        await dispatch(adapter, work, selected)
     assert not calls

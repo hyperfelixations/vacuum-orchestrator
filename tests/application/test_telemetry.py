@@ -182,14 +182,14 @@ async def test_adapter_events_share_attempt_and_context_is_restored(monkeypatch)
     backend = RecordingBackend()
     adapter = RecordingAdapter(backend, "robot")
     core = await _orchestrator(backend, adapter)
-    original = adapter.async_dispatch
+    original = adapter.async_start
 
     async def dispatch(unit, assignment):
         report_adapter(TraceEvent.SETTING, "confirmed", "cleaning_mode")
         report_adapter(TraceEvent.PHYSICAL, "requested")
         await original(unit, assignment)
 
-    monkeypatch.setattr(adapter, "async_dispatch", dispatch)
+    monkeypatch.setattr(adapter, "async_start", dispatch)
     job = await core.async_create_job(_intent())
     with core.trace.request() as request_id:
         await core.async_start_job(job)

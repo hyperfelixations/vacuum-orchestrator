@@ -19,10 +19,13 @@ class RobotAdapter(Protocol):
     async def async_observe(self) -> RobotObservation:
         """Return one normalized point-in-time availability observation."""
 
-    async def async_dispatch(
+    async def async_prepare(
         self, unit: WorkUnit, assignment: DispatchAssignment
     ) -> None:
-        """Send one planned work unit without changing its semantics."""
+        """Validate and apply settings; raise DispatchNotStartedError on failure."""
+
+    async def async_start(self, unit: WorkUnit, assignment: DispatchAssignment) -> None:
+        """Revalidate, then send only the physical cleaning command."""
 
     async def async_cancel(self) -> None:
         """Apply the adapter's declared cancellation semantics."""

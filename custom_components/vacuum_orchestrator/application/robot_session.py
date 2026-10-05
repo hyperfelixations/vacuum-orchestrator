@@ -66,10 +66,12 @@ class RobotSession:
     async def dispatch(
         self,
         ticket: RobotCommandTicket,
-        command: Callable[[], Awaitable[None]],
+        prepare: Callable[[], Awaitable[None]],
+        boundary: Callable[[], Awaitable[None]],
+        start: Callable[[], Awaitable[None]],
         guard: Callable[[], None] | None = None,
     ) -> None:
-        """Run a start command only while its ticket remains current."""
+        """Prepare, persist the command boundary, then start on a current ticket."""
         async with self._command_lane:
 
             def validate() -> None:
@@ -80,7 +82,10 @@ class RobotSession:
             validate()
             token = command_guard.set(validate)
             try:
-                await command()
+                await prepare()
+                await boundary()
+                validate()
+                await start()
             finally:
                 command_guard.reset(token)
 

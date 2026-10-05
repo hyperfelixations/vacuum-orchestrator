@@ -133,6 +133,7 @@ class RecordingAdapter:
             history_end=datetime(2026, 9, 7, 10, 10, tzinfo=UTC),
         )
         self.dispatches: list[tuple[WorkUnit, DispatchAssignment, AttemptState]] = []
+        self.prepared: list[AttemptState] = []
         self.cancel_count = 0
         self.fail_dispatch = False
         self.fail_cancel = False
@@ -156,15 +157,20 @@ class RecordingAdapter:
             completed_targets=assignment.adapter_targets if assignment else (),
         )
 
-    async def async_dispatch(
-        self, unit: WorkUnit, assignment: DispatchAssignment
-    ) -> None:
-        if self.fail_dispatch:
-            raise RuntimeError("dispatch uncertainty")
+    def _persisted_attempt_state(self) -> AttemptState:
         assert self._backend.data is not None
         state = decode_orchestrator_state(verify_snapshot(self._backend.data))
-        attempt = state.attempts[next(reversed(state.attempts))]
-        self.dispatches.append((unit, assignment, attempt.state))
+        return state.attempts[next(reversed(state.attempts))].state
+
+    async def async_prepare(
+        self, unit: WorkUnit, assignment: DispatchAssignment
+    ) -> None:
+        self.prepared.append(self._persisted_attempt_state())
+
+    async def async_start(self, unit: WorkUnit, assignment: DispatchAssignment) -> None:
+        if self.fail_dispatch:
+            raise RuntimeError("dispatch uncertainty")
+        self.dispatches.append((unit, assignment, self._persisted_attempt_state()))
 
     async def async_cancel(self) -> None:
         if self.fail_cancel:
@@ -184,9 +190,7 @@ class IdFactory:
 class DoubleFailureAdapter(RecordingAdapter):
     """Lose the recovery commit after an uncertain physical dispatch."""
 
-    async def async_dispatch(
-        self, unit: WorkUnit, assignment: DispatchAssignment
-    ) -> None:
+    async def async_start(self, unit: WorkUnit, assignment: DispatchAssignment) -> None:
         self._backend.swallow_next_save = True
         raise RuntimeError("dispatch and storage uncertainty")
 
@@ -241,7 +245,7 @@ async def test_start_observation_before_dispatch_returns_is_accepted(
     adapter = RecordingAdapter(backend, "robot")
     orchestrator = await _orchestrator(backend, adapter)
     job_id = await orchestrator.async_create_job(_intent())
-    dispatch = adapter.async_dispatch
+    dispatch = adapter.async_start
 
     async def early_observation(unit: WorkUnit, assignment: DispatchAssignment) -> None:
         await dispatch(unit, assignment)
@@ -250,7 +254,7 @@ async def test_start_observation_before_dispatch_returns_is_accepted(
         )
         await orchestrator.async_process_robot_observation("robot")
 
-    monkeypatch.setattr(adapter, "async_dispatch", early_observation)
+    monkeypatch.setattr(adapter, "async_start", early_observation)
     await orchestrator.async_start_job(job_id)
 
     job = orchestrator.state.jobs[job_id]

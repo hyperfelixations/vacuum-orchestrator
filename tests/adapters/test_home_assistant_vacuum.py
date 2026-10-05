@@ -16,6 +16,7 @@ from custom_components.vacuum_orchestrator.adapters.settings import async_set_op
 from custom_components.vacuum_orchestrator.application.robot_session import RobotSession
 from custom_components.vacuum_orchestrator.domain.errors import (
     ConflictError,
+    DispatchNotStartedError,
     StaleCommandError,
 )
 from custom_components.vacuum_orchestrator.domain.intents import CleaningPreferences
@@ -32,6 +33,8 @@ from custom_components.vacuum_orchestrator.domain.types import (
     SemanticLevel,
     SettingsPolicy,
 )
+from custom_components.vacuum_orchestrator.ports.command_scope import command_guard
+from tests.adapters.dispatching import dispatch
 
 
 @pytest.fixture(autouse=True)
@@ -108,7 +111,7 @@ async def test_dispatch_uses_public_clean_area_with_late_assignment(
         PreferenceResolution((), ()),
     )
 
-    await adapter.async_dispatch(unit, assignment)
+    await dispatch(adapter, unit, assignment)
     observation = await adapter.async_observe()
 
     assert calls[0].data == {
@@ -159,10 +162,10 @@ async def test_invalid_assignment_and_empty_targets_are_rejected(
         "other", "robot", "source", "roborock", (), "caps", PreferenceResolution((), ())
     )
     with pytest.raises(ConflictError, match="assignment_work_unit_mismatch"):
-        await adapter.async_dispatch(unit, wrong)
+        await dispatch(adapter, unit, wrong)
     empty = replace_assignment_work_unit(wrong, "unit")
     with pytest.raises(ConflictError, match="empty_adapter_targets"):
-        await adapter.async_dispatch(unit, empty)
+        await dispatch(adapter, unit, empty)
 
 
 def replace_assignment_work_unit(
@@ -263,7 +266,7 @@ async def test_preflight_rejects_semantic_changes_before_service_call(
     adapter = _adapter(hass)
     unit = replace(_unit(), **change)
     with pytest.raises(ConflictError, match=reason):
-        await adapter.async_dispatch(unit, _assignment(adapter, unit))
+        await dispatch(adapter, unit, _assignment(adapter, unit))
 
 
 async def test_assignment_revision_and_busy_robot_block_dispatch(
@@ -272,14 +275,14 @@ async def test_assignment_revision_and_busy_robot_block_dispatch(
     _ready(hass)
     adapter = _adapter(hass)
     with pytest.raises(ConflictError, match="capabilities_changed"):
-        await adapter.async_dispatch(
-            _unit(), replace(_assignment(adapter), capability_revision="old")
+        await dispatch(
+            adapter, _unit(), replace(_assignment(adapter), capability_revision="old")
         )
     hass.states.async_set(
         "vacuum.test", "returning", dict(hass.states.get("vacuum.test").attributes)
     )
     with pytest.raises(ConflictError, match="robot_not_available"):
-        await adapter.async_dispatch(_unit(), _assignment(adapter))
+        await dispatch(adapter, _unit(), _assignment(adapter))
     observation = await adapter.async_observe()
     assert observation.cleaning_active is False
     assert observation.normal_end is False
@@ -339,9 +342,7 @@ async def test_settings_are_acknowledged_in_order_before_start(
     unit = replace(
         _unit(), preferences=CleaningPreferences(vacuum_power=SemanticLevel.LOW)
     )
-    await adapter.async_dispatch(
-        unit, _assignment(adapter, unit, applied=("vacuum_power",))
-    )
+    await dispatch(adapter, unit, _assignment(adapter, unit, applied=("vacuum_power",)))
     assert calls == ["mode", "fan", "clean"]
     assert (
         await adapter.async_observe()
@@ -361,7 +362,7 @@ async def test_setting_without_observed_acknowledgement_never_starts(
     hass.services.async_register("select", "select_option", record)
     hass.services.async_register("vacuum", "clean_area", record)
     with pytest.raises(ConflictError, match="setting_confirmation_timeout"):
-        await adapter.async_dispatch(_unit(), _assignment(adapter))
+        await dispatch(adapter, _unit(), _assignment(adapter))
     assert calls == ["select_option"]
 
 
@@ -390,7 +391,10 @@ async def test_cancel_during_mode_setting_prevents_later_clean_command(
     ticket = session.reserve("attempt")
     task = asyncio.create_task(
         session.dispatch(
-            ticket, lambda: adapter.async_dispatch(_unit(), _assignment(adapter))
+            ticket,
+            lambda: adapter.async_prepare(_unit(), _assignment(adapter)),
+            lambda: asyncio.sleep(0),
+            lambda: adapter.async_start(_unit(), _assignment(adapter)),
         )
     )
     await entered.wait()
@@ -490,7 +494,7 @@ async def test_robot_becoming_busy_during_settings_never_starts(
 
     hass.services.async_register("select", "select_option", setting)
     with pytest.raises(ConflictError, match="robot_not_available"):
-        await adapter.async_dispatch(_unit(), _assignment(adapter))
+        await dispatch(adapter, _unit(), _assignment(adapter))
 
 
 def test_overlapping_physical_segments_are_excluded(hass: HomeAssistant):
@@ -509,3 +513,32 @@ def test_overlapping_physical_segments_are_excluded(hass: HomeAssistant):
         {"area_mapping": {"kitchen": ["16"], "hall": ["17"]}},
     )
     assert adapter.target_mapping() == {"kitchen": "kitchen", "hall": "hall"}
+
+
+async def test_start_revalidates_after_boundary_without_service_call(
+    hass: HomeAssistant,
+) -> None:
+    _ready(hass)
+    adapter = _adapter(hass)
+    calls = []
+
+    async def record(call: ServiceCall) -> None:
+        calls.append(call.service)
+
+    hass.services.async_register("vacuum", "clean_area", record)
+    stale = replace(_assignment(adapter), capability_revision="old")
+    with pytest.raises(DispatchNotStartedError, match="capabilities_changed"):
+        await adapter.async_start(_unit(), stale)
+    token = command_guard.set(_raise_stale)
+    try:
+        with pytest.raises(StaleCommandError, match="stale_robot_generation"):
+            await adapter.async_start(_unit(), _assignment(adapter))
+    finally:
+        command_guard.reset(token)
+    assert calls == []
+    await adapter.async_start(_unit(), _assignment(adapter))
+    assert calls == ["clean_area"]
+
+
+def _raise_stale() -> None:
+    raise StaleCommandError("stale_robot_generation")

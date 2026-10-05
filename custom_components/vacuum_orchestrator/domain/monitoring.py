@@ -34,7 +34,7 @@ class MonitorDecision:
 
 def next_deadline(attempt: ExecutionAttempt) -> datetime | None:
     """Return a persisted attempt's next deadline without polling devices."""
-    if attempt.state in {AttemptState.PREPARED, AttemptState.COMMAND_SENT}:
+    if attempt.state is AttemptState.COMMAND_SENT:
         return (attempt.command_boundary_at or attempt.prepared_at) + timedelta(
             seconds=attempt.policy.start_seconds
         )

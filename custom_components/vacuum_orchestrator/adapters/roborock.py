@@ -13,7 +13,6 @@ from ..domain.errors import ConflictError, DispatchNotStartedError, Orchestrator
 from ..domain.planning import DispatchAssignment, WorkUnit
 from ..domain.types import PassScope, RobotAvailabilityState
 from ..ha_context import physical_context
-from ..ports.command_scope import check_command_authorization
 from ..ports.telemetry import TelemetryEvent, report_adapter
 from .home_assistant_vacuum import HomeAssistantVacuumAdapter
 from .settings import available_options, supported_mapping
@@ -138,7 +137,7 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
             }
         self._maps = parsed
 
-    async def async_dispatch(
+    async def async_prepare(
         self, unit: WorkUnit, assignment: DispatchAssignment
     ) -> None:
         """Reject inventory changes before any settings or cleaning command."""
@@ -147,7 +146,13 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
         except Exception as err:
             code = err.code if isinstance(err, OrchestratorError) else "map_read_failed"
             raise DispatchNotStartedError(code) from err
-        await super().async_dispatch(unit, assignment)
+        await super().async_prepare(unit, assignment)
+
+    def _validate_start(self, unit: WorkUnit, assignment: DispatchAssignment) -> None:
+        # Never discover a different scope after the assignment was accepted.
+        if self.native_segments and (self._maps is None or self.current_map_id is None):
+            raise ConflictError("map_inventory_unavailable")
+        super()._validate_start(unit, assignment)
 
     def target_mapping(self) -> dict[str, str | tuple[str, ...]]:
         """Exclude targets on other maps before the selector can assign a job."""
@@ -249,12 +254,6 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
         if not self.native_segments:
             await super()._send_clean(unit, assignment)
             return
-        # A map inventory refresh is required before planning; never discover a
-        # different scope after the immutable assignment has been accepted.
-        if self._maps is None or self.current_map_id is None:
-            raise ConflictError("map_inventory_unavailable")
-        self._validate_dispatch(unit, assignment)
-        check_command_authorization()
         segments = list(
             dict.fromkeys(
                 int(target.split("_")[1]) for target in assignment.adapter_targets

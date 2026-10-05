@@ -404,17 +404,17 @@ class HomeAssistantVacuumAdapter:
         if unit.vendor_extension is not None:
             raise ConflictError("unsupported_vendor_extension")
 
-    async def async_dispatch(
+    async def async_prepare(
         self, unit: WorkUnit, assignment: DispatchAssignment
     ) -> None:
-        """Apply confirmed settings, revalidate all targets, then start once."""
+        """Apply confirmed settings and revalidate all targets without starting."""
         try:
             self._validate_dispatch(unit, assignment)
             observation = await self.async_observe()
             if observation.state is not RobotAvailabilityState.AVAILABLE:
                 raise ConflictError("robot_not_available")
             await self._apply_settings(unit, assignment)
-            self._validate_dispatch(unit, assignment)
+            self._validate_start(unit, assignment)
             observation = await self.async_observe()
             if observation.state is not RobotAvailabilityState.AVAILABLE:
                 raise ConflictError("robot_not_available")
@@ -424,7 +424,21 @@ class HomeAssistantVacuumAdapter:
         except Exception as err:
             code = err.code if isinstance(err, OrchestratorError) else "settings_failed"
             raise DispatchNotStartedError(code) from err
+
+    async def async_start(self, unit: WorkUnit, assignment: DispatchAssignment) -> None:
+        """Revalidate after the persisted boundary, then send one cleaning call."""
+        try:
+            self._validate_start(unit, assignment)
+            check_command_authorization()
+        except StaleCommandError:
+            raise
+        except Exception as err:
+            code = err.code if isinstance(err, OrchestratorError) else "start_rejected"
+            raise DispatchNotStartedError(code) from err
         await self._send_clean(unit, assignment)
+
+    def _validate_start(self, unit: WorkUnit, assignment: DispatchAssignment) -> None:
+        self._validate_dispatch(unit, assignment)
 
     async def _apply_settings(
         self, unit: WorkUnit, assignment: DispatchAssignment
@@ -489,7 +503,6 @@ class HomeAssistantVacuumAdapter:
             raise ConflictError("robot_not_available")
 
     async def _send_clean(self, unit: WorkUnit, assignment: DispatchAssignment) -> None:
-        check_command_authorization()
         report_adapter(TelemetryEvent.PHYSICAL, "requested")
         await self._hass.services.async_call(
             "vacuum",

@@ -353,11 +353,43 @@ def test_cancel_preconditions_reject_incoherent_ownership() -> None:
 
 def test_restart_attention_reserves_targets_and_skips_existing_fence() -> None:
     prepared, _ = _prepared()
-    blocked = prepared.require_attention_for_active_leases(NOW)
+    sent = prepared.mark_command_sent("attempt", NOW)
+    blocked = sent.resolve_interrupted_leases(NOW)
 
     assert blocked.needs_attention
     assert blocked.active_target_sets() == (frozenset({"kitchen"}),)
-    assert blocked.require_attention_for_active_leases(NOW) is blocked
+    assert blocked.resolve_interrupted_leases(NOW) is blocked
+
+
+def test_restart_before_command_boundary_fails_without_attention() -> None:
+    prepared, unit_id = _prepared()
+    resolved = prepared.resolve_interrupted_leases(NOW)
+
+    assert not resolved.needs_attention
+    assert resolved.jobs["a"].state is JobState.FAILED
+    assert resolved.jobs["a"].failure_code == "interrupted_before_start"
+    assert resolved.work_unit_states[unit_id] is WorkUnitState.FAILED
+    assert resolved.robot_leases == {}
+    assert resolved.active_target_sets() == ()
+
+
+def test_restart_of_cancel_before_command_boundary_confirms_cancel() -> None:
+    prepared, _ = _prepared()
+    canceling = replace(
+        prepared,
+        jobs={"a": replace(prepared.jobs["a"], state=JobState.CANCELING)},
+        attempts={
+            "attempt": replace(
+                prepared.attempts["attempt"],
+                state=AttemptState.CANCEL_PENDING,
+                cancel_requested_at=NOW,
+            )
+        },
+    )
+    resolved = canceling.resolve_interrupted_leases(NOW)
+    assert resolved.jobs["a"].state is JobState.CANCELLED
+    assert not resolved.needs_attention
+    assert resolved.robot_leases == {}
 
 
 def test_pending_unit_and_lookup_failures_are_explicit() -> None:

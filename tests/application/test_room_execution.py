@@ -136,7 +136,7 @@ async def test_pre_start_failure_releases_one_shot_without_uncertainty(
     async def no_start(*_args):
         raise DispatchNotStartedError("setting_confirmation_timeout")
 
-    monkeypatch.setattr(adapter, "async_dispatch", no_start)
+    monkeypatch.setattr(adapter, "async_prepare", no_start)
     with pytest.raises(DispatchNotStartedError):
         await orchestrator.async_start_job(job)
     grant = orchestrator.rooms.registry.resolve("kitchen").release
@@ -159,7 +159,7 @@ async def test_revocation_during_settings_prevents_start(
         check_command_authorization()
         pytest.fail("Start must not be reached")
 
-    monkeypatch.setattr(adapter, "async_dispatch", settings_then_start)
+    monkeypatch.setattr(adapter, "async_prepare", settings_then_start)
     with pytest.raises(DispatchNotStartedError, match="readiness_changed"):
         await orchestrator.async_start_job(job)
     assert orchestrator.state.jobs[job].state is JobState.FAILED
@@ -331,7 +331,7 @@ async def test_late_dispatch_error_preserves_completed_job(monkeypatch, late_err
         )
         raise late_error
 
-    monkeypatch.setattr(adapter, "async_dispatch", finish_then_error)
+    monkeypatch.setattr(adapter, "async_start", finish_then_error)
     with pytest.raises(type(late_error)):
         await core.async_start_job(job)
     assert core.state.jobs[job].state is JobState.COMPLETED
@@ -352,7 +352,7 @@ async def test_prestart_error_conflicting_with_observed_start_requires_recovery(
         await core.async_confirm_start(core.state.jobs[job].active_attempt_id)
         raise DispatchNotStartedError("contradictory")
 
-    monkeypatch.setattr(adapter, "async_dispatch", contradictory)
+    monkeypatch.setattr(adapter, "async_start", contradictory)
     with pytest.raises(DispatchNotStartedError):
         await core.async_start_job(job)
     assert core.state.jobs[job].state is JobState.NEEDS_ATTENTION
