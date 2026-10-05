@@ -218,6 +218,17 @@ def test_schema_two_round_trip_preserves_complete_ledger() -> None:
     assert plan.work_units[0].pass_scope is PassScope.TARGET_SET
 
 
+def test_stop_boundary_round_trips_and_is_optional_in_older_snapshots() -> None:
+    sent = _state().mark_command_sent("attempt", NOW)
+    canceling, _ = sent.request_cancel("job", NOW)
+    stopped = canceling.mark_stop_sent("attempt", NOW)
+    data = encode_orchestrator_state(stopped)
+
+    assert decode_orchestrator_state(data) == stopped
+    del data["attempts"]["attempt"]["stop_sent_at"]
+    assert decode_orchestrator_state(data).attempts["attempt"].stop_sent_at is None
+
+
 @pytest.mark.parametrize(
     ("mutation", "error"),
     [

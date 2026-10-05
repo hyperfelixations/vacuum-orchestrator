@@ -39,9 +39,15 @@ def next_deadline(attempt: ExecutionAttempt) -> datetime | None:
             seconds=attempt.policy.start_seconds
         )
     if attempt.state is AttemptState.CANCEL_PENDING:
-        return (attempt.cancel_requested_at or attempt.prepared_at) + timedelta(
+        limit = (attempt.cancel_requested_at or attempt.prepared_at) + timedelta(
             seconds=attempt.policy.cancel_seconds
         )
+        settled_from = _stop_settling_since(attempt)
+        if settled_from is not None:
+            return min(
+                limit, settled_from + timedelta(seconds=attempt.policy.settle_seconds)
+            )
+        return limit
     if attempt.state in {AttemptState.START_CONFIRMED, AttemptState.COMPLETION_PENDING}:
         limit = (attempt.observed_start_at or attempt.prepared_at) + timedelta(
             seconds=attempt.policy.run_seconds
@@ -91,11 +97,7 @@ def evaluate_observation(
     }:
         return MonitorDecision(MonitorAction.ATTENTION, "robot_connection_lost")
     if attempt.state is AttemptState.CANCEL_PENDING:
-        if observation.normal_end and observation.cleaning_active is False:
-            return MonitorDecision(MonitorAction.CANCEL, "stop_observed")
-        if now >= (next_deadline(attempt) or now):
-            return MonitorDecision(MonitorAction.ATTENTION, "cancel_timeout")
-        return MonitorDecision(MonitorAction.WAIT, "awaiting_stop")
+        return _evaluate_cancel(attempt, observation, observed_at, now)
     if attempt.state is AttemptState.COMMAND_SENT:
         if now >= (next_deadline(attempt) or now):
             return MonitorDecision(MonitorAction.ATTENTION, "start_timeout")
@@ -151,4 +153,37 @@ def evaluate_observation(
         MonitorAction.COMPLETE,
         "observed_start_and_stable_normal_end",
         CompletionQuality.DERIVED,
+    )
+
+
+def _stop_settling_since(attempt: ExecutionAttempt) -> datetime | None:
+    """Return idle evidence that started at or after the sent stop."""
+    stop = attempt.stop_sent_at
+    terminal = attempt.terminal_observed_at
+    return terminal if stop is not None and terminal and terminal >= stop else None
+
+
+def _evaluate_cancel(
+    attempt: ExecutionAttempt,
+    observation: RobotObservation,
+    observed_at: datetime,
+    now: datetime,
+) -> MonitorDecision:
+    """Confirm cancel only from stable idle evidence sampled after the stop."""
+    timed_out = now >= (next_deadline(attempt) or now)
+    stop = attempt.stop_sent_at
+    stopped = observation.normal_end and observation.cleaning_active is False
+    settling = _stop_settling_since(attempt)
+    if stop is not None and observed_at >= stop and stopped:
+        if settling is None:
+            return MonitorDecision(MonitorAction.SETTLE, "awaiting_stop_stability")
+        if now >= settling + timedelta(seconds=attempt.policy.settle_seconds):
+            return MonitorDecision(MonitorAction.CANCEL, "stop_observed")
+    if timed_out:
+        return MonitorDecision(MonitorAction.ATTENTION, "cancel_timeout")
+    if stop is not None and observed_at >= stop and not stopped and settling:
+        return MonitorDecision(MonitorAction.RESUME, "stop_not_observed")
+    return MonitorDecision(
+        MonitorAction.WAIT,
+        "awaiting_stop_stability" if settling else "awaiting_stop",
     )

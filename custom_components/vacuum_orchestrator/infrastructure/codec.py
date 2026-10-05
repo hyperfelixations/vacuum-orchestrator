@@ -871,6 +871,7 @@ def _encode_attempt(attempt: ExecutionAttempt) -> JsonObject:
         "last_observation_at": _encode_optional_datetime(attempt.last_observation_at),
         "completion_quality": _enum_value(attempt.completion_quality),
         "cancel_requested_at": _encode_optional_datetime(attempt.cancel_requested_at),
+        "stop_sent_at": _encode_optional_datetime(attempt.stop_sent_at),
     }
 
 
@@ -900,6 +901,7 @@ def _decode_attempt(data: JsonObject) -> ExecutionAttempt:
         _decode_optional_datetime(data.get("last_observation_at")),
         _optional_enum(CompletionQuality, data.get("completion_quality")),
         _decode_optional_datetime(data.get("cancel_requested_at")),
+        _decode_optional_datetime(data.get("stop_sent_at")),
     )
 
 

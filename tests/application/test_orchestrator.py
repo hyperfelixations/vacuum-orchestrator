@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -413,10 +413,13 @@ async def test_cancel_is_fenced_and_confirmed_by_shared_observation() -> None:
 
     assert adapter.cancel_count == 1
     assert orchestrator.state.jobs[job_id].state is JobState.CANCELING
-    adapter.observation = replace(
-        adapter.observation, state=RobotAvailabilityState.AVAILABLE
-    )
-    await orchestrator.async_process_robot_observation("robot")
+    for seconds in (1, 31):
+        adapter.observation = replace(
+            adapter.observation,
+            state=RobotAvailabilityState.AVAILABLE,
+            observed_at=NOW + timedelta(seconds=seconds),
+        )
+        await orchestrator.async_process_robot_observation("robot")
     assert orchestrator.state.jobs[job_id].state is JobState.CANCELLED
 
 

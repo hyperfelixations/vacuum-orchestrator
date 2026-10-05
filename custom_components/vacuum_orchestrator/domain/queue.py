@@ -572,6 +572,17 @@ class OrchestratorState:
         if lease is None or lease.attempt_id != attempt.attempt_id:
             raise ConflictError("attempt_lease_missing")
         generation = self.robot_generations.get(attempt.source_robot_id, 0) + 1
+        generations = dict(self.robot_generations)
+        generations[attempt.source_robot_id] = generation
+        attempt = replace(attempt, cancel_requested_at=now)
+        if attempt.command_boundary_at is None:
+            # No start was sent; the fence alone prevents a later one.
+            return (
+                self._cancelled(
+                    job, attempt, now, never_started=True, robot_generations=generations
+                ),
+                generation,
+            )
         jobs = dict(self.jobs)
         jobs[job_id] = replace(
             job,
@@ -581,14 +592,24 @@ class OrchestratorState:
         )
         attempts = dict(self.attempts)
         attempts[attempt.attempt_id] = replace(
-            attempt, state=AttemptState.CANCEL_PENDING, cancel_requested_at=now
+            attempt, state=AttemptState.CANCEL_PENDING
         )
-        generations = dict(self.robot_generations)
-        generations[attempt.source_robot_id] = generation
         return (
             self._replace(jobs=jobs, attempts=attempts, robot_generations=generations),
             generation,
         )
+
+    def mark_stop_sent(self, attempt_id: str, now: datetime) -> OrchestratorState:
+        """Persist the stop boundary that later cancel evidence must follow."""
+        attempt = self._attempt(attempt_id)
+        if (
+            attempt.state is not AttemptState.CANCEL_PENDING
+            or attempt.stop_sent_at is not None
+        ):
+            return self
+        attempts = dict(self.attempts)
+        attempts[attempt_id] = replace(attempt, stop_sent_at=now)
+        return self._replace(attempts=attempts)
 
     def confirm_cancel(
         self, job_id: str, now: datetime, *, never_started: bool = False
@@ -597,9 +618,24 @@ class OrchestratorState:
         job = self._job(job_id)
         if job.state is not JobState.CANCELING or job.active_attempt_id is None:
             raise ConflictError("cancel_not_requested")
-        attempt = self._attempt(job.active_attempt_id)
+        return self._cancelled(
+            job,
+            self._attempt(job.active_attempt_id),
+            now,
+            never_started=never_started,
+        )
+
+    def _cancelled(
+        self,
+        job: Job,
+        attempt: ExecutionAttempt,
+        now: datetime,
+        *,
+        never_started: bool,
+        **changes: object,
+    ) -> OrchestratorState:
         jobs = dict(self.jobs)
-        jobs[job_id] = replace(
+        jobs[job.job_id] = replace(
             job,
             state=JobState.CANCELLED,
             revision=job.revision + 1,
@@ -618,8 +654,9 @@ class OrchestratorState:
             work_unit_states=units,
             robot_leases=leases,
             room_registry=self.room_registry.finish(
-                job_id, never_started=never_started
+                job.job_id, never_started=never_started
             ),
+            **changes,
         )
 
     def fail_job(

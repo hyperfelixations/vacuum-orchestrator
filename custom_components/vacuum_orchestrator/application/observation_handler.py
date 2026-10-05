@@ -81,7 +81,9 @@ def apply_observation(
         settling = decision.action is MonitorAction.SETTLE
         updated = replace(
             attempt,
-            state=AttemptState.COMPLETION_PENDING
+            state=attempt.state
+            if attempt.state is AttemptState.CANCEL_PENDING
+            else AttemptState.COMPLETION_PENDING
             if settling
             else AttemptState.START_CONFIRMED,
             terminal_observed_at=observed_at if settling else None,

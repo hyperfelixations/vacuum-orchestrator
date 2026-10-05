@@ -400,16 +400,19 @@ class VacuumOrchestrator:
         candidate: OrchestratorState
         async with self._lock:
             previous = self._verified_state()
+            job = previous.jobs.get(job_id)
+            attempt_id = job.active_attempt_id if job is not None else None
             candidate, generation = previous.request_cancel(job_id, self._clock())
             await self._commit_locked(previous, candidate)
             if generation is None:
                 return
-            attempt_id = candidate.jobs[job_id].active_attempt_id
             if attempt_id is None:
                 raise ConflictError("active_attempt_missing")
             attempt = candidate.attempts[attempt_id]
             session = self._sessions[attempt.source_robot_id]
             ticket = session.fence(generation, needs_attention=False)
+            if attempt.state is AttemptState.CANCELLED:
+                return
             adapter = self._adapters.get(attempt.robot_id)
             if adapter is None:
                 raise ConflictError("assigned_robot_missing")
@@ -432,6 +435,9 @@ class VacuumOrchestrator:
             raise
         finally:
             adapter_reporter.reset(telemetry_token)
+        await self._mutate(
+            lambda state: state.mark_stop_sent(attempt_id, self._clock())
+        )
 
     async def async_confirm_cancel(self, job_id: str) -> None:
         """Persist observed cancellation and continue eligible queue work."""

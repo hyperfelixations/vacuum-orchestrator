@@ -183,10 +183,88 @@ def test_start_run_and_cancel_deadlines_are_persistent_and_distinct() -> None:
         ).reason
         == "cancel_timeout"
     )
-    assert (
-        evaluate(cancel, IDLE, NOW + timedelta(hours=1)).action is MonitorAction.CANCEL
-    )
     assert next_deadline(replace(ATTEMPT, state=AttemptState.SUCCEEDED)) is None
+
+
+CANCELING = replace(
+    ATTEMPT,
+    state=AttemptState.CANCEL_PENDING,
+    cancel_requested_at=NOW,
+    last_observation_at=NOW,
+)
+STOPPED = replace(CANCELING, stop_sent_at=NOW + timedelta(seconds=5))
+
+
+def _idle_at(seconds: float) -> RobotObservation:
+    return replace(IDLE, observed_at=NOW + timedelta(seconds=seconds))
+
+
+def test_cancel_never_confirms_without_a_sent_stop() -> None:
+    at = NOW + timedelta(seconds=60)
+    decision = evaluate(CANCELING, _idle_at(60), at)
+    assert (decision.action, decision.reason) == (MonitorAction.WAIT, "awaiting_stop")
+    timeout = evaluate(CANCELING, _idle_at(120), NOW + timedelta(seconds=120))
+    assert (timeout.action, timeout.reason) == (
+        MonitorAction.ATTENTION,
+        "cancel_timeout",
+    )
+
+
+def test_cancel_ignores_idle_state_sampled_before_the_stop() -> None:
+    late = replace(STOPPED, last_observation_at=NOW)
+    decision = evaluate(late, _idle_at(4), NOW + timedelta(seconds=6))
+    assert decision.action is MonitorAction.WAIT
+
+
+def test_cancel_requires_stable_idle_after_the_stop() -> None:
+    first = evaluate(STOPPED, _idle_at(6), NOW + timedelta(seconds=6))
+    assert (first.action, first.reason) == (
+        MonitorAction.SETTLE,
+        "awaiting_stop_stability",
+    )
+    settling = replace(
+        STOPPED,
+        terminal_observed_at=NOW + timedelta(seconds=6),
+        last_observation_at=NOW + timedelta(seconds=6),
+    )
+    assert next_deadline(settling) == NOW + timedelta(seconds=36)
+    assert (
+        evaluate(settling, _idle_at(20), NOW + timedelta(seconds=20)).action
+        is MonitorAction.WAIT
+    )
+    resumed = evaluate(
+        settling,
+        replace(_idle_at(20), cleaning_active=True, normal_end=False),
+        NOW + timedelta(seconds=20),
+    )
+    assert resumed.action is MonitorAction.RESUME
+    done = evaluate(settling, _idle_at(36), NOW + timedelta(seconds=36))
+    assert (done.action, done.reason) == (MonitorAction.CANCEL, "stop_observed")
+
+
+def test_terminal_evidence_from_before_the_stop_does_not_count() -> None:
+    earlier = replace(
+        STOPPED,
+        terminal_observed_at=NOW - timedelta(minutes=5),
+        last_observation_at=NOW + timedelta(seconds=5),
+    )
+    assert next_deadline(earlier) == NOW + timedelta(seconds=120)
+    decision = evaluate(earlier, _idle_at(40), NOW + timedelta(seconds=40))
+    assert decision.action is MonitorAction.SETTLE
+
+
+def test_cancel_timeout_wins_over_unfinished_stop_stability() -> None:
+    settling = replace(
+        STOPPED,
+        terminal_observed_at=NOW + timedelta(seconds=110),
+        last_observation_at=NOW + timedelta(seconds=110),
+    )
+    decision = evaluate(
+        settling,
+        replace(_idle_at(121), cleaning_active=True, normal_end=False),
+        NOW + timedelta(seconds=121),
+    )
+    assert decision.reason == "cancel_timeout"
 
 
 def test_preparation_has_no_observation_deadline() -> None:

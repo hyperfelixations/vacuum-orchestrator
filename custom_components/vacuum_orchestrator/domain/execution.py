@@ -56,6 +56,7 @@ class ExecutionAttempt:
     last_observation_at: datetime | None = None
     completion_quality: CompletionQuality | None = None
     cancel_requested_at: datetime | None = None
+    stop_sent_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

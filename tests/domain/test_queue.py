@@ -210,7 +210,8 @@ def test_cancel_retry_delete_lifecycles_are_distinct() -> None:
 
 def test_active_cancel_fences_before_confirmation() -> None:
     prepared, _unit_id = _prepared()
-    requested, generation = prepared.request_cancel("a", NOW)
+    sent = prepared.mark_command_sent("attempt", NOW)
+    requested, generation = sent.request_cancel("a", NOW)
     confirmed = requested.confirm_cancel("a", NOW)
 
     assert generation == 2
@@ -407,3 +408,29 @@ def test_pending_unit_and_lookup_failures_are_explicit() -> None:
     )
     with pytest.raises(ConflictError, match="job_has_no_pending_work_unit"):
         exhausted.next_pending_unit(exhausted.jobs["a"])
+
+
+def test_cancel_before_command_boundary_finishes_without_stop() -> None:
+    prepared, unit_id = _prepared()
+    cancelled, generation = prepared.request_cancel("a", NOW)
+
+    assert generation == prepared.robot_generations["source"] + 1
+    assert cancelled.robot_generations["source"] == generation
+    assert cancelled.jobs["a"].state is JobState.CANCELLED
+    assert cancelled.jobs["a"].active_attempt_id is None
+    assert cancelled.attempts["attempt"].state is AttemptState.CANCELLED
+    assert cancelled.work_unit_states[unit_id] is WorkUnitState.CANCELLED
+    assert cancelled.robot_leases == {}
+    assert not cancelled.needs_attention
+
+
+def test_stop_boundary_is_recorded_only_while_cancel_is_pending() -> None:
+    prepared, _ = _prepared()
+    sent = prepared.mark_command_sent("attempt", NOW)
+    canceling, _ = sent.request_cancel("a", NOW)
+    stopped = canceling.mark_stop_sent("attempt", NOW)
+
+    assert stopped.attempts["attempt"].stop_sent_at == NOW
+    assert stopped.commit_id == canceling.commit_id + 1
+    assert stopped.mark_stop_sent("attempt", NOW) is stopped
+    assert sent.mark_stop_sent("attempt", NOW) is sent
