@@ -7,12 +7,20 @@ from pathlib import Path
 
 import pytest
 from homeassistant.core import HomeAssistant
+from pytest_homeassistant_custom_component.common import get_test_config_dir
 
 from custom_components.vacuum_orchestrator.const import STORE_VERSION
 from custom_components.vacuum_orchestrator.domain.errors import StorageIntegrityError
 from custom_components.vacuum_orchestrator.infrastructure.ha_store import (
     HomeAssistantSnapshotBackend,
 )
+
+
+async def test_store_files_stay_out_of_the_shared_testing_config(
+    hass: HomeAssistant,
+) -> None:
+    shared = Path(get_test_config_dir()).resolve()
+    assert not Path(hass.config.config_dir).resolve().is_relative_to(shared)
 
 
 async def test_backend_sets_atomic_store_and_reads_actual_disk(

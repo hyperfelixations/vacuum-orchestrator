@@ -2,9 +2,16 @@
 
 import sys
 
+import pytest
 import pytest_socket
 
 pytest_plugins = ("pytest_homeassistant_custom_component",)
+
+
+@pytest.fixture
+def hass_config_dir(hass_tmp_config_dir: str) -> str:
+    """Keep store writes out of the installed shared testing config."""
+    return hass_tmp_config_dir
 
 
 def pytest_configure() -> None:
