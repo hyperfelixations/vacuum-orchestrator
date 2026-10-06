@@ -503,11 +503,75 @@ get_diagnostics:
   description: Return a bounded, anonymized diagnostic export.
 get_job_execution:
   name: Explain job execution
-  description: Return current per-robot and per-operation blockers, preference resolution
+  description: Return current per-robot and per-operation blockers, resolved settings
     and attempt history without dispatching.
   fields:
     job_id:
       name: Job ID
       required: true
+      selector:
+        text: {}
+preview_job:
+  name: Preview job
+  description: Resolve a job draft against the job defaults and robots without creating
+    it. Returns the selectable settings, the values to preselect and whether the job
+    could start now.
+  fields:
+    areas:
+      name: Room or area IDs
+      description: Optional while no room is chosen yet; "all" selects every eligible
+        room.
+      selector:
+        object: {}
+    mode:
+      name: Cleaning mode
+      selector:
+        select:
+          options:
+          - vacuum
+          - mop
+          - vacuum_and_mop
+          - vacuum_then_mop
+    vacuum_power:
+      name: Vacuum power
+      selector: *id001
+    mop_intensity:
+      name: Mop intensity
+      selector: *water_levels
+    mop_route:
+      name: Mop route
+      selector:
+        select:
+          options:
+          - fast
+          - standard
+          - deep
+          - deep_plus
+    passes:
+      name: Passes
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+    settings_policy:
+      name: Settings policy
+      selector:
+        select:
+          options:
+          - best_effort
+          - strict
+    required_on:
+      name: Required on
+      selector:
+        entity:
+          multiple: true
+    required_off:
+      name: Required off
+      selector:
+        entity:
+          multiple: true
+    robot_id:
+      name: Robot ID
       selector:
         text: {}

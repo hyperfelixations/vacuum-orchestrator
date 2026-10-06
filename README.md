@@ -210,7 +210,10 @@ action: vacuum_orchestrator.run_queue
 Run `vacuum_orchestrator.get_queue` to inspect waiting jobs. `get_job` takes a
 `job_id` and shows that job's current state, including after it leaves the
 waiting queue. `get_job_execution` explains why a particular robot can or
-cannot carry it out. An accepted action does not mean cleaning has finished.
+cannot carry it out. `preview_job` takes the same fields as `create_job`
+without creating anything: it lists the setting values your robots offer for
+the chosen rooms and says whether the job could start right now. An accepted
+action does not mean cleaning has finished.
 
 ## Everyday use
 

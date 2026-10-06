@@ -25,7 +25,10 @@ from custom_components.vacuum_orchestrator.const import CONF_INSTALLATION_ID, DO
 from custom_components.vacuum_orchestrator.domain.errors import ValidationError
 from custom_components.vacuum_orchestrator.domain.releases import ReleaseKind
 from custom_components.vacuum_orchestrator.domain.requirements import StateRequirement
-from custom_components.vacuum_orchestrator.domain.types import OperationKind
+from custom_components.vacuum_orchestrator.domain.types import (
+    OperationKind,
+    VacuumLevel,
+)
 from custom_components.vacuum_orchestrator.room_configuration import (
     normalize_room_patch,
 )
@@ -146,6 +149,9 @@ async def test_robot_configuration_actions_share_validation_and_idle_guard(
     registry = er.async_get(hass)
     vacuum = registry.async_get_or_create("vacuum", "demo", "robot")
     sensor = registry.async_get_or_create("binary_sensor", "demo", "water")
+    hass.states.async_set(
+        vacuum.entity_id, "docked", {"fan_speed_list": ["quiet", "max", "off"]}
+    )
     candidates = await call(hass, "get_robot_candidates")
     assert candidates["candidates"][0]["registry_id"] == vacuum.id
     robot = (
@@ -162,6 +168,7 @@ async def test_robot_configuration_actions_share_validation_and_idle_guard(
         robot_id=robot,
         configuration={
             "minimum_battery": 30,
+            "vacuum_levels": {"maximum": "max", "low": "quiet", "off": "off"},
             "requirements": [
                 {
                     "entity_id": sensor.entity_id,
@@ -175,6 +182,12 @@ async def test_robot_configuration_actions_share_validation_and_idle_guard(
     projection = (await call(hass, "get_robots"))["robots"][0]
     assert projection["configuration"]["minimum_battery"] == 30
     assert projection["capabilities"]["maximum_passes"] == 1
+    assert projection["capabilities"]["settings"] == {
+        "vacuum_power": ["low", "maximum"],
+        "mop_intensity": [],
+        "mop_route": [],
+    }
+    assert projection["capabilities"]["unavailable_settings"] == []
     assert (
         configured.runtime_data.orchestrator.adapters[robot]
         .profile.requirements[0]
@@ -393,6 +406,71 @@ async def test_job_defaults_are_copied_into_jobs_and_templates(hass, configured)
     for invalid in ({"vacuum_power": "medium"}, {"mop_intensity": "standard"}):
         with pytest.raises(vol.Invalid):
             await call(hass, "configure_job_defaults", **invalid)
+
+
+async def test_preview_and_robot_capabilities_use_the_ladders(hass, configured):
+    await configured.runtime_data.controller.scheduler.async_close()
+    core = configured.runtime_data.orchestrator
+    room = (await call(hass, "create_room", name="Office"))["room_id"]
+    adapter = RecordingAdapter(RecordingBackend(), "robot", targets=(room,))
+    adapter._profile = replace(
+        adapter.profile,
+        capabilities=replace(
+            adapter.profile.capabilities,
+            vacuum_levels=frozenset({VacuumLevel.MAXIMUM, VacuumLevel.LOW}),
+        ),
+    )
+    await core.async_replace_adapters({"robot": adapter})
+
+    draft = await call(hass, "preview_job", mode="vacuum")
+    assert draft["startable_now"] is False and draft["reason"] == "job_requires_area"
+    assert draft["settings"] == {
+        "vacuum_power": {
+            "initial": "low",
+            "options": [
+                {"value": "low", "supported_by_all": True},
+                {"value": "maximum", "supported_by_all": True},
+            ],
+        }
+    }
+    before = core.state.commit_id
+    preview = await call(
+        hass, "preview_job", areas=[room], vacuum_power="high", robot_id="robot"
+    )
+    assert core.state.commit_id == before
+    assert (preview["mode"], preview["passes"], preview["settings_policy"]) == (
+        "vacuum",
+        1,
+        "best_effort",
+    )
+    assert preview["settings"]["vacuum_power"]["initial"] == "maximum"
+    assert preview["reason"] == "job_blocked" and not preview["startable_now"]
+    assert preview["robots"] == [
+        {
+            "robot_id": "robot",
+            "operation": "vacuum",
+            "startable_now": False,
+            "reason": "room_not_released",
+            "settings": [
+                {"name": "vacuum_power", "requested": "high", "applied": "maximum"}
+            ],
+        }
+    ]
+    await core.rooms.async_grant(room, ReleaseKind.PERMANENT)
+    ready = await call(hass, "preview_job", areas="all")
+    assert ready["startable_now"] and ready["reason"] is None
+    await call(hass, "disable_room", room_id=room)
+    assert (await call(hass, "preview_job", areas="all"))["reason"] == (
+        "no_eligible_rooms"
+    )
+    connection = Connection()
+    websocket_configuration_get(
+        hass,
+        connection,
+        {"id": 1, "query": "preview_job", "parameters": {"mode": "mop"}},
+    )
+    await hass.async_block_till_done()
+    assert set(connection.results[0][1]["settings"]) == {"mop_intensity", "mop_route"}
 
 
 async def test_job_request_origin_survives_queueing_and_reaches_physical_calls(

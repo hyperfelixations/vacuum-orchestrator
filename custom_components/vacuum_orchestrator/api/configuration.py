@@ -2,7 +2,7 @@
 
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import voluptuous as vol
 from homeassistant.core import (
@@ -17,10 +17,12 @@ from homeassistant.helpers import config_validation as cv
 
 from ..adapters.discovery import discover_robots
 from ..application.explanation import explain_job
+from ..application.preview import JobPreview, preview_job
 from ..configuration import configure_robot, require_idle_robot
 from ..const import API_VERSION, DOMAIN
 from ..diagnostics import build_diagnostics
-from ..domain.errors import OrchestratorError, ValidationError
+from ..domain.errors import ConflictError, OrchestratorError, ValidationError
+from ..domain.intents import CleaningPreferences
 from ..domain.releases import ReleaseKind
 from ..domain.templates import JobTemplate
 from ..domain.types import ROUTE_LADDER, VACUUM_LADDER, WATER_LADDER, SettingsPolicy
@@ -34,8 +36,18 @@ from ..runtime import async_get_runtime
 from .errors import service_error
 from .job_input import (
     ALL_ROOMS,
+    ATTR_AREAS,
+    ATTR_MODE,
+    ATTR_MOP_INTENSITY,
+    ATTR_MOP_ROUTE,
+    ATTR_PASSES,
+    ATTR_ROBOT_ID,
+    ATTR_SETTINGS_POLICY,
+    ATTR_VACUUM_POWER,
     CREATE_SCHEMA,
+    INTENT_FIELDS,
     _mode,
+    areas,
     intent_from_data,
     mop_route,
     vacuum_level,
@@ -49,6 +61,9 @@ from .presentation import (
 )
 from .room_presentation import present_room
 from .telemetry import command_trace
+
+if TYPE_CHECKING:
+    from ..application.orchestrator import VacuumOrchestrator
 
 PAGE = {
     vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
@@ -115,6 +130,13 @@ COMMANDS: dict[str, vol.Schema] = {
 }
 QUERIES: dict[str, vol.Schema] = {
     "get_job_execution": vol.Schema({vol.Required("job_id"): cv.string}),
+    "preview_job": vol.Schema(
+        {
+            **{key: value for key, value in INTENT_FIELDS.items() if key != ATTR_AREAS},
+            vol.Optional(ATTR_AREAS): areas,
+            vol.Optional(ATTR_ROBOT_ID): cv.string,
+        }
+    ),
     "get_trace": vol.Schema({**PAGE, vol.Optional("job_id"): cv.string}),
     "get_history": vol.Schema(PAGE),
     "get_diagnostics": vol.Schema({}),
@@ -131,6 +153,8 @@ async def async_query_configuration(
 ) -> dict[str, Any]:
     """Include live per-robot explanations without performing physical commands."""
     core = async_get_runtime(hass).orchestrator
+    if name == "preview_job":
+        return await _async_preview(core, data) | view_metadata(core)
     if name != "get_job_execution":
         return query_configuration(hass, name, data) | view_metadata(core)
     explanations = await explain_job(core, data["job_id"])
@@ -168,6 +192,60 @@ async def async_query_configuration(
             if attempt.job_id == job.job_id
         ],
     } | view_metadata(core)
+
+
+async def _async_preview(
+    core: VacuumOrchestrator, data: dict[str, Any]
+) -> dict[str, Any]:
+    defaults = core.state.job_defaults
+    intent, area_reason = None, None
+    if ATTR_AREAS in data:
+        try:
+            intent = intent_from_data(data, core.eligible_room_ids, defaults)
+        except ConflictError as err:
+            area_reason = err.code
+    preview: JobPreview = await preview_job(
+        core,
+        data.get(ATTR_MODE, defaults.mode),
+        CleaningPreferences(
+            data.get(ATTR_VACUUM_POWER),
+            data.get(ATTR_MOP_INTENSITY),
+            data.get(ATTR_MOP_ROUTE),
+        ),
+        intent,
+        data.get(ATTR_ROBOT_ID),
+    )
+    reason = area_reason or preview.reason
+    return {
+        "api_version": API_VERSION,
+        "mode": preview.mode.value,
+        "passes": data.get(ATTR_PASSES, defaults.passes),
+        "settings_policy": data.get(
+            ATTR_SETTINGS_POLICY, defaults.settings_policy
+        ).value,
+        "settings": {
+            name: {
+                "initial": choice.initial,
+                "options": [
+                    {"value": value, "supported_by_all": everywhere}
+                    for value, everywhere in choice.options
+                ],
+            }
+            for name, choice in preview.settings.items()
+        },
+        "robots": [
+            {
+                "robot_id": item.robot_id,
+                "operation": item.operation.value,
+                "startable_now": item.reason is None,
+                "reason": item.reason,
+                "settings": present_settings(item.settings) if item.settings else [],
+            }
+            for item in preview.robots
+        ],
+        "startable_now": reason is None,
+        "reason": reason,
+    }
 
 
 def page(items: list[dict[str, Any]], data: dict[str, Any], key: str) -> dict[str, Any]:
@@ -293,21 +371,29 @@ def query_configuration(
                     },
                     "map_context": profile.capabilities.map_context,
                     "maximum_passes": profile.capabilities.passes.maximum,
-                    "vacuum_levels": [
-                        item.value
-                        for item in VACUUM_LADDER
-                        if item in profile.capabilities.vacuum_levels
-                    ],
-                    "water_levels": [
-                        item.value
-                        for item in WATER_LADDER
-                        if item in profile.capabilities.water_levels
-                    ],
-                    "mop_routes": [
-                        item.value
-                        for item in ROUTE_LADDER
-                        if item in profile.capabilities.mop_routes
-                    ],
+                    "settings": {
+                        name: [item.value for item in ladder if item in supported]
+                        for name, ladder, supported in (
+                            (
+                                "vacuum_power",
+                                VACUUM_LADDER,
+                                profile.capabilities.vacuum_levels,
+                            ),
+                            (
+                                "mop_intensity",
+                                WATER_LADDER,
+                                profile.capabilities.water_levels,
+                            ),
+                            (
+                                "mop_route",
+                                ROUTE_LADDER,
+                                profile.capabilities.mop_routes,
+                            ),
+                        )
+                    },
+                    "unavailable_settings": sorted(
+                        profile.capabilities.unavailable_settings
+                    ),
                 },
             }
         )

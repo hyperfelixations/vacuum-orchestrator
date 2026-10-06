@@ -45,6 +45,10 @@ DYNAMIC = {
         "application/orchestrator.py",
         "PlanningError(f'job_{report.state.value}')",
     ): {"job_blocked", "job_unknown"},
+    (
+        "application/preview.py",
+        "PlanningError(f'job_{report.state.value}')",
+    ): {"job_blocked", "job_unknown"},
     ("domain/dispatching.py", "PlanningError(failures[0])"): set(),
     (
         "domain/dispatching.py",

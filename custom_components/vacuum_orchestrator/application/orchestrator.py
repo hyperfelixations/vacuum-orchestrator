@@ -24,7 +24,7 @@ from ..domain.errors import (
 )
 from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun
 from ..domain.intents import JobIntent, JobIntentPatch, TargetRef
-from ..domain.planning import DispatchAssignment, ExecutionPlan, Planner
+from ..domain.planning import DispatchAssignment, ExecutionPlan, Planner, WorkUnit
 from ..domain.queue import Job, OrchestratorState
 from ..domain.readiness import ReadinessEvaluator, ReadinessReport
 from ..domain.requests import CommandOrigin
@@ -299,11 +299,24 @@ class VacuumOrchestrator:
         job = self.state.jobs.get(job_id)
         if job is None:
             raise ConflictError("unknown_job")
+        return self.job_readiness(
+            self.state, job, robot_id=robot_id, operation=operation
+        )
+
+    def job_readiness(
+        self,
+        state: OrchestratorState,
+        job: Job,
+        *,
+        robot_id: str | None = None,
+        operation: OperationKind | None = None,
+    ) -> ReadinessReport:
+        """Evaluate a stored or hypothetical job against one state snapshot."""
         references = (*job.intent.required_on, *job.intent.required_off)
         base = self._readiness.evaluate(job.intent, self._state_reader(references))
         return evaluate_room_readiness(
             job,
-            self.state.room_registry,
+            state.room_registry,
             base,
             self._requirement_reader,
             self._clock(),
@@ -710,7 +723,7 @@ class VacuumOrchestrator:
             if job.state not in {JobState.QUEUED, JobState.DISPATCHING}:
                 raise ConflictError("job_not_dispatchable")
             if job.state is JobState.QUEUED:
-                report = self.readiness_for_job(job_id)
+                report = self.job_readiness(previous, job)
                 if report.state.value != "ready":
                     self.trace.record(
                         TraceEvent.BLOCKED,
@@ -725,26 +738,8 @@ class VacuumOrchestrator:
             else:
                 plan = self._existing_plan(previous, job)
                 unit = previous.next_pending_unit(job)
-            profiles = tuple(adapter.profile for adapter in self._adapters.values())
-            ready_profiles = tuple(
-                profile
-                for profile in profiles
-                if self.readiness_for_job(
-                    job_id, robot_id=profile.robot_id, operation=unit.operation
-                ).state.value
-                == "ready"
-            )
-            if profiles and not ready_profiles:
-                raise PlanningError("job_conditions_not_satisfied")
-            assignment = self._selector.assign(
-                unit,
-                ready_profiles,
-                observations,
-                previous.robot_leases,
-                frozenset(previous.blocked_robots),
-                previous.active_target_sets(excluding_job_id=job_id),
-                requested_robot_id,
-                defaults=previous.job_defaults,
+            assignment = self.select_robot(
+                previous, job, unit, observations, requested_robot_id
             )
             adapter = self._adapters.get(assignment.robot_id)
             if adapter is None or not assignment_supports_current_capabilities(
@@ -875,6 +870,37 @@ class VacuumOrchestrator:
             if accepted is not current:
                 await self._commit_locked(current, accepted)
         return assignment
+
+    def select_robot(
+        self,
+        state: OrchestratorState,
+        job: Job,
+        unit: WorkUnit,
+        observations: Mapping[str, RobotObservation],
+        requested_robot_id: str | None = None,
+    ) -> DispatchAssignment:
+        """Apply per-robot job conditions, then the selector, as dispatch does."""
+        profiles = tuple(adapter.profile for adapter in self._adapters.values())
+        ready_profiles = tuple(
+            profile
+            for profile in profiles
+            if self.job_readiness(
+                state, job, robot_id=profile.robot_id, operation=unit.operation
+            ).state.value
+            == "ready"
+        )
+        if profiles and not ready_profiles:
+            raise PlanningError("job_conditions_not_satisfied")
+        return self._selector.assign(
+            unit,
+            ready_profiles,
+            observations,
+            state.robot_leases,
+            frozenset(state.blocked_robots),
+            state.active_target_sets(excluding_job_id=job.job_id),
+            requested_robot_id,
+            defaults=state.job_defaults,
+        )
 
     async def _observe_robots(self) -> dict[str, RobotObservation]:
         adapters = dict(self._adapters)
