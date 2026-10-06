@@ -35,7 +35,21 @@ _CLEANING_STATES = frozenset(
         "zoned_clean_mop_mopping",
     }
 )
-_IDLE_STATES = frozenset({"idle", "charging", "charging_complete"})
+# `charger_disconnected` is how a resting robot off the dock reports after a
+# while; see dev doc "Gerätezustand".
+_IDLE_STATES = frozenset(
+    {"idle", "charging", "charging_complete", "charger_disconnected"}
+)
+_DOCK_STATES = frozenset(
+    {
+        "charging",
+        "charging_complete",
+        "charging_problem",
+        "washing_the_mop",
+        "emptying_the_bin",
+        "air_drying_stopping",
+    }
+)
 _ERROR_STATES = frozenset({"error", "charging_problem", "device_offline", "locked"})
 
 
@@ -324,4 +338,5 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
             normal_end=idle,
             error_code=error,
             reason=status,
+            at_dock=status in _DOCK_STATES,
         )

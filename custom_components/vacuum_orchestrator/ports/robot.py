@@ -27,5 +27,8 @@ class RobotAdapter(Protocol):
     async def async_start(self, unit: WorkUnit, assignment: DispatchAssignment) -> None:
         """Revalidate, then send only the physical cleaning command."""
 
-    async def async_cancel(self) -> None:
-        """Apply the adapter's declared cancellation semantics."""
+    async def async_cancel(self, *, return_to_dock: bool = False) -> None:
+        """Stop the robot, then optionally send it back to its dock."""
+
+    async def async_return_to_dock(self) -> None:
+        """Send an idle robot back to its dock."""

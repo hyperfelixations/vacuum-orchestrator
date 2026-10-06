@@ -630,6 +630,9 @@
     "requirement_binding_missing": {
       "message": "Die Entität einer Bedingung ist nicht mehr verfügbar"
     },
+    "return_to_dock_unsupported": {
+      "message": "Dieser Roboter kann nicht zur Station geschickt werden"
+    },
     "robot_already_executing": {
       "message": "Der Roboter führt bereits einen Auftrag aus"
     },
@@ -662,6 +665,9 @@
     },
     "robot_not_needing_recovery": {
       "message": "Der Roboter braucht keine Wiederherstellung"
+    },
+    "robot_reserved": {
+      "message": "Der Roboter wurde vor dem Befehl für einen Auftrag reserviert; es wurde nichts gesendet"
     },
     "robot_session_already_owned": {
       "message": "Der Roboter ist bereits für einen anderen Versuch reserviert"

@@ -27,6 +27,7 @@ from ..const import (
     SERVICE_PAUSE_QUEUE,
     SERVICE_RESUME_QUEUE,
     SERVICE_RETRY_JOB,
+    SERVICE_RETURN_ROBOT,
     SERVICE_RUN_QUEUE,
     SERVICE_START_JOB,
     SERVICE_UPDATE_JOB,
@@ -108,6 +109,16 @@ MOVE_SCHEMA = vol.Schema(
         vol.Required(ATTR_DIRECTION): vol.Coerce(MoveDirection),
     }
 )
+ATTR_AFTER_CANCEL = "after_cancel"
+CANCEL_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_JOB_ID): cv.string,
+        vol.Optional(ATTR_AFTER_CANCEL, default="stay"): vol.In(
+            ("stay", "return_to_dock")
+        ),
+    }
+)
+ROBOT_SCHEMA = vol.Schema({vol.Required(ATTR_ROBOT_ID): cv.string})
 EMPTY_SCHEMA = vol.Schema({})
 GET_QUEUE_SCHEMA = vol.Schema(
     {
@@ -209,9 +220,21 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
     async def cancel_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
         await _translate_errors(
-            runtime.orchestrator.async_cancel_job(call.data[ATTR_JOB_ID])
+            runtime.orchestrator.async_cancel_job(
+                call.data[ATTR_JOB_ID],
+                return_to_dock=call.data[ATTR_AFTER_CANCEL] == "return_to_dock",
+            )
         )
         return _command_response(call, runtime, {ATTR_JOB_ID: call.data[ATTR_JOB_ID]})
+
+    async def return_robot(call: ServiceCall) -> ServiceResponse | None:
+        runtime = await _runtime_for_call(hass, call)
+        await _translate_errors(
+            runtime.orchestrator.async_return_robot(call.data[ATTR_ROBOT_ID])
+        )
+        return _command_response(
+            call, runtime, {ATTR_ROBOT_ID: call.data[ATTR_ROBOT_ID]}
+        )
 
     async def retry_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
@@ -252,6 +275,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
                 job,
                 runtime.orchestrator.readiness_before_start(job.job_id),
                 state.room_registry.rooms,
+                state.attempts,
             )
             | view_metadata(runtime.orchestrator),
         )
@@ -264,7 +288,8 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
     _register(hass, SERVICE_RUN_QUEUE, run_queue, EMPTY_SCHEMA)
     _register(hass, SERVICE_PAUSE_QUEUE, pause_queue, EMPTY_SCHEMA)
     _register(hass, SERVICE_RESUME_QUEUE, resume_queue, EMPTY_SCHEMA)
-    _register(hass, SERVICE_CANCEL_JOB, cancel_job, JOB_SCHEMA)
+    _register(hass, SERVICE_CANCEL_JOB, cancel_job, CANCEL_SCHEMA)
+    _register(hass, SERVICE_RETURN_ROBOT, return_robot, ROBOT_SCHEMA)
     _register(hass, SERVICE_RETRY_JOB, retry_job, JOB_SCHEMA)
     _register_query(hass, SERVICE_GET_QUEUE, get_queue, GET_QUEUE_SCHEMA)
     _register_query(hass, SERVICE_GET_JOB, get_job, JOB_SCHEMA)

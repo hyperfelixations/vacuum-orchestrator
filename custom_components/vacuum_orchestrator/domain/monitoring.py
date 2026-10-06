@@ -39,9 +39,7 @@ def next_deadline(attempt: ExecutionAttempt) -> datetime | None:
             seconds=attempt.policy.start_seconds
         )
     if attempt.state is AttemptState.CANCEL_PENDING:
-        limit = (attempt.cancel_requested_at or attempt.prepared_at) + timedelta(
-            seconds=attempt.policy.cancel_seconds
-        )
+        limit = _cancel_limit(attempt)
         settled_from = _stop_settling_since(attempt)
         if settled_from is not None:
             return min(
@@ -156,6 +154,14 @@ def evaluate_observation(
     )
 
 
+def _cancel_limit(attempt: ExecutionAttempt) -> datetime:
+    """Return when a pending cancel needs attention, independent of settling."""
+    return (attempt.cancel_requested_at or attempt.prepared_at) + timedelta(
+        seconds=attempt.policy.cancel_seconds
+        + (attempt.policy.return_seconds if attempt.return_to_dock else 0)
+    )
+
+
 def _stop_settling_since(attempt: ExecutionAttempt) -> datetime | None:
     """Return idle evidence that started at or after the sent stop."""
     stop = attempt.stop_sent_at
@@ -169,10 +175,18 @@ def _evaluate_cancel(
     observed_at: datetime,
     now: datetime,
 ) -> MonitorDecision:
-    """Confirm cancel only from stable idle evidence sampled after the stop."""
-    timed_out = now >= (next_deadline(attempt) or now)
+    """Confirm cancel only from stable idle evidence sampled after the stop.
+
+    A return to the dock is confirmed only once the robot rests at the dock;
+    driving home, mop washing and emptying keep the cancel pending.
+    """
+    timed_out = now >= _cancel_limit(attempt)
     stop = attempt.stop_sent_at
-    stopped = observation.normal_end and observation.cleaning_active is False
+    stopped = (
+        observation.normal_end
+        and observation.cleaning_active is False
+        and (not attempt.return_to_dock or observation.at_dock is True)
+    )
     settling = _stop_settling_since(attempt)
     if stop is not None and observed_at >= stop and stopped:
         if settling is None:

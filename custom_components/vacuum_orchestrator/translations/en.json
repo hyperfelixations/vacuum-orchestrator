@@ -630,6 +630,9 @@
     "requirement_binding_missing": {
       "message": "The entity of a requirement is no longer available"
     },
+    "return_to_dock_unsupported": {
+      "message": "This robot cannot be sent back to its dock"
+    },
     "robot_already_executing": {
       "message": "The robot is already running a job"
     },
@@ -662,6 +665,9 @@
     },
     "robot_not_needing_recovery": {
       "message": "The robot does not need recovery"
+    },
+    "robot_reserved": {
+      "message": "The robot was reserved for a job before the command ran; nothing was sent"
     },
     "robot_session_already_owned": {
       "message": "The robot is already reserved for another attempt"

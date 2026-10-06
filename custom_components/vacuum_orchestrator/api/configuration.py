@@ -21,6 +21,7 @@ from ..application.preview import JobPreview, preview_job
 from ..configuration import configure_robot, require_idle_robot
 from ..const import API_VERSION, DOMAIN
 from ..diagnostics import build_diagnostics
+from ..domain.capabilities import CancelSemantics
 from ..domain.errors import ConflictError, OrchestratorError, ValidationError
 from ..domain.intents import CleaningPreferences
 from ..domain.releases import ReleaseKind
@@ -394,6 +395,12 @@ def query_configuration(
                     "unavailable_settings": sorted(
                         profile.capabilities.unavailable_settings
                     ),
+                    "supports": {
+                        "stop": profile.capabilities.cancel
+                        is not CancelSemantics.UNSUPPORTED,
+                        "return_to_dock": profile.capabilities.returns_to_dock,
+                        "pause": False,
+                    },
                 },
             }
         )

@@ -569,3 +569,63 @@ async def test_unavailable_setting_entity_never_starts(hass: HomeAssistant) -> N
     with pytest.raises(PlanningError, match="setting_entity_unavailable"):
         await assignment(adapter, work)
     assert calls == []
+
+
+@pytest.mark.parametrize(
+    ("status", "in_cleaning", "state", "at_dock"),
+    [
+        ("charger_disconnected", "off", RobotAvailabilityState.AVAILABLE, False),
+        ("charger_disconnected", "on", RobotAvailabilityState.BUSY, False),
+        ("idle", "off", RobotAvailabilityState.AVAILABLE, False),
+        ("returning_home", "off", RobotAvailabilityState.BUSY, False),
+        ("washing_the_mop", "off", RobotAvailabilityState.BUSY, True),
+        ("charging", "off", RobotAvailabilityState.AVAILABLE, True),
+    ],
+)
+async def test_rest_and_dock_are_observed_separately(
+    hass: HomeAssistant,
+    status: str,
+    in_cleaning: str,
+    state: RobotAvailabilityState,
+    at_dock: bool,
+) -> None:
+    adapter, _, _calls = setup_robot(hass)
+    hass.states.async_set("sensor.status", status)
+    hass.states.async_set("binary_sensor.in_cleaning", in_cleaning)
+
+    observation = await adapter.async_observe()
+
+    assert (observation.state, observation.at_dock) == (state, at_dock)
+    assert observation.normal_end is (state is RobotAvailabilityState.AVAILABLE)
+
+
+async def test_cancel_with_return_stops_first_and_needs_return_support(
+    hass: HomeAssistant,
+) -> None:
+    adapter, _, _calls = setup_robot(hass)
+    sent: list[str] = []
+
+    async def record(call: ServiceCall) -> None:
+        sent.append(call.service)
+
+    hass.services.async_register("vacuum", "stop", record)
+    hass.services.async_register("vacuum", "return_to_base", record)
+    with pytest.raises(ConflictError, match="return_to_dock_unsupported"):
+        await adapter.async_cancel(return_to_dock=True)
+    assert sent == [] and not adapter.profile.capabilities.returns_to_dock
+
+    state = hass.states.get("vacuum.test")
+    hass.states.async_set(
+        "vacuum.test",
+        state.state,
+        {
+            **state.attributes,
+            "supported_features": state.attributes["supported_features"]
+            | VacuumEntityFeature.RETURN_HOME,
+        },
+    )
+    assert adapter.profile.capabilities.returns_to_dock
+    await adapter.async_cancel(return_to_dock=True)
+    await adapter.async_cancel()
+    await adapter.async_return_to_dock()
+    assert sent == ["stop", "return_to_base", "stop", "return_to_base"]

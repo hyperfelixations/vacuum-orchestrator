@@ -549,3 +549,32 @@ async def test_start_revalidates_after_boundary_without_service_call(
 
 def _raise_stale() -> None:
     raise StaleCommandError("stale_robot_generation")
+
+
+async def test_dock_state_and_return_use_public_vacuum_semantics(
+    hass: HomeAssistant,
+) -> None:
+    calls: list[ServiceCall] = []
+
+    async def handle(call: ServiceCall) -> None:
+        calls.append(call)
+
+    hass.services.async_register("vacuum", "return_to_base", handle)
+    features = VacuumEntityFeature.CLEAN_AREA | VacuumEntityFeature.STOP
+    hass.states.async_set("vacuum.test", "docked", {"supported_features": features})
+    adapter = _adapter(hass)
+    assert (await adapter.async_observe()).at_dock is True
+    assert not adapter.profile.capabilities.returns_to_dock
+    with pytest.raises(ConflictError, match="return_to_dock_unsupported"):
+        await adapter.async_return_to_dock()
+
+    hass.states.async_set(
+        "vacuum.test",
+        "idle",
+        {"supported_features": int(features | VacuumEntityFeature.RETURN_HOME)},
+    )
+    assert (await adapter.async_observe()).at_dock is False
+    await adapter.async_return_to_dock()
+    assert calls[0].data == {"entity_id": "vacuum.test"}
+    hass.states.async_set("vacuum.test", "unavailable")
+    assert (await adapter.async_observe()).at_dock is None

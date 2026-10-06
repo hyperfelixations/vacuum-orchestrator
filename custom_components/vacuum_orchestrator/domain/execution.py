@@ -23,6 +23,8 @@ class ExecutionPolicy:
     run_seconds: float = 14400
     cancel_seconds: float = 120
     settle_seconds: float = 30
+    # Extra cancel window while the robot drives home and services the mop.
+    return_seconds: float = 900
 
     def __post_init__(self) -> None:
         for value in (
@@ -30,6 +32,7 @@ class ExecutionPolicy:
             self.run_seconds,
             self.cancel_seconds,
             self.settle_seconds,
+            self.return_seconds,
         ):
             seconds(value, positive=True)
 
@@ -57,6 +60,7 @@ class ExecutionAttempt:
     completion_quality: CompletionQuality | None = None
     cancel_requested_at: datetime | None = None
     stop_sent_at: datetime | None = None
+    return_to_dock: bool = False
 
 
 @dataclass(frozen=True, slots=True)

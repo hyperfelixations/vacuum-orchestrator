@@ -153,6 +153,7 @@ async def websocket_job_get(
                 job,
                 orchestrator.readiness_before_start(job.job_id),
                 orchestrator.state.room_registry.rooms,
+                orchestrator.state.attempts,
             )
             | view_metadata(orchestrator),
         )
@@ -193,7 +194,9 @@ async def websocket_jobs_list(
                 "offset": offset,
                 "limit": limit,
                 "jobs": [
-                    present_job(job, rooms=state.room_registry.rooms)
+                    present_job(
+                        job, rooms=state.room_registry.rooms, attempts=state.attempts
+                    )
                     for job in ordered[offset : offset + limit]
                 ],
             }

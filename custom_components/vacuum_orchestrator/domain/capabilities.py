@@ -71,6 +71,7 @@ class RobotCapabilities:
     start_evidence: frozenset[StartEvidence]
     completion_evidence: frozenset[CompletionEvidence]
     mop_routes: frozenset[MopRoute] = frozenset()
+    returns_to_dock: bool = False
     vendor_extensions: frozenset[str] = frozenset()
     # Settings whose bound entity is currently unusable; see dev doc "Stufen".
     unavailable_settings: frozenset[str] = frozenset()

@@ -541,7 +541,7 @@ class OrchestratorState:
         )
 
     def request_cancel(
-        self, job_id: str, now: datetime
+        self, job_id: str, now: datetime, *, return_to_dock: bool = False
     ) -> tuple[OrchestratorState, int | None]:
         """Cancel pending work or atomically fence active physical ownership."""
         job = self._job(job_id)
@@ -587,7 +587,9 @@ class OrchestratorState:
         generation = self.robot_generations.get(attempt.source_robot_id, 0) + 1
         generations = dict(self.robot_generations)
         generations[attempt.source_robot_id] = generation
-        attempt = replace(attempt, cancel_requested_at=now)
+        attempt = replace(
+            attempt, cancel_requested_at=now, return_to_dock=return_to_dock
+        )
         if attempt.command_boundary_at is None:
             # No start was sent; the fence alone prevents a later one.
             return (

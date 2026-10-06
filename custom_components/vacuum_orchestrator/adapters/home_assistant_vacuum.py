@@ -280,6 +280,9 @@ class HomeAssistantVacuumAdapter:
             cancel=CancelSemantics.STOP
             if self.supported_features & VacuumEntityFeature.STOP
             else CancelSemantics.UNSUPPORTED,
+            returns_to_dock=bool(
+                self.supported_features & VacuumEntityFeature.RETURN_HOME
+            ),
             start_evidence=frozenset({StartEvidence.ACTIVITY_START_TRANSITION}),
             completion_evidence=frozenset(
                 {CompletionEvidence.ACTIVITY_TERMINAL_TRANSITION}
@@ -307,6 +310,7 @@ class HomeAssistantVacuumAdapter:
                 self._configuration.get("run_timeout_seconds", 14400),
                 self._configuration.get("cancel_timeout_seconds", 120),
                 self._configuration.get("settle_seconds", 30),
+                self._configuration.get("return_timeout_seconds", 900),
             ),
         )
 
@@ -387,6 +391,7 @@ class HomeAssistantVacuumAdapter:
             normal_end=bool(idle and not error),
             error_code=error,
             observed_operation=self.observed_operation(),
+            at_dock=state.state == "docked" if usable and state is not None else None,
         )
 
     def _history_value(self, role: str) -> datetime | None:
@@ -537,15 +542,35 @@ class HomeAssistantVacuumAdapter:
             context=physical_context(),
         )
 
-    async def async_cancel(self) -> None:
-        """Stop only when the current public entity advertises stop support."""
+    async def async_cancel(self, *, return_to_dock: bool = False) -> None:
+        """Stop, then return home; both only when the entity advertises them."""
         if not self.supported_features & VacuumEntityFeature.STOP:
             raise ConflictError("unsupported_cancel_semantics")
+        if return_to_dock and not (
+            self.supported_features & VacuumEntityFeature.RETURN_HOME
+        ):
+            raise ConflictError("return_to_dock_unsupported")
         check_command_authorization()
         report_adapter(TelemetryEvent.PHYSICAL, "requested", "stopped")
         await self._hass.services.async_call(
             "vacuum",
             "stop",
+            {"entity_id": self.entity_id},
+            blocking=True,
+            context=physical_context(),
+        )
+        if return_to_dock:
+            await self.async_return_to_dock()
+
+    async def async_return_to_dock(self) -> None:
+        """Send the robot home through the public vacuum action."""
+        if not self.supported_features & VacuumEntityFeature.RETURN_HOME:
+            raise ConflictError("return_to_dock_unsupported")
+        check_command_authorization()
+        report_adapter(TelemetryEvent.PHYSICAL, "requested", "returning")
+        await self._hass.services.async_call(
+            "vacuum",
+            "return_to_base",
             {"entity_id": self.entity_id},
             blocking=True,
             context=physical_context(),

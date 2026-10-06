@@ -309,6 +309,29 @@ def test_schema_three_vocabulary_is_mapped_and_unstarted_jobs_get_defaults() -> 
         migrate_schema_three(data)
 
 
+def test_cancel_return_choice_and_window_round_trip() -> None:
+    sent = _state().mark_command_sent("attempt", NOW)
+    attempt = sent.attempts["attempt"]
+    sent = replace(
+        sent,
+        attempts={
+            "attempt": replace(
+                attempt, policy=replace(attempt.policy, return_seconds=600)
+            )
+        },
+    )
+    canceling, _ = sent.request_cancel("job", NOW, return_to_dock=True)
+    data = encode_orchestrator_state(canceling)
+    decoded = decode_orchestrator_state(data)
+    assert decoded == canceling
+    assert decoded.attempts["attempt"].return_to_dock
+    assert decoded.attempts["attempt"].policy.return_seconds == 600
+    del data["attempts"]["attempt"]["return_to_dock"]
+    del data["attempts"]["attempt"]["policy"]["return_seconds"]
+    older = decode_orchestrator_state(data).attempts["attempt"]
+    assert not older.return_to_dock and older.policy.return_seconds == 900
+
+
 def test_job_defaults_round_trip() -> None:
     defaults = JobDefaults(
         CleaningMode.VACUUM_THEN_MOP,

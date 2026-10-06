@@ -107,6 +107,7 @@ class RecordingAdapter:
             vacuum_levels=frozenset(),
             water_levels=frozenset(),
             cancel=CancelSemantics.STOP,
+            returns_to_dock=True,
             start_evidence=frozenset({StartEvidence.ACTIVITY_START_TRANSITION}),
             completion_evidence=frozenset(
                 {
@@ -135,6 +136,8 @@ class RecordingAdapter:
         self.dispatches: list[tuple[WorkUnit, DispatchAssignment, AttemptState]] = []
         self.prepared: list[AttemptState] = []
         self.cancel_count = 0
+        self.cancel_returns: list[bool] = []
+        self.return_count = 0
         self.fail_dispatch = False
         self.fail_cancel = False
         self.confirm_completions = True
@@ -172,10 +175,14 @@ class RecordingAdapter:
             raise RuntimeError("dispatch uncertainty")
         self.dispatches.append((unit, assignment, self._persisted_attempt_state()))
 
-    async def async_cancel(self) -> None:
+    async def async_cancel(self, *, return_to_dock: bool = False) -> None:
         if self.fail_cancel:
             raise RuntimeError("cancel uncertainty")
         self.cancel_count += 1
+        self.cancel_returns.append(return_to_dock)
+
+    async def async_return_to_dock(self) -> None:
+        self.return_count += 1
 
 
 class IdFactory:

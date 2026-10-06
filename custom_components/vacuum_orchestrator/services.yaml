@@ -216,8 +216,27 @@ resume_queue:
   description: Resume automatic queue processing and dispatch safe jobs.
 cancel_job:
   name: Cancel job
-  description: Cancel queued work or safely stop an active attempt.
-  fields: *id003
+  description: Cancel queued work or safely stop an active attempt. With return_to_dock
+    the robot then drives home; the cancel completes once it rests at the dock.
+  fields:
+    job_id: *id002
+    after_cancel:
+      name: After cancelling
+      default: stay
+      selector:
+        select:
+          options:
+          - stay
+          - return_to_dock
+return_robot:
+  name: Return robot to dock
+  description: Send a robot that is not running a job back to its dock.
+  fields:
+    robot_id:
+      name: Robot ID
+      required: true
+      selector:
+        text: {}
 retry_job:
   name: Retry job
   description: Create a new queued job from a terminal job.

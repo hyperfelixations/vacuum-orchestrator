@@ -188,6 +188,11 @@ async def test_robot_configuration_actions_share_validation_and_idle_guard(
         "mop_route": [],
     }
     assert projection["capabilities"]["unavailable_settings"] == []
+    assert projection["capabilities"]["supports"] == {
+        "stop": False,
+        "return_to_dock": False,
+        "pause": False,
+    }
     assert (
         configured.runtime_data.orchestrator.adapters[robot]
         .profile.requirements[0]
@@ -471,6 +476,31 @@ async def test_preview_and_robot_capabilities_use_the_ladders(hass, configured):
     )
     await hass.async_block_till_done()
     assert set(connection.results[0][1]["settings"]) == {"mop_intensity", "mop_route"}
+
+
+async def test_cancel_and_return_actions_expose_the_return_choice(hass, configured):
+    await configured.runtime_data.controller.scheduler.async_close()
+    core = configured.runtime_data.orchestrator
+    room = (await call(hass, "create_room", name="Office"))["room_id"]
+    adapter = RecordingAdapter(RecordingBackend(), "robot", targets=(room,))
+    # The runtime store is not the fake's backend; physical calls stay recorded.
+    adapter._persisted_attempt_state = lambda: None
+    await core.async_replace_adapters({"robot": adapter})
+    await core.rooms.async_grant(room, ReleaseKind.PERMANENT)
+
+    returned = await call(hass, "return_robot", robot_id="robot")
+    assert returned["robot_id"] == "robot" and adapter.return_count == 1
+    job = (await call(hass, "create_job", areas=[room]))["job_id"]
+    await call(hass, "start_job", job_id=job)
+    assert (await call(hass, "get_job", job_id=job))["after_cancel"] is None
+    await call(hass, "cancel_job", job_id=job, after_cancel="return_to_dock")
+    detail = await call(hass, "get_job", job_id=job)
+    assert (detail["state"], detail["after_cancel"]) == ("canceling", "return_to_dock")
+    assert adapter.cancel_returns == [True]
+    with raises_code("robot_already_executing"):
+        await call(hass, "return_robot", robot_id="robot")
+    with pytest.raises(vol.Invalid):
+        await call(hass, "cancel_job", job_id=job, after_cancel="home")
 
 
 async def test_job_request_origin_survives_queueing_and_reaches_physical_calls(

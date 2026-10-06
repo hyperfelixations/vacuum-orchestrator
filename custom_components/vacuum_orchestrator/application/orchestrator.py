@@ -497,8 +497,14 @@ class VacuumOrchestrator:
                 dispatched.append(assignment)
         return tuple(dispatched)
 
-    async def async_cancel_job(self, job_id: str) -> None:
-        """Cancel queued work or fence an active robot before physical stop."""
+    async def async_cancel_job(
+        self, job_id: str, *, return_to_dock: bool = False
+    ) -> None:
+        """Cancel queued work or fence an active robot before physical stop.
+
+        With `return_to_dock` the stop is followed by a return under the same
+        lease; the cancel completes only once the robot rests at its dock.
+        """
         adapter: RobotAdapter | None = None
         session: RobotSession | None = None
         ticket = None
@@ -508,7 +514,13 @@ class VacuumOrchestrator:
             previous = self._verified_state()
             job = previous.jobs.get(job_id)
             attempt_id = job.active_attempt_id if job is not None else None
-            candidate, generation = previous.request_cancel(job_id, self._clock())
+            if return_to_dock and attempt_id is not None:
+                robot = self._adapters.get(previous.attempts[attempt_id].robot_id)
+                if robot is not None and not robot.profile.capabilities.returns_to_dock:
+                    raise ConflictError("return_to_dock_unsupported")
+            candidate, generation = previous.request_cancel(
+                job_id, self._clock(), return_to_dock=return_to_dock
+            )
             await self._commit_locked(previous, candidate)
             if generation is None:
                 return
@@ -535,7 +547,9 @@ class VacuumOrchestrator:
             )
         )
         try:
-            await session.cancel(ticket, adapter.async_cancel)
+            await session.cancel(
+                ticket, lambda: adapter.async_cancel(return_to_dock=return_to_dock)
+            )
         except Exception as err:
             await self._mark_robot_uncertain(attempt_id, err)
             raise
@@ -544,6 +558,29 @@ class VacuumOrchestrator:
         await self._mutate(
             lambda state: state.mark_stop_sent(attempt_id, self._clock())
         )
+
+    async def async_return_robot(self, robot_id: str) -> None:
+        """Send an idle robot home; never while an attempt owns it."""
+        async with self._lock:
+            state = self._verified_state()
+            adapter = self._adapters.get(robot_id)
+            if adapter is None:
+                raise ConflictError("unknown_robot", robot_id)
+            source = adapter.profile.source_robot_id
+            if source in state.robot_leases:
+                raise ConflictError("robot_already_executing")
+            if source in state.blocked_robots:
+                raise ConflictError("robot_needs_attention")
+            if not adapter.profile.capabilities.returns_to_dock:
+                raise ConflictError("return_to_dock_unsupported")
+            session = self._sessions.setdefault(
+                source, RobotSession(source, state.robot_generations.get(source, 0))
+            )
+            ticket = session.idle_ticket()
+        self.trace.record(
+            TraceEvent.PHYSICAL, self._clock(), stage="return", robot_id=robot_id
+        )
+        await session.run_idle(ticket, adapter.async_return_to_dock)
 
     async def async_confirm_cancel(self, job_id: str) -> None:
         """Persist observed cancellation and continue eligible queue work."""

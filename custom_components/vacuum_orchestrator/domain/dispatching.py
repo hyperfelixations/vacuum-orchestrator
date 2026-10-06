@@ -54,6 +54,7 @@ class RobotObservation:
     observed_operation: OperationKind | None = None
     completed_targets: tuple[str, ...] = ()
     completion_confirmed: bool = False
+    at_dock: bool | None = None
 
     def __post_init__(self) -> None:
         if (

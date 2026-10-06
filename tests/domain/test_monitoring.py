@@ -267,6 +267,84 @@ def test_cancel_timeout_wins_over_unfinished_stop_stability() -> None:
     assert decision.reason == "cancel_timeout"
 
 
+RETURNING = replace(STOPPED, return_to_dock=True)
+
+
+def test_return_to_dock_confirms_only_at_rest_in_the_dock() -> None:
+    off_dock = replace(_idle_at(6), at_dock=False)
+    waiting = evaluate(RETURNING, off_dock, NOW + timedelta(seconds=6))
+    assert (waiting.action, waiting.reason) == (MonitorAction.WAIT, "awaiting_stop")
+    driving = replace(
+        _idle_at(60),
+        state=RobotAvailabilityState.BUSY,
+        normal_end=False,
+        at_dock=False,
+    )
+    assert evaluate(RETURNING, driving, NOW + timedelta(seconds=60)).action is (
+        MonitorAction.WAIT
+    )
+    washing = replace(driving, at_dock=True)
+    assert evaluate(RETURNING, washing, NOW + timedelta(seconds=300)).action is (
+        MonitorAction.WAIT
+    )
+    docked = replace(_idle_at(400), at_dock=True)
+    first = evaluate(RETURNING, docked, NOW + timedelta(seconds=400))
+    assert first.action is MonitorAction.SETTLE
+    settling = replace(
+        RETURNING,
+        terminal_observed_at=NOW + timedelta(seconds=400),
+        last_observation_at=NOW + timedelta(seconds=400),
+    )
+    rewashing = evaluate(
+        settling, replace(washing, observed_at=docked.observed_at), docked.observed_at
+    )
+    assert rewashing.action is MonitorAction.RESUME
+    lost = evaluate(settling, _idle_at(430), NOW + timedelta(seconds=430))
+    assert (lost.action, lost.reason) == (MonitorAction.RESUME, "stop_not_observed")
+    done = evaluate(
+        settling, replace(_idle_at(430), at_dock=True), NOW + timedelta(seconds=430)
+    )
+    assert (done.action, done.reason) == (MonitorAction.CANCEL, "stop_observed")
+
+
+def test_return_to_dock_extends_the_cancel_window() -> None:
+    policy = ExecutionPolicy(return_seconds=600)
+    returning = replace(RETURNING, policy=policy)
+    assert next_deadline(returning) == NOW + timedelta(seconds=720)
+    driving = replace(_idle_at(500), normal_end=False, at_dock=False)
+    assert evaluate(returning, driving, NOW + timedelta(seconds=500)).action is (
+        MonitorAction.WAIT
+    )
+    late = replace(driving, observed_at=NOW + timedelta(seconds=720))
+    timeout = evaluate(returning, late, NOW + timedelta(seconds=720))
+    assert (timeout.action, timeout.reason) == (
+        MonitorAction.ATTENTION,
+        "cancel_timeout",
+    )
+    assert next_deadline(STOPPED) == NOW + timedelta(seconds=120)
+
+
+def test_activity_after_the_settle_point_restarts_settling_before_the_limit() -> None:
+    settling = replace(
+        STOPPED,
+        terminal_observed_at=NOW + timedelta(seconds=6),
+        last_observation_at=NOW + timedelta(seconds=6),
+    )
+    busy = replace(_idle_at(40), cleaning_active=False, normal_end=False)
+    decision = evaluate(settling, busy, NOW + timedelta(seconds=40))
+    assert (decision.action, decision.reason) == (
+        MonitorAction.RESUME,
+        "stop_not_observed",
+    )
+
+
+def test_staying_confirms_at_rest_anywhere() -> None:
+    off_dock = replace(_idle_at(6), at_dock=False)
+    assert evaluate(STOPPED, off_dock, NOW + timedelta(seconds=6)).action is (
+        MonitorAction.SETTLE
+    )
+
+
 def test_preparation_has_no_observation_deadline() -> None:
     prepared = replace(ATTEMPT, state=AttemptState.PREPARED, command_boundary_at=None)
     assert next_deadline(prepared) is None

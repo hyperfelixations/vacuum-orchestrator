@@ -6,11 +6,13 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from ..const import API_VERSION, INTEGRATION_VERSION
+from ..domain.execution import ExecutionAttempt
 from ..domain.job_defaults import JobDefaults
 from ..domain.planning import SettingsResolution
 from ..domain.queue import Job, OrchestratorState
 from ..domain.readiness import ReadinessReport
 from ..domain.rooms import Room
+from ..domain.types import JobState
 
 if TYPE_CHECKING:
     from ..application.orchestrator import VacuumOrchestrator
@@ -50,9 +52,17 @@ def present_job(
     job: Job,
     readiness: ReadinessReport | None = None,
     rooms: Mapping[str, Room] | None = None,
+    attempts: Mapping[str, ExecutionAttempt] | None = None,
 ) -> dict[str, object]:
     """Serialize one bounded job record without leaking mutable internals."""
     intent = job.intent
+    canceling = (
+        attempts.get(job.active_attempt_id)
+        if attempts is not None
+        and job.state is JobState.CANCELING
+        and job.active_attempt_id is not None
+        else None
+    )
     result: dict[str, object] = {
         "api_version": API_VERSION,
         "job_id": job.job_id,
@@ -95,6 +105,11 @@ def present_job(
         "active_attempt_id": job.active_attempt_id,
         "retries_job_id": job.retries_job_id,
         "failure_code": job.failure_code,
+        "after_cancel": None
+        if canceling is None
+        else "return_to_dock"
+        if canceling.return_to_dock
+        else "stay",
     }
     if readiness is not None:
         result["readiness"] = {

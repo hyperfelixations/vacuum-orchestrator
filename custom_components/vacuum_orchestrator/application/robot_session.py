@@ -105,6 +105,34 @@ class RobotSession:
             finally:
                 command_guard.reset(token)
 
+    def idle_ticket(self) -> RobotCommandTicket:
+        """Authorize a command for a robot that no attempt currently owns."""
+        if self._needs_attention:
+            raise ConflictError("robot_needs_attention")
+        if self._owner_attempt_id is not None:
+            raise ConflictError("robot_already_executing")
+        return RobotCommandTicket(self.source_robot_id, self._generation, None)
+
+    async def run_idle(
+        self,
+        ticket: RobotCommandTicket,
+        command: Callable[[], Awaitable[None]],
+    ) -> None:
+        """Run one command unless an attempt reserved the robot meanwhile."""
+        async with self._command_lane:
+
+            def validate() -> None:
+                self._validate_ticket(ticket, require_attempt=False)
+                if self._owner_attempt_id is not None:
+                    raise StaleCommandError("robot_reserved")
+
+            validate()
+            token = command_guard.set(validate)
+            try:
+                await command()
+            finally:
+                command_guard.reset(token)
+
     def release(self, attempt_id: str) -> None:
         """Release attempt ownership after a correlated terminal outcome."""
         if self._owner_attempt_id not in (None, attempt_id):

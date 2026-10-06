@@ -58,6 +58,7 @@ def validate_robot_configuration(
         "cancel_timeout_seconds",
         "settle_seconds",
         "settings_timeout_seconds",
+        "return_timeout_seconds",
         "physical_robot_id",
     }
     if set(data) - allowed_fields:
@@ -215,6 +216,7 @@ def validate_robot_configuration(
         "cancel_timeout_seconds": 120,
         "settle_seconds": 30,
         "settings_timeout_seconds": 45,
+        "return_timeout_seconds": 900,
     }.items():
         value = data.get(field_name, default)
         if not isinstance(value, (int, float)):

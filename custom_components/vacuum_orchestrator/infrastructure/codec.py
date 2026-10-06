@@ -1013,12 +1013,14 @@ def _encode_attempt(attempt: ExecutionAttempt) -> JsonObject:
             "run_seconds": attempt.policy.run_seconds,
             "cancel_seconds": attempt.policy.cancel_seconds,
             "settle_seconds": attempt.policy.settle_seconds,
+            "return_seconds": attempt.policy.return_seconds,
         },
         "terminal_observed_at": _encode_optional_datetime(attempt.terminal_observed_at),
         "last_observation_at": _encode_optional_datetime(attempt.last_observation_at),
         "completion_quality": _enum_value(attempt.completion_quality),
         "cancel_requested_at": _encode_optional_datetime(attempt.cancel_requested_at),
         "stop_sent_at": _encode_optional_datetime(attempt.stop_sent_at),
+        "return_to_dock": attempt.return_to_dock,
     }
 
 
@@ -1043,12 +1045,14 @@ def _decode_attempt(data: JsonObject) -> ExecutionAttempt:
             _number(policy.get("run_seconds", 14400)),
             _number(policy.get("cancel_seconds", 120)),
             _number(policy.get("settle_seconds", 30)),
+            _number(policy.get("return_seconds", 900)),
         ),
         _decode_optional_datetime(data.get("terminal_observed_at")),
         _decode_optional_datetime(data.get("last_observation_at")),
         _optional_enum(CompletionQuality, data.get("completion_quality")),
         _decode_optional_datetime(data.get("cancel_requested_at")),
         _decode_optional_datetime(data.get("stop_sent_at")),
+        _bool(data.get("return_to_dock", False)),
     )
 
 

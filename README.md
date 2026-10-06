@@ -261,12 +261,21 @@ cleaning mode.
 | Start processing | `run_queue` |
 | Pause new jobs | `pause_queue` |
 | Continue processing | `resume_queue` |
-| Cancel one job | `cancel_job`: `job_id` |
+| Cancel one job | `cancel_job`: `job_id`, optional `after_cancel: stay` or `return_to_dock` |
+| Send an idle robot home | `return_robot`: `robot_id` |
 | Try a failed or cancelled job again | `retry_job`: `job_id` |
 | Remove a waiting or finished job | `delete_job`: `job_id` |
 
 All action names use the prefix `vacuum_orchestrator.`. Pausing lets already
-started jobs finish, including their remaining phases. Retrying creates a new
+started jobs finish, including their remaining phases.
+
+Cancelling a running job stops the robot. With `after_cancel: stay` (the
+default) it remains where it stopped and is free for the next job as soon as it
+rests. With `return_to_dock` it drives home first; the cancel counts as done,
+and no other job uses the robot, until it rests at the dock. Driving home and washing the mop
+may take 15 minutes longer than a plain stop (`return_timeout_seconds` per
+robot); if the robot has not settled at the dock by then, VOI marks it for your
+attention. Retrying creates a new
 job; a room released for one job needs a new permission for that retry.
 
 Every action can return a response, for example through `response_variable` in

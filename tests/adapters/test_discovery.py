@@ -14,6 +14,9 @@ from custom_components.vacuum_orchestrator.adapters.discovery import (
     discover_robots,
     resolve_entity_id,
 )
+from custom_components.vacuum_orchestrator.adapters.home_assistant_vacuum import (
+    HomeAssistantVacuumAdapter,
+)
 from custom_components.vacuum_orchestrator.configuration import (
     validate_robot_configuration,
 )
@@ -161,6 +164,10 @@ def test_generic_vacuum_accepts_manual_roles_without_claiming_a_mode(
         {"start_timeout_seconds": "invalid"},
         {"start_timeout_seconds": 90000},
         {"start_timeout_seconds": float("nan")},
+        {"return_timeout_seconds": 0},
+        {"vacuum_levels": {"medium": "balanced"}},
+        {"water_levels": {"standard": "moderate"}},
+        {"mop_routes": {"auto": "smart"}},
         {"roles": {"cleaning_mode": "sensor.missing"}},
         {"allowed_operations": []},
         {"protocol": "roborock_v1"},
@@ -254,3 +261,28 @@ def test_legacy_history_binding_and_matter_mode_discovery(hass: HomeAssistant) -
         },
     )
     assert data["roles"]["last_clean_start"] == history.id
+
+
+def test_return_timeout_defaults_and_reaches_the_execution_policy(
+    hass: HomeAssistant,
+) -> None:
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    vacuum = er.async_get(hass).async_get_or_create("vacuum", "demo", "robot")
+    data = validate_robot_configuration(
+        hass, entry, {"robot_entity_id": vacuum.entity_id}
+    )
+    assert data["return_timeout_seconds"] == 900.0
+    data = validate_robot_configuration(
+        hass,
+        entry,
+        {"robot_entity_id": vacuum.entity_id, "return_timeout_seconds": 600},
+    )
+    adapter = HomeAssistantVacuumAdapter(
+        hass,
+        robot_id="robot",
+        source_robot_id="source",
+        entity_id=vacuum.entity_id,
+        configuration=data,
+    )
+    assert adapter.profile.execution_policy.return_seconds == 600.0
