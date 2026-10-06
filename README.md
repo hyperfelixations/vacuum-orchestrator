@@ -5,6 +5,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Questions](https://img.shields.io/badge/Questions%3F-Join%20the%20community-5865F2)](https://discord.gg/zfGKCVEvwe)
 
+[![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=hyperfelixations&repository=vacuum-orchestrator&category=integration)
+
 Coordinate your robot vacuums from one cleaning queue in
 [Home Assistant](https://www.home-assistant.io/). Choose which rooms may be
 cleaned, decide when they are due again, and let an available, compatible robot
@@ -30,7 +32,7 @@ pick up the next job. Keep jobs for later without having to start them today.
 ## Before you start
 
 **Version 0.1.0 is a preview for controlled testing.** It has not yet completed
-real-device acceptance testing or distribution validation. Start with one robot
+real-device acceptance testing. Start with one robot
 and one room, and supervise the first cleaning. Avoid running another cleaning
 automation against the same robot during the test.
 
@@ -59,10 +61,27 @@ or choosing a different mode.
 
 ## Installation
 
+### HACS
+
+[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=hyperfelixations&repository=vacuum-orchestrator&category=integration)
+
+Add Vacuum Orchestrator as a custom repository using the button above or
+manually:
+
+1. Create a Home Assistant backup.
+2. Open HACS → the three-dot menu → **Custom repositories**.
+3. Add `https://github.com/hyperfelixations/vacuum-orchestrator`, category
+   **Integration**.
+4. Install "Vacuum Orchestrator" and restart Home Assistant.
+5. Open **Settings → Devices & services → Add integration** and search for
+   **Vacuum Orchestrator**.
+
 ### Manual installation
 
 1. Create a Home Assistant backup.
-2. Download this repository using **Code → Download ZIP** and extract it.
+2. Download **Source code (zip)** from the
+   [latest release](https://github.com/hyperfelixations/vacuum-orchestrator/releases/latest)
+   and extract it.
 3. Copy the entire `custom_components/vacuum_orchestrator` folder into your
    Home Assistant configuration folder, under `custom_components`.
    The resulting path must be `custom_components/vacuum_orchestrator/manifest.json`.
@@ -72,16 +91,18 @@ or choosing a different mode.
 
 This installs an integration; there is no dashboard JavaScript resource to add.
 
-### HACS
+### Dashboard card
 
-HACS installation is not currently a validated distribution path for this
-preview. Use manual installation for evaluation. This repository is not listed
-in the default HACS catalogue.
+The optional [Vacuum Orchestrator Card](https://github.com/hyperfelixations/vacuum-orchestrator-card)
+shows rooms, jobs and the queue on a dashboard. Install it separately:
+
+[![Open your Home Assistant instance and add the card repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=hyperfelixations&repository=vacuum-orchestrator-card&category=plugin)
 
 ### Updating
 
 Back up Home Assistant, finish or cancel active cleaning, and pause the queue.
-Replace the integration folder with the new version and restart Home Assistant.
+Update through HACS, or replace the integration folder with the new version,
+and restart Home Assistant.
 Check the queue and any attention messages before resuming. For a downgrade,
 restore the matching backup rather than assuming an older version can read newer
 saved data.
@@ -403,6 +424,7 @@ with the information above. Feedback from controlled tests is welcome.
 ## Links
 
 - [Releases](https://github.com/hyperfelixations/vacuum-orchestrator/releases)
+- [Vacuum Orchestrator Card](https://github.com/hyperfelixations/vacuum-orchestrator-card)
 - [Issues](https://github.com/hyperfelixations/vacuum-orchestrator/issues)
 - [License](LICENSE) (MIT)
 - [Discord](https://discord.gg/zfGKCVEvwe) — questions and discussion

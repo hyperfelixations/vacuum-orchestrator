@@ -57,11 +57,14 @@ def workflow_names() -> list[str]:
     return sorted(path.name for path in WORKFLOWS.glob("*.y*ml"))
 
 
-def test_exactly_the_ci_and_validate_workflows_exist() -> None:
-    assert workflow_names() == ["ci.yml", "validate.yml"]
+WORKFLOW_NAMES = ["ci.yml", "release.yml", "validate.yml"]
 
 
-@pytest.mark.parametrize("name", ["ci.yml", "validate.yml"])
+def test_exactly_the_ci_release_and_validate_workflows_exist() -> None:
+    assert workflow_names() == WORKFLOW_NAMES
+
+
+@pytest.mark.parametrize("name", WORKFLOW_NAMES)
 def test_every_action_is_pinned_to_a_commit_sha_with_its_version(name: str) -> None:
     for line in (WORKFLOWS / name).read_text(encoding="utf-8").splitlines():
         if not re.match(r"\s*(?:- )?uses:", line):
@@ -84,7 +87,7 @@ def test_floating_actions_get_the_least_permissions_they_need() -> None:
                     assert permissions == {"contents": "read"}, where
 
 
-@pytest.mark.parametrize("name", ["ci.yml", "validate.yml"])
+@pytest.mark.parametrize("name", WORKFLOW_NAMES)
 def test_workflows_read_by_default_and_keep_no_checkout_credentials(
     name: str,
 ) -> None:

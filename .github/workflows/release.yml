@@ -1,0 +1,356 @@
+# This workflow prepares a release candidate. It never publishes a release.
+# Only the repository owner may start it and publish the resulting draft.
+
+name: Release Candidate
+
+run-name: >-
+  Release candidate v${{ inputs.version }} from ${{ inputs.expected_sha }}
+  (${{ inputs.release_kind }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Exact integration version, for example 0.1.0 or 0.1.1-dev.1"
+        required: true
+        type: string
+      expected_sha:
+        description: "Full 40-character commit SHA approved for release"
+        required: true
+        type: string
+      release_kind:
+        description: "Stable creates a normal draft; dev creates a pre-release draft"
+        required: true
+        default: stable
+        type: choice
+        options:
+          - stable
+          - dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate
+  cancel-in-progress: false
+
+env:
+  INTEGRATION_PATH: custom_components/vacuum_orchestrator
+
+jobs:
+  validate:
+    name: Validate release request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      release_sha: ${{ steps.release-metadata.outputs.sha }}
+      release_tag: ${{ steps.release-metadata.outputs.tag }}
+      release_title: ${{ steps.release-metadata.outputs.title }}
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate branch, SHA and version
+        id: release-metadata
+        shell: pwsh
+        env:
+          ACTUAL_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          RELEASE_KIND: ${{ inputs.release_kind }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          SELECTED_REF: ${{ github.ref }}
+          TRIGGERING_ACTOR: ${{ github.actor }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $actualSha = $env:ACTUAL_SHA.ToLowerInvariant()
+          $expectedSha = $env:EXPECTED_SHA.Trim().ToLowerInvariant()
+          $version = $env:RELEASE_VERSION.Trim()
+          $releaseKind = $env:RELEASE_KIND
+
+          if ($env:TRIGGERING_ACTOR -ne $env:REPOSITORY_OWNER) {
+            throw "Only the repository owner may start a release candidate."
+          }
+          if ($env:SELECTED_REF -ne "refs/heads/main") {
+            throw "Release candidates must be started with branch 'main' selected."
+          }
+          if ($expectedSha -notmatch '^[0-9a-f]{40}$') {
+            throw "expected_sha must be the complete 40-character commit SHA."
+          }
+          git cat-file -e "$expectedSha^{commit}"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Commit $expectedSha does not exist in this repository."
+          }
+          git merge-base --is-ancestor $expectedSha $actualSha
+          if ($LASTEXITCODE -ne 0) {
+            throw "Commit $expectedSha is not part of the main branch history."
+          }
+
+          # SemVer without leading zeros. Case-sensitive and ASCII-only on purpose: -notmatch
+          # ignores case and \d accepts every Unicode digit.
+          switch ($releaseKind) {
+            "stable" {
+              if ($version -cnotmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+                throw "A stable version must look like 0.1.0."
+              }
+            }
+            "dev" {
+              if ($version -cnotmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-dev\.[1-9][0-9]*$') {
+                throw "A dev pre-release version must look like 0.1.1-dev.1."
+              }
+            }
+            default {
+              throw "Unsupported release kind '$releaseKind'."
+            }
+          }
+          $title = "Vacuum Orchestrator $version"
+
+          $tag = "v$version"
+          $existingTags = @(git tag --list $tag)
+          if ($existingTags.Count -ne 0) {
+            throw "Tag '$tag' already exists. Release tags are immutable; use a new version."
+          }
+
+          # GitHub orders releases by the date of their commit, so a stable release must be the
+          # newest by version and by history.
+          if ($releaseKind -eq "stable") {
+            $stableTag = '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+            foreach ($existing in @(git tag --list "v*")) {
+              if ($existing -cnotmatch $stableTag) {
+                continue
+              }
+              if ([version]$existing.Substring(1) -ge [version]$version) {
+                throw "Stable version $version must be higher than the existing release $existing."
+              }
+              git merge-base --is-ancestor "refs/tags/$existing" $expectedSha
+              if ($LASTEXITCODE -ne 0) {
+                throw "Release $existing is not an ancestor of $expectedSha; a stable release must contain every earlier stable release."
+              }
+            }
+          }
+
+          "tag=$tag" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          "title=$title" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          "sha=$expectedSha" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+
+  test:
+    name: Version, icon, lint and tests
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the approved commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.release_sha }}
+          persist-credentials: false
+
+      - name: Confirm the checkout is the approved commit
+        shell: bash
+        env:
+          APPROVED_SHA: ${{ needs.validate.outputs.release_sha }}
+        run: test "$(git rev-parse HEAD)" = "$APPROVED_SHA"
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14.2"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Check version files and brand icon
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          python - "$RELEASE_VERSION" <<'EOF'
+          import json
+          import re
+          import struct
+          import sys
+          import tomllib
+          from pathlib import Path
+
+          version = sys.argv[1].strip()
+          integration = Path("custom_components/vacuum_orchestrator")
+          const = (integration / "const.py").read_text(encoding="utf-8")
+          declared = re.search(r'^INTEGRATION_VERSION = "([^"]*)"$', const, re.M)
+          versions = {
+              "manifest.json": json.loads(
+                  (integration / "manifest.json").read_text(encoding="utf-8")
+              )["version"],
+              "const.INTEGRATION_VERSION": declared.group(1) if declared else None,
+              "pyproject.toml": tomllib.loads(
+                  Path("pyproject.toml").read_text(encoding="utf-8")
+              )["project"]["version"],
+          }
+          for source, actual in versions.items():
+              if actual != version:
+                  sys.exit(f"{source} contains version '{actual}', expected '{version}'.")
+
+          icon = (integration / "brand" / "icon.png").read_bytes()
+          if icon[:8] != b"\x89PNG\r\n\x1a\n" or icon[12:16] != b"IHDR":
+              sys.exit("brand/icon.png is not a PNG image.")
+          if struct.unpack(">II", icon[16:24]) != (256, 256):
+              sys.exit("brand/icon.png must be 256x256 pixels.")
+          print(f"Version {version} and brand icon are consistent.")
+          EOF
+
+      - run: python -m pip install -r requirements-test.txt
+      - run: python -m ruff format --check custom_components tests
+      - run: python -m ruff check custom_components tests
+      - run: python -m mypy custom_components
+      - run: python -m pytest
+
+  hassfest:
+    name: Hassfest
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.release_sha }}
+          persist-credentials: false
+
+      - uses: home-assistant/actions/hassfest@master
+
+  # Repeated from the Validate workflow so a release candidate carries its own HACS verdict.
+  # The action reads the repository through the GitHub API, that is the default branch.
+  hacs:
+    name: HACS validation
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
+
+  create-draft:
+    name: Create unpublished GitHub draft
+    needs:
+      - validate
+      - test
+      - hassfest
+      - hacs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      EXPECTED_SHA: ${{ needs.validate.outputs.release_sha }}
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_KIND: ${{ inputs.release_kind }}
+      RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
+      RELEASE_TITLE: ${{ needs.validate.outputs.release_title }}
+
+    steps:
+      - name: Check out the approved commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.release_sha }}
+          persist-credentials: false
+
+      # HACS installs the integration folder from the tag, so its tree hash identifies what users get.
+      - name: Record the integration tree hash
+        id: tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "hash=$(git rev-parse "$EXPECTED_SHA:$INTEGRATION_PATH")" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse to reuse an existing tag or release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "A release for $RELEASE_TAG already exists. Use a new version." >&2
+            exit 1
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Tag $RELEASE_TAG already exists. Release tags are immutable; use a new version." >&2
+            exit 1
+          fi
+
+      # The tag does NOT exist yet after this step. GitHub records the target commit on
+      # the draft and creates the tag when the draft is published, so a discarded draft
+      # leaves nothing behind to clean up.
+      - name: Create the unpublished draft against the approved commit
+        id: draft
+        shell: bash
+        env:
+          TREE_HASH: ${{ steps.tree.outputs.hash }}
+        run: |
+          set -euo pipefail
+          notes_file="$RUNNER_TEMP/release-notes.md"
+          cat > "$notes_file" <<EOF
+          > Automatically tested release draft. Review and replace these notes before publishing.
+
+          Target commit: \`$EXPECTED_SHA\`
+
+          Integration folder: \`$INTEGRATION_PATH\`
+          Tree hash: \`$TREE_HASH\`
+
+          ## Release notes
+
+          Replace this paragraph with the approved, user-facing release notes.
+
+          ## Installation
+
+          Install or update Vacuum Orchestrator through HACS, then restart Home Assistant.
+          EOF
+          if [[ "$RELEASE_KIND" == "dev" ]]; then
+            cat >> "$notes_file" <<'EOF'
+
+          ## Pre-release
+
+          This is a development pre-release for testing. HACS offers it only where pre-releases are enabled for this repository.
+          EOF
+          fi
+
+          args=(
+            gh release create "$RELEASE_TAG"
+            --repo "$GITHUB_REPOSITORY"
+            --draft
+            --target "$EXPECTED_SHA"
+            --title "$RELEASE_TITLE"
+            --notes-file "$notes_file"
+            --fail-on-no-commits
+          )
+          if [[ "$RELEASE_KIND" == "dev" ]]; then
+            args+=(--prerelease --latest=false)
+          fi
+          "${args[@]}"
+
+          release_url="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json url --jq .url)"
+          echo "url=$release_url" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize the manual approval step
+        shell: bash
+        env:
+          DRAFT_URL: ${{ steps.draft.outputs.url }}
+          TREE_HASH: ${{ steps.tree.outputs.hash }}
+        run: |
+          {
+            echo "## Unpublished release draft created"
+            echo
+            echo "Nothing has been published. HACS cannot see this draft."
+            echo
+            echo "- Draft: $DRAFT_URL"
+            echo "- Tag to be created on publish: \`$RELEASE_TAG\`"
+            echo "- Release kind: \`$RELEASE_KIND\`"
+            echo "- Commit: \`$EXPECTED_SHA\`"
+            echo "- Integration tree hash: \`$TREE_HASH\`"
+            echo
+            echo "The repository owner must review the notes and settings, then publish manually."
+          } >> "$GITHUB_STEP_SUMMARY"
