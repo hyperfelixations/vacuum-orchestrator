@@ -2,6 +2,7 @@
   "domain": "vacuum_orchestrator",
   "name": "Vacuum Orchestrator",
   "after_dependencies": [
+    "lovelace",
     "roborock",
     "vacuum"
   ],

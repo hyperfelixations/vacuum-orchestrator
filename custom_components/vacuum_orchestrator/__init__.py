@@ -29,12 +29,14 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up the integration-wide orchestrator."""
+    from .card_presence import async_track_card
     from .const import PLATFORMS
     from .runtime import async_setup_orchestrator
 
     if not await async_setup_orchestrator(hass, entry):
         return False
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    entry.async_on_unload(await async_track_card(hass))
     return True
 
 
@@ -46,6 +48,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
     return await async_unload_orchestrator(hass, entry)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Drop the card hint, which outlives unloads to keep an ignore choice."""
+    from .card_presence import async_remove_issue
+
+    async_remove_issue(hass)
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

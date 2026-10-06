@@ -86,6 +86,10 @@
     "recovery_required": {
       "title": "Wiederherstellung erforderlich",
       "description": "recovery_targets in get_queue prüfen. Vor resolve_recovery sicherstellen, dass der betroffene Roboter gestoppt ist. Reinigungserfolg wird nicht angenommen."
+    },
+    "voc_card_missing": {
+      "title": "Vacuum Orchestrator Card nicht installiert",
+      "description": "Vacuum Orchestrator funktioniert auch ohne, aber die Karte ist das Dashboard für Räume, Jobs und die Warteschlange. Installation über HACS: {url}"
     }
   },
   "exceptions": {

@@ -86,6 +86,10 @@
     "recovery_required": {
       "title": "Cleaning recovery required",
       "description": "Check get_queue recovery_targets. Verify the affected robot has stopped before resolve_recovery. No cleaning success is assumed."
+    },
+    "voc_card_missing": {
+      "title": "Vacuum Orchestrator Card not installed",
+      "description": "Vacuum Orchestrator works without it, but the card is the dashboard for rooms, jobs and the queue. Install it with HACS: {url}"
     }
   },
   "exceptions": {

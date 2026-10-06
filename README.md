@@ -23,7 +23,9 @@ pick up the next job. Keep jobs for later without having to start them today.
 - Conditions for doors, passages and robot readiness, checked before cleaning.
 - Saved job templates, with optional automatic job creation when a room is due.
 - Cleaning history that distinguishes confirmed results from inferred ones.
-- Home Assistant actions for scripts and automations. A dashboard card is optional.
+- Home Assistant actions for scripts and automations. A dashboard card is optional;
+  while it is not installed, a Repair message links to it. You can ignore that
+  message.
 
 ## Before you start
 
