@@ -123,6 +123,7 @@ def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
                 "enabled": value.enabled,
                 "automatic": value.automatic,
                 "demand_tokens": dict(value.demand_tokens),
+                "all_rooms": value.all_rooms,
             }
             for key, value in state.templates.items()
         },
@@ -208,6 +209,7 @@ def _decode_template(data: JsonObject) -> JobTemplate:
             key: _str(value)
             for key, value in _string_mapping(data["demand_tokens"]).items()
         },
+        _bool(data.get("all_rooms", False)),
     )
 
 

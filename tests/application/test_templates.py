@@ -36,7 +36,7 @@ from tests.application.test_orchestrator import (
 
 
 async def setup_due(*adapters):
-    backend = adapters[0].backend if adapters else RecordingBackend()
+    backend = adapters[0]._backend if adapters else RecordingBackend()
     core = await _orchestrator(backend, *adapters)
     for room in ("kitchen", "hall"):
         await core.rooms.async_update(

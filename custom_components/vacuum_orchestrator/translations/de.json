@@ -539,6 +539,9 @@
     "no_eligible_robot": {
       "message": "Kein Roboter kann diesen Auftrag jetzt ausführen"
     },
+    "no_eligible_rooms": {
+      "message": "Kein Raum ist aktiviert, vorhanden und einem Roboter zugeordnet"
+    },
     "no_robot_configured": {
       "message": "Es ist kein Roboter eingerichtet"
     },

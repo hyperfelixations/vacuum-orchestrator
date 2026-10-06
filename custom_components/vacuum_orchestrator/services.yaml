@@ -4,8 +4,8 @@ create_job:
   fields:
     areas:
       name: Room or area IDs
-      description: Canonical VOI room IDs or Home Assistant area IDs. Use get_rooms
-        to discover IDs.
+      description: Canonical VOI room IDs or Home Assistant area IDs, or "all" for
+        every enabled room a robot can clean. Use get_rooms to discover IDs.
       required: true
       selector:
         object: {}
@@ -101,8 +101,8 @@ update_job:
         text: null
     areas:
       name: Room or area IDs
-      description: Canonical VOI room IDs or Home Assistant area IDs. Use get_rooms
-        to discover IDs.
+      description: Canonical VOI room IDs or Home Assistant area IDs, or "all" for
+        every enabled room a robot can clean. Use get_rooms to discover IDs.
       required: false
       selector:
         object: {}

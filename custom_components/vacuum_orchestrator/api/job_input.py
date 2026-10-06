@@ -1,5 +1,6 @@
 """Shared public job-intent schema for jobs and stored templates."""
 
+from collections.abc import Callable
 from typing import Any
 
 import voluptuous as vol
@@ -28,6 +29,7 @@ ATTR_DIRECTION = "direction"
 ATTR_ROBOT_ID = "robot_id"
 ATTR_OFFSET = "offset"
 ATTR_LIMIT = "limit"
+ALL_ROOMS = "all"
 
 
 def _mode(value: object) -> object:
@@ -37,8 +39,14 @@ def _mode(value: object) -> object:
         raise vol.Invalid(str(err)) from err
 
 
+def areas(value: object) -> list[str] | str:
+    """Accept room IDs or "all", alone or as the only list item."""
+    selected = vol.All(cv.ensure_list, [cv.string])(value)
+    return ALL_ROOMS if selected == [ALL_ROOMS] else selected
+
+
 INTENT_FIELDS: dict[Any, Any] = {
-    vol.Required(ATTR_AREAS): vol.All(cv.ensure_list, [cv.string]),
+    vol.Required(ATTR_AREAS): areas,
     vol.Required(ATTR_MODE): _mode,
     vol.Optional(ATTR_NAME): cv.string,
     vol.Optional(ATTR_VACUUM_POWER): vol.Coerce(SemanticLevel),
@@ -62,10 +70,20 @@ INTENT_FIELDS: dict[Any, Any] = {
 CREATE_SCHEMA = vol.Schema(INTENT_FIELDS)
 
 
-def intent_from_data(data: dict[str, Any]) -> JobIntent:
+def selected_areas(
+    value: list[str] | str, eligible_rooms: Callable[[], tuple[str, ...]]
+) -> tuple[TargetRef, ...]:
+    """Snapshot an all-rooms selection or keep the requested references."""
+    room_ids = eligible_rooms() if value == ALL_ROOMS else value
+    return tuple(TargetRef(room_id) for room_id in room_ids)
+
+
+def intent_from_data(
+    data: dict[str, Any], eligible_rooms: Callable[[], tuple[str, ...]]
+) -> JobIntent:
     """Build the canonical intent from validated public fields."""
     return JobIntent(
-        areas=tuple(TargetRef(area_id) for area_id in data[ATTR_AREAS]),
+        areas=selected_areas(data[ATTR_AREAS], eligible_rooms),
         mode=data[ATTR_MODE],
         name=data.get(ATTR_NAME),
         preferences=CleaningPreferences(

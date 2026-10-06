@@ -31,7 +31,7 @@ from ..room_configuration import (
 )
 from ..runtime import async_get_runtime
 from .errors import service_error
-from .job_input import CREATE_SCHEMA, intent_from_data
+from .job_input import ALL_ROOMS, CREATE_SCHEMA, intent_from_data
 from .presentation import present_job, view_metadata
 from .room_presentation import present_room
 from .telemetry import command_trace
@@ -319,10 +319,11 @@ async def _execute_configuration(
     elif name == "save_template":
         result["template_id"] = await core.templates.async_save(
             data["name"],
-            intent_from_data(data["intent"]),
+            intent_from_data(data["intent"], core.eligible_room_ids),
             template_id=data.get("template_id"),
             enabled=data["enabled"],
             automatic=data["automatic"],
+            all_rooms=data["intent"]["areas"] == ALL_ROOMS,
         )
     elif name == "remove_template":
         await core.templates.async_remove(data["template_id"])
@@ -383,7 +384,9 @@ def present_template(template: JobTemplate) -> dict[str, Any]:
     """Return a reusable public intent without internal execution records."""
     intent = template.intent
     values: dict[str, Any] = {
-        "areas": [target.area_id for target in intent.areas],
+        "areas": ALL_ROOMS
+        if template.all_rooms
+        else [target.area_id for target in intent.areas],
         "mode": intent.mode.value,
         "passes": intent.passes,
         "settings_policy": intent.settings_policy.value,

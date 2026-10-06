@@ -32,11 +32,7 @@ from ..const import (
     SERVICE_UPDATE_JOB,
 )
 from ..domain.errors import ConflictError, OrchestratorError
-from ..domain.intents import (
-    JobIntent,
-    JobIntentPatch,
-    TargetRef,
-)
+from ..domain.intents import JobIntentPatch
 from ..domain.types import (
     MopRoute,
     MoveDirection,
@@ -48,7 +44,13 @@ from ..ha_context import request_context
 from ..runtime import VacuumOrchestratorRuntime, async_get_runtime
 from .configuration import setup_configuration_actions
 from .errors import service_error
-from .job_input import CREATE_SCHEMA, _mode, intent_from_data
+from .job_input import (
+    CREATE_SCHEMA,
+    _mode,
+    areas,
+    intent_from_data,
+    selected_areas,
+)
 from .presentation import present_job, present_queue, view_metadata
 from .telemetry import command_trace
 
@@ -76,7 +78,7 @@ ATTR_LIMIT = "limit"
 UPDATE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_JOB_ID): cv.string,
-        vol.Optional(ATTR_AREAS): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional(ATTR_AREAS): areas,
         vol.Optional(ATTR_MODE): _mode,
         vol.Optional(ATTR_NAME): vol.Any(None, cv.string),
         vol.Optional(ATTR_VACUUM_POWER): vol.Any(None, vol.Coerce(SemanticLevel)),
@@ -127,7 +129,11 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
     async def create_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
         job_id = await _translate_errors(
-            runtime.orchestrator.async_create_job(_intent_from_call(call))
+            runtime.orchestrator.async_create_job(
+                intent_from_data(
+                    dict(call.data), runtime.orchestrator.eligible_room_ids
+                )
+            )
         )
         return _command_response(call, runtime, {ATTR_JOB_ID: job_id})
 
@@ -135,7 +141,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         runtime = await _runtime_for_call(hass, call)
         await _translate_errors(
             runtime.orchestrator.async_update_job(
-                call.data[ATTR_JOB_ID], _patch_from_call(call)
+                call.data[ATTR_JOB_ID], _patch_from_call(runtime, call)
             )
         )
         return _command_response(call, runtime, {ATTR_JOB_ID: call.data[ATTR_JOB_ID]})
@@ -307,11 +313,9 @@ async def _runtime_for_call(
         raise service_error(err) from err
 
 
-def _intent_from_call(call: ServiceCall) -> JobIntent:
-    return intent_from_data(dict(call.data))
-
-
-def _patch_from_call(call: ServiceCall) -> JobIntentPatch:
+def _patch_from_call(
+    runtime: VacuumOrchestratorRuntime, call: ServiceCall
+) -> JobIntentPatch:
     names = {
         ATTR_AREAS: "areas",
         ATTR_MODE: "mode",
@@ -334,7 +338,7 @@ def _patch_from_call(call: ServiceCall) -> JobIntentPatch:
             continue
         value = call.data[public_name]
         if public_name == ATTR_AREAS:
-            value = tuple(TargetRef(area_id) for area_id in value)
+            value = selected_areas(value, runtime.orchestrator.eligible_room_ids)
         elif public_name in {ATTR_REQUIRED_ON, ATTR_REQUIRED_OFF}:
             value = tuple(value)
         values[field_name] = value

@@ -174,6 +174,10 @@ data:
   name: First room cleaning
 ```
 
+Use `areas: all` for every enabled room that at least one robot can clean. The
+job keeps the rooms selected at creation. A template saved with `areas: all`
+selects the rooms again each time it creates a job.
+
 **Start processing the queue:**
 
 ```yaml

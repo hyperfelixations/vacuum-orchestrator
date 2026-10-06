@@ -31,8 +31,10 @@ class TemplateService:
         mutate: Commit,
         clock: Callable[[], datetime],
         id_factory: Callable[[], str],
+        eligible_rooms: Callable[[OrchestratorState], tuple[str, ...]],
     ) -> None:
         self._mutate, self._clock, self._id_factory = mutate, clock, id_factory
+        self._eligible_rooms = eligible_rooms
 
     async def async_save(
         self,
@@ -42,6 +44,7 @@ class TemplateService:
         template_id: str | None = None,
         enabled: bool = True,
         automatic: bool = False,
+        all_rooms: bool = False,
     ) -> str:
         """Create or replace a template while retaining past demand suppression."""
         key = template_id or self._id_factory()
@@ -68,6 +71,7 @@ class TemplateService:
                 enabled,
                 automatic,
                 previous.demand_tokens if previous else {},
+                all_rooms,
             )
             return replace(
                 state,
@@ -108,7 +112,11 @@ class TemplateService:
                 raise ConflictError("template_disabled")
             return state.add_job(
                 job_id,
-                replace(template.intent, source=f"template:{template_id}"),
+                replace(
+                    template.intent,
+                    areas=self._targets(state, template),
+                    source=f"template:{template_id}",
+                ),
                 self._clock(),
                 origin=command_origin.get(),
             )
@@ -146,7 +154,12 @@ class TemplateService:
                     continue
                 operations = requested_operations(template.intent.mode)
                 tokens = dict(template.demand_tokens)
-                for target in template.intent.areas:
+                targets = (
+                    tuple(TargetRef(room) for room in self._eligible_rooms(state))
+                    if template.all_rooms
+                    else template.intent.areas
+                )
+                for target in targets:
                     room = state.room_registry.resolve(target.area_id)
                     if not room.enabled or room.area_missing:
                         continue
@@ -209,3 +222,13 @@ class TemplateService:
             return replace(updated, commit_id=state.commit_id + 1, templates=templates)
 
         await self._mutate(generate)
+
+    def _targets(
+        self, state: OrchestratorState, template: JobTemplate
+    ) -> tuple[TargetRef, ...]:
+        if not template.all_rooms:
+            return template.intent.areas
+        rooms = self._eligible_rooms(state)
+        if not rooms:
+            raise ConflictError("no_eligible_rooms")
+        return tuple(TargetRef(room) for room in rooms)

@@ -157,7 +157,9 @@ class VacuumOrchestrator:
         self.changed_scopes: frozenset[str] = VIEW_SCOPES
         self._availability: dict[str, bool] = {}
         self.rooms = RoomService(self._mutate, lambda: self.state, clock, id_factory)
-        self.templates = TemplateService(self._mutate, clock, id_factory)
+        self.templates = TemplateService(
+            self._mutate, clock, id_factory, self._eligible_rooms
+        )
         self.runs = QueueRunService(self._mutate, clock, id_factory)
 
     @property
@@ -264,6 +266,25 @@ class VacuumOrchestrator:
                     reason="view_listener_failed",
                     error=err,
                 )
+
+    def eligible_room_ids(self) -> tuple[str, ...]:
+        """Resolve an all-rooms selection against the current rooms and robots."""
+        rooms = self._eligible_rooms(self.state)
+        if not rooms:
+            raise ConflictError("no_eligible_rooms")
+        return rooms
+
+    def _eligible_rooms(self, state: OrchestratorState) -> tuple[str, ...]:
+        mapped = {
+            room_id
+            for adapter in self._adapters.values()
+            for room_id in adapter.profile.capabilities.target_map
+        }
+        return tuple(
+            room.room_id
+            for room in state.room_registry.rooms.values()
+            if room.enabled and not room.area_missing and room.room_id in mapped
+        )
 
     def readiness_for_job(
         self,
