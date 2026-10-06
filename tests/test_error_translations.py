@@ -62,7 +62,6 @@ DYNAMIC = {
     ("domain/intents.py", "ValidationError(code)"): set(),
     ("domain/intents.py", "ValidationError(f'empty_{field_name}')"): {
         "empty_name",
-        "empty_source",
         "empty_reason",
         "empty_note",
         "empty_dedupe_key",

@@ -57,10 +57,6 @@ create_job:
           min: 1
           max: 10
           mode: box
-    source:
-      name: Source
-      selector:
-        text: null
     reason:
       name: Reason
       selector:
@@ -154,10 +150,6 @@ update_job:
           min: 1
           max: 10
           mode: box
-    source:
-      name: Source
-      selector:
-        text: null
     reason:
       name: Reason
       selector:
@@ -485,6 +477,26 @@ save_template:
       default: true
       selector:
         boolean: {}
+    automatic:
+      name: Create jobs when due
+      default: false
+      selector:
+        boolean: {}
+save_job_as_template:
+  name: Save job as template
+  description: Store a job's rooms, settings, title and note as a new enabled
+    template. The occasion and the deduplication key are not copied.
+  fields:
+    job_id:
+      name: Job ID
+      required: true
+      selector:
+        text: {}
+    name:
+      name: Name
+      required: true
+      selector:
+        text: {}
     automatic:
       name: Create jobs when due
       default: false

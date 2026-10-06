@@ -8,9 +8,9 @@ from hashlib import sha256
 from ..domain.due import DueState
 from ..domain.errors import ConflictError
 from ..domain.intents import JobIntent, TargetRef
-from ..domain.queue import OrchestratorState
+from ..domain.queue import JobProvenance, OrchestratorState
 from ..domain.templates import JobTemplate, requested_operations
-from ..domain.types import JobState
+from ..domain.types import JobState, ProvenanceKind
 from ..ports.command_scope import command_origin
 from .room_service import Commit
 
@@ -44,7 +44,6 @@ class TemplateService:
         template_id: str | None = None,
         enabled: bool = True,
         automatic: bool = False,
-        all_rooms: bool = False,
     ) -> str:
         """Create or replace a template while retaining past demand suppression."""
         key = template_id or self._id_factory()
@@ -53,34 +52,65 @@ class TemplateService:
             previous = state.templates.get(key)
             if template_id is not None and previous is None:
                 raise ConflictError("unknown_template")
-            normalized = replace(
-                state.job_defaults.complete(intent),
-                areas=tuple(
-                    TargetRef(
-                        state.room_registry.resolve(target.area_id).room_id,
-                        target.map_context,
-                    )
-                    for target in intent.areas
-                ),
-            )
-            template = JobTemplate(
-                key,
-                name,
-                normalized,
-                self._clock(),
-                enabled,
-                automatic,
-                previous.demand_tokens if previous else {},
-                all_rooms,
-            )
-            return replace(
-                state,
-                commit_id=state.commit_id + 1,
-                templates={**state.templates, key: template},
-            )
+            return self._stored(state, key, name, intent, enabled, automatic, previous)
 
         await self._mutate(save)
         return key
+
+    async def async_save_job(
+        self, job_id: str, name: str, *, automatic: bool = False
+    ) -> str:
+        """Store a job's intent as a new enabled template.
+
+        Rooms, the "all rooms" choice, title and note are kept; the occasion,
+        deduplication key, origin and execution state are not.
+        """
+        key = self._id_factory()
+
+        def save(state: OrchestratorState) -> OrchestratorState:
+            job = state.jobs.get(job_id)
+            if job is None:
+                raise ConflictError("unknown_job", job_id)
+            intent = replace(job.intent, reason=None, dedupe_key=None)
+            return self._stored(state, key, name, intent, True, automatic, None)
+
+        await self._mutate(save)
+        return key
+
+    def _stored(
+        self,
+        state: OrchestratorState,
+        key: str,
+        name: str,
+        intent: JobIntent,
+        enabled: bool,
+        automatic: bool,
+        previous: JobTemplate | None,
+    ) -> OrchestratorState:
+        normalized = replace(
+            state.job_defaults.complete(intent),
+            areas=tuple(
+                TargetRef(
+                    state.room_registry.resolve(target.area_id).room_id,
+                    target.map_context,
+                )
+                for target in intent.areas
+            ),
+        )
+        template = JobTemplate(
+            key,
+            name,
+            normalized,
+            self._clock(),
+            enabled,
+            automatic,
+            previous.demand_tokens if previous else {},
+        )
+        return replace(
+            state,
+            commit_id=state.commit_id + 1,
+            templates={**state.templates, key: template},
+        )
 
     async def async_remove(self, template_id: str) -> None:
         """Delete future demand configuration without changing generated jobs."""
@@ -112,13 +142,10 @@ class TemplateService:
                 raise ConflictError("template_disabled")
             return state.add_job(
                 job_id,
-                replace(
-                    template.intent,
-                    areas=self._targets(state, template),
-                    source=f"template:{template_id}",
-                ),
+                replace(template.intent, areas=self._targets(state, template)),
                 self._clock(),
                 origin=command_origin.get(),
+                provenance=JobProvenance(ProvenanceKind.TEMPLATE, template_id),
             )
 
         await self._mutate(create)
@@ -156,7 +183,7 @@ class TemplateService:
                 tokens = dict(template.demand_tokens)
                 targets = (
                     tuple(TargetRef(room) for room in self._eligible_rooms(state))
-                    if template.all_rooms
+                    if template.intent.all_rooms
                     else template.intent.areas
                 )
                 for target in targets:
@@ -210,11 +237,15 @@ class TemplateService:
                     intent = replace(
                         template.intent,
                         areas=(target,),
-                        source=f"template:{template_id}",
-                        reason="automatic_due",
+                        all_rooms=False,
                         dedupe_key=f"due:{template_id}:{token}",
                     )
-                    updated = updated.add_job(self._id_factory(), intent, now)
+                    updated = updated.add_job(
+                        self._id_factory(),
+                        intent,
+                        now,
+                        provenance=JobProvenance(ProvenanceKind.AUTOMATIC, template_id),
+                    )
                     tokens[room.room_id] = token
                 templates[template_id] = replace(template, demand_tokens=tokens)
             if updated is state and templates == state.templates:
@@ -226,7 +257,7 @@ class TemplateService:
     def _targets(
         self, state: OrchestratorState, template: JobTemplate
     ) -> tuple[TargetRef, ...]:
-        if not template.all_rooms:
+        if not template.intent.all_rooms:
             return template.intent.areas
         rooms = self._eligible_rooms(state)
         if not rooms:

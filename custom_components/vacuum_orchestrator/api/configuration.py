@@ -101,6 +101,13 @@ COMMANDS: dict[str, vol.Schema] = {
             vol.Optional("automatic", default=False): bool,
         }
     ),
+    "save_job_as_template": vol.Schema(
+        {
+            vol.Required("job_id"): cv.string,
+            vol.Required("name"): cv.string,
+            vol.Optional("automatic", default=False): bool,
+        }
+    ),
     "remove_template": vol.Schema({vol.Required("template_id"): cv.string}),
     "create_job_from_template": vol.Schema({vol.Required("template_id"): cv.string}),
     "reset_template_demand": vol.Schema({vol.Required("template_id"): cv.string}),
@@ -439,7 +446,10 @@ async def _execute_configuration(
             template_id=data.get("template_id"),
             enabled=data["enabled"],
             automatic=data["automatic"],
-            all_rooms=data["intent"]["areas"] == ALL_ROOMS,
+        )
+    elif name == "save_job_as_template":
+        result["template_id"] = await core.templates.async_save_job(
+            data["job_id"], data["name"], automatic=data["automatic"]
         )
     elif name == "remove_template":
         await core.templates.async_remove(data["template_id"])
@@ -501,7 +511,7 @@ def present_template(template: JobTemplate) -> dict[str, Any]:
     intent = template.intent
     values: dict[str, Any] = {
         "areas": ALL_ROOMS
-        if template.all_rooms
+        if intent.all_rooms
         else [target.area_id for target in intent.areas],
         "mode": intent.mode.value,
         "passes": intent.passes,
@@ -509,7 +519,7 @@ def present_template(template: JobTemplate) -> dict[str, Any]:
         "required_on": list(intent.required_on),
         "required_off": list(intent.required_off),
     }
-    for key in ("name", "source", "reason", "note", "dedupe_key"):
+    for key in ("name", "reason", "note", "dedupe_key"):
         if (value := getattr(intent, key)) is not None:
             values[key] = value
     for key in ("vacuum_power", "mop_intensity", "mop_route"):

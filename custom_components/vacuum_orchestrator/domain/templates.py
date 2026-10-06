@@ -21,7 +21,6 @@ class JobTemplate:
     enabled: bool = True
     automatic: bool = False
     demand_tokens: Mapping[str, str] = field(default_factory=dict)
-    all_rooms: bool = False
 
     def __post_init__(self) -> None:
         identifier(self.template_id)

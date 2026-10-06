@@ -45,6 +45,7 @@ from ..runtime import VacuumOrchestratorRuntime, async_get_runtime
 from .configuration import setup_configuration_actions
 from .errors import service_error
 from .job_input import (
+    ALL_ROOMS,
     CREATE_SCHEMA,
     _mode,
     areas,
@@ -65,7 +66,6 @@ ATTR_VACUUM_POWER = "vacuum_power"
 ATTR_MOP_INTENSITY = "mop_intensity"
 ATTR_MOP_ROUTE = "mop_route"
 ATTR_PASSES = "passes"
-ATTR_SOURCE = "source"
 ATTR_REASON = "reason"
 ATTR_NOTE = "note"
 ATTR_DEDUPE_KEY = "dedupe_key"
@@ -88,7 +88,6 @@ UPDATE_SCHEMA = vol.Schema(
         vol.Optional(ATTR_MOP_INTENSITY): vol.Any(None, water_level),
         vol.Optional(ATTR_MOP_ROUTE): vol.Any(None, mop_route),
         vol.Optional(ATTR_PASSES): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
-        vol.Optional(ATTR_SOURCE): vol.Any(None, cv.string),
         vol.Optional(ATTR_REASON): vol.Any(None, cv.string),
         vol.Optional(ATTR_NOTE): vol.Any(None, cv.string),
         vol.Optional(ATTR_DEDUPE_KEY): vol.Any(None, cv.string),
@@ -396,7 +395,6 @@ def _patch_from_call(
         ATTR_MOP_INTENSITY: "mop_intensity",
         ATTR_MOP_ROUTE: "mop_route",
         ATTR_PASSES: "passes",
-        ATTR_SOURCE: "source",
         ATTR_REASON: "reason",
         ATTR_NOTE: "note",
         ATTR_DEDUPE_KEY: "dedupe_key",
@@ -410,6 +408,7 @@ def _patch_from_call(
             continue
         value = call.data[public_name]
         if public_name == ATTR_AREAS:
+            values["all_rooms"] = value == ALL_ROOMS
             value = selected_areas(value, runtime.orchestrator.eligible_room_ids)
         elif public_name in {ATTR_REQUIRED_ON, ATTR_REQUIRED_OFF}:
             value = tuple(value)

@@ -30,7 +30,7 @@ from ..domain.planning import (
     WorkUnit,
     plan_matches_intent,
 )
-from ..domain.queue import Job, OrchestratorState
+from ..domain.queue import Job, JobProvenance, OrchestratorState
 from ..domain.queue_runs import QueueRun
 from ..domain.requests import CommandOrigin
 from ..domain.room_registry import RoomRegistry
@@ -45,6 +45,7 @@ from ..domain.types import (
     MopRoute,
     OperationKind,
     PassScope,
+    ProvenanceKind,
     QueueMode,
     SettingsPolicy,
     VacuumLevel,
@@ -165,7 +166,6 @@ def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
                 "enabled": value.enabled,
                 "automatic": value.automatic,
                 "demand_tokens": dict(value.demand_tokens),
-                "all_rooms": value.all_rooms,
             }
             for key, value in state.templates.items()
         },
@@ -241,10 +241,13 @@ def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
 
 
 def _decode_template(data: JsonObject) -> JobTemplate:
+    intent = _object(data["intent"])
+    if data.get("all_rooms"):
+        intent = {**intent, "all_rooms": True}
     return JobTemplate(
         _str(data["template_id"]),
         _str(data["name"]),
-        _decode_intent(_object(data["intent"])),
+        _decode_intent(intent),
         _decode_datetime(data["updated_at"]),
         _bool(data["enabled"]),
         _bool(data["automatic"]),
@@ -252,7 +255,6 @@ def _decode_template(data: JsonObject) -> JobTemplate:
             key: _str(value)
             for key, value in _string_mapping(data["demand_tokens"]).items()
         },
-        _bool(data.get("all_rooms", False)),
     )
 
 
@@ -514,6 +516,11 @@ def _migrate_job(data: JsonObject, plan_id: str | None) -> Job:
         ),
         retries_job_id=_optional_str(data["retries_job_id"]),
         failure_code=_optional_str(data["failure_code"]),
+        provenance=JobProvenance(
+            ProvenanceKind.RETRY
+            if data["retries_job_id"] is not None
+            else ProvenanceKind.MANUAL
+        ),
     )
 
 
@@ -791,14 +798,26 @@ def _encode_job(job: Job) -> JsonObject:
             "user_id": job.origin.user_id,
             "parent_id": job.origin.parent_id,
         },
+        "provenance": {
+            "kind": job.provenance.kind.value,
+            "template_id": job.provenance.template_id,
+        },
     }
 
 
 def _decode_job(data: JsonObject) -> Job:
+    intent = _object(data["intent"])
+    if (raw := data.get("provenance")) is None:
+        provenance, intent = _legacy_provenance(data, intent)
+    else:
+        value = _object(raw)
+        provenance = JobProvenance(
+            _enum(ProvenanceKind, value["kind"]), _optional_str(value["template_id"])
+        )
     return Job(
         job_id=_str(data["job_id"]),
         revision=_int(data["revision"]),
-        intent=_decode_intent(_object(data["intent"])),
+        intent=_decode_intent(intent),
         state=_enum(JobState, data["state"]),
         created_at=_decode_datetime(data["created_at"]),
         updated_at=_decode_datetime(data["updated_at"]),
@@ -808,7 +827,29 @@ def _decode_job(data: JsonObject) -> Job:
         retries_job_id=_optional_str(data["retries_job_id"]),
         failure_code=_optional_str(data["failure_code"]),
         origin=_decode_origin(data.get("origin")),
+        provenance=provenance,
     )
+
+
+def _legacy_provenance(
+    job: JsonObject, intent: JsonObject
+) -> tuple[JobProvenance, JsonObject]:
+    """Derive the origin of a job stored before VOI recorded it."""
+    source = intent.get("source")
+    if isinstance(source, str) and source.startswith("template:"):
+        template_id = source.removeprefix("template:")
+        if intent.get("reason") == "automatic_due":
+            return JobProvenance(ProvenanceKind.AUTOMATIC, template_id), {
+                **intent,
+                "reason": None,
+            }
+        return JobProvenance(ProvenanceKind.TEMPLATE, template_id), intent
+    if job.get("retries_job_id") is not None:
+        return JobProvenance(ProvenanceKind.RETRY), intent
+    origin = job.get("origin")
+    if origin is not None and _object(origin).get("user_id") is None:
+        return JobProvenance(ProvenanceKind.AUTOMATION), intent
+    return JobProvenance(), intent
 
 
 def _decode_origin(value: object) -> CommandOrigin | None:
@@ -837,7 +878,6 @@ def _encode_intent(intent: JobIntent) -> JsonObject:
             "mop_route": _enum_value(intent.preferences.mop_route),
         },
         "passes": intent.passes,
-        "source": intent.source,
         "reason": intent.reason,
         "note": intent.note,
         "dedupe_key": intent.dedupe_key,
@@ -850,6 +890,7 @@ def _encode_intent(intent: JobIntent) -> JsonObject:
             "namespace": extension.namespace,
             "parameters": [list(item) for item in extension.parameters],
         },
+        "all_rooms": intent.all_rooms,
     }
 
 
@@ -875,7 +916,6 @@ def _decode_intent(data: JsonObject) -> JobIntent:
         name=_optional_str(data["name"]),
         preferences=_decode_preferences(preferences),
         passes=_int(data["passes"]),
-        source=_optional_str(data["source"]),
         reason=_optional_str(data["reason"]),
         note=_optional_str(data["note"]),
         dedupe_key=_optional_str(data["dedupe_key"]),
@@ -883,6 +923,7 @@ def _decode_intent(data: JsonObject) -> JobIntent:
         required_off=tuple(_string_list(data["required_off"])),
         settings_policy=_enum(SettingsPolicy, data["settings_policy"]),
         vendor_extension=extension,
+        all_rooms=_bool(data.get("all_rooms", False)),
     )
 
 

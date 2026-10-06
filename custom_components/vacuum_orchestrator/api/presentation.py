@@ -93,7 +93,7 @@ def present_job(
             else intent.preferences.mop_route.value
         ),
         "passes": intent.passes,
-        "source": intent.source,
+        "all_rooms": intent.all_rooms,
         "reason": intent.reason,
         "note": intent.note,
         "dedupe_key": intent.dedupe_key,
@@ -103,6 +103,10 @@ def present_job(
         "created_at": job.created_at.isoformat(),
         "updated_at": job.updated_at.isoformat(),
         "active_attempt_id": job.active_attempt_id,
+        "origin": {
+            "kind": job.provenance.kind.value,
+            "template_id": job.provenance.template_id,
+        },
         "retries_job_id": job.retries_job_id,
         "failure_code": job.failure_code,
         "after_cancel": None

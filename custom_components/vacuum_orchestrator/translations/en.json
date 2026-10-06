@@ -276,9 +276,6 @@
     "empty_reason": {
       "message": "The reason cannot be empty; omit it or set it to null"
     },
-    "empty_source": {
-      "message": "The source cannot be empty; omit it or set it to null"
-    },
     "empty_target": {
       "message": "A room reference cannot be empty"
     },
@@ -368,6 +365,9 @@
     },
     "invalid_identifier": {
       "message": "An identifier is empty, too long or has surrounding spaces"
+    },
+    "invalid_job_provenance": {
+      "message": "The stored job origin is invalid"
     },
     "invalid_legacy_storage_payload": {
       "message": "Stored legacy data is invalid"

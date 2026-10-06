@@ -24,7 +24,11 @@ from custom_components.vacuum_orchestrator.domain.planning import (
     ResolvedSetting,
     SettingsResolution,
 )
-from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
+from custom_components.vacuum_orchestrator.domain.queue import (
+    JobProvenance,
+    OrchestratorState,
+)
+from custom_components.vacuum_orchestrator.domain.requests import CommandOrigin
 from custom_components.vacuum_orchestrator.domain.rooms import Room
 from custom_components.vacuum_orchestrator.domain.templates import JobTemplate
 from custom_components.vacuum_orchestrator.domain.types import (
@@ -34,6 +38,7 @@ from custom_components.vacuum_orchestrator.domain.types import (
     MopRoute,
     OperationKind,
     PassScope,
+    ProvenanceKind,
     QueueMode,
     SettingsPolicy,
     VacuumLevel,
@@ -176,7 +181,6 @@ def _state() -> OrchestratorState:
             VacuumLevel.HIGH, WaterLevel.MEDIUM, MopRoute.DEEP
         ),
         passes=2,
-        source="manual",
         reason="dirty",
         note="note",
         dedupe_key="manual|kitchen",
@@ -246,6 +250,14 @@ def _schema_three(state: OrchestratorState) -> dict:
     data = encode_orchestrator_state(state)
     data["schema_version"] = 3
     del data["job_defaults"]
+    for job in data["jobs"].values():
+        del job["provenance"]
+        del job["intent"]["all_rooms"]
+        job["intent"]["source"] = None
+    for template in data["templates"].values():
+        del template["intent"]["all_rooms"]
+        template["intent"]["source"] = None
+        template["all_rooms"] = False
     for assignment in data["assignments"].values():
         settings = assignment.pop("settings")
         assignment["preference_resolution"] = {
@@ -307,6 +319,59 @@ def test_schema_three_vocabulary_is_mapped_and_unstarted_jobs_get_defaults() -> 
     del data["jobs"]["job"]["intent"]
     with pytest.raises(StorageIntegrityError, match="invalid_storage_payload"):
         migrate_schema_three(data)
+
+
+def test_schema_three_derives_job_origin_and_moves_all_rooms_into_intent() -> None:
+    state = OrchestratorState.empty("installation")
+    for job_id, origin in (
+        ("due", None),
+        ("instance", None),
+        ("retry", None),
+        ("automation", CommandOrigin("ctx", None, "parent")),
+        ("user", CommandOrigin("ctx", "user", None)),
+    ):
+        state = state.add_job(job_id, _intent_for(job_id), NOW, origin=origin)
+    state = replace(
+        state,
+        jobs={
+            **state.jobs,
+            "retry": replace(state.jobs["retry"], retries_job_id="user"),
+        },
+        room_registry=state.room_registry.put_room(Room("hall", "Hall")),
+        templates={
+            "t": JobTemplate("t", "All", JobIntent((TargetRef("hall"),), MODE), NOW)
+        },
+    )
+    data = _schema_three(state)
+    data["jobs"]["due"]["intent"].update(source="template:t", reason="automatic_due")
+    data["jobs"]["instance"]["intent"].update(source="template:t", reason="guests")
+    data["jobs"]["user"]["intent"]["source"] = "dashboard"
+    data["templates"]["t"]["all_rooms"] = True
+
+    migrated = migrate_schema_three(data)
+
+    origins = {key: job.provenance for key, job in migrated.jobs.items()}
+    assert origins == {
+        "due": JobProvenance(ProvenanceKind.AUTOMATIC, "t"),
+        "instance": JobProvenance(ProvenanceKind.TEMPLATE, "t"),
+        "retry": JobProvenance(ProvenanceKind.RETRY),
+        "automation": JobProvenance(ProvenanceKind.AUTOMATION),
+        "user": JobProvenance(ProvenanceKind.MANUAL),
+    }
+    assert migrated.jobs["due"].intent.reason is None
+    assert migrated.jobs["instance"].intent.reason == "guests"
+    assert migrated.templates["t"].intent.all_rooms
+    encoded = encode_orchestrator_state(migrated)
+    assert "all_rooms" not in encoded["templates"]["t"]
+    assert "source" not in encoded["jobs"]["user"]["intent"]
+    assert decode_orchestrator_state(encoded) == migrated
+
+
+MODE = CleaningMode.VACUUM
+
+
+def _intent_for(job_id: str) -> JobIntent:
+    return JobIntent((TargetRef(f"room-{job_id}"),), MODE)
 
 
 def test_cancel_return_choice_and_window_round_trip() -> None:

@@ -109,7 +109,6 @@ class JobIntent:
     name: str | None = None
     preferences: CleaningPreferences = CleaningPreferences()
     passes: int = 1
-    source: str | None = None
     reason: str | None = None
     note: str | None = None
     dedupe_key: str | None = None
@@ -117,6 +116,8 @@ class JobIntent:
     required_off: tuple[str, ...] = ()
     settings_policy: SettingsPolicy = SettingsPolicy.BEST_EFFORT
     vendor_extension: VendorExtension | None = None
+    # The areas were chosen as "all": a snapshot of the eligible rooms.
+    all_rooms: bool = False
 
     def __post_init__(self) -> None:
         if not self.areas:
@@ -131,7 +132,7 @@ class JobIntent:
             raise ValidationError("mixed_map_contexts")
         if not 1 <= self.passes <= 10:
             raise ValidationError("invalid_pass_count", str(self.passes))
-        for field_name in ("name", "source", "reason", "note", "dedupe_key"):
+        for field_name in ("name", "reason", "note", "dedupe_key"):
             value = getattr(self, field_name)
             if value is not None and not value.strip():
                 raise ValidationError(f"empty_{field_name}")
@@ -167,7 +168,6 @@ class JobIntentPatch:
     mop_intensity: WaterLevel | PatchValue | None = UNSET
     mop_route: MopRoute | PatchValue | None = UNSET
     passes: int | PatchValue = UNSET
-    source: str | PatchValue | None = UNSET
     reason: str | PatchValue | None = UNSET
     note: str | PatchValue | None = UNSET
     dedupe_key: str | PatchValue | None = UNSET
@@ -175,6 +175,7 @@ class JobIntentPatch:
     required_off: tuple[str, ...] | PatchValue = UNSET
     settings_policy: SettingsPolicy | PatchValue = UNSET
     vendor_extension: VendorExtension | PatchValue | None = UNSET
+    all_rooms: bool | PatchValue = UNSET
 
     def apply(self, intent: JobIntent) -> JobIntent:
         """Apply only explicitly supplied fields and re-run all invariants."""
@@ -188,7 +189,6 @@ class JobIntentPatch:
                 self.mop_intensity,
                 self.mop_route,
                 self.passes,
-                self.source,
                 self.reason,
                 self.note,
                 self.dedupe_key,
@@ -209,7 +209,6 @@ class JobIntentPatch:
                 _patched(self.mop_route, intent.preferences.mop_route),
             ),
             passes=_patched(self.passes, intent.passes),
-            source=_patched(self.source, intent.source),
             reason=_patched(self.reason, intent.reason),
             note=_patched(self.note, intent.note),
             dedupe_key=_patched(self.dedupe_key, intent.dedupe_key),
@@ -217,4 +216,7 @@ class JobIntentPatch:
             required_off=_patched(self.required_off, intent.required_off),
             settings_policy=_patched(self.settings_policy, intent.settings_policy),
             vendor_extension=_patched(self.vendor_extension, intent.vendor_extension),
+            all_rooms=_patched(
+                self.all_rooms, intent.all_rooms if self.areas is UNSET else False
+            ),
         )

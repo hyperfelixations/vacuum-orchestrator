@@ -244,7 +244,6 @@ async def test_action_fields_support_complete_create_and_partial_clear(
             ATTR_MOP_INTENSITY: "medium",
             ATTR_MOP_ROUTE: "deep",
             ATTR_PASSES: 2,
-            "source": "automation",
             "reason": "dirty",
             "note": "before",
             "dedupe_key": "automatic|kitchen",
@@ -269,7 +268,6 @@ async def test_action_fields_support_complete_create_and_partial_clear(
             ATTR_MOP_INTENSITY: None,
             ATTR_MOP_ROUTE: None,
             ATTR_PASSES: 1,
-            "source": None,
             "reason": None,
             "note": None,
             "dedupe_key": None,
@@ -300,7 +298,8 @@ async def test_action_fields_support_complete_create_and_partial_clear(
     assert queried[ATTR_AREAS] == ["hall"]
     assert queried[ATTR_VACUUM_POWER] == "standard"
     assert queried[ATTR_MOP_INTENSITY] is None
-    assert queried["source"] is None
+    assert queried["origin"] == {"kind": "automation", "template_id": None}
+    assert queried["all_rooms"] is False
 
 
 async def test_action_validation_permissions_and_unloaded_runtime_are_clear(

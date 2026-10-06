@@ -1,5 +1,7 @@
 """All-rooms selections resolve to rooms that can currently be cleaned."""
 
+from dataclasses import replace
+
 import pytest
 
 from custom_components.vacuum_orchestrator.domain.errors import ConflictError
@@ -32,7 +34,7 @@ async def test_all_rooms_templates_resolve_on_every_generation() -> None:
     core = await setup_due(RecordingAdapter(RecordingBackend(), "robot"))
     await core.rooms.async_disable("hall")
     key = await core.templates.async_save(
-        "Everything", _intent(), automatic=True, all_rooms=True
+        "Everything", replace(_intent(), all_rooms=True), automatic=True
     )
     await core.rooms.async_enable("hall")
 
@@ -41,6 +43,7 @@ async def test_all_rooms_templates_resolve_on_every_generation() -> None:
         "kitchen",
         "hall",
     ]
+    assert core.state.jobs[job].intent.all_rooms
     await core.async_delete_job(job)
     await core.templates.async_generate_due()
     generated = {
@@ -49,7 +52,8 @@ async def test_all_rooms_templates_resolve_on_every_generation() -> None:
         for target in item.intent.areas
     }
     assert generated == {"kitchen", "hall"}
-    assert core.state.templates[key].all_rooms
+    assert not any(item.intent.all_rooms for item in core.state.jobs.values())
+    assert core.state.templates[key].intent.all_rooms
     assert (
         decode_orchestrator_state(encode_orchestrator_state(core.state)) == core.state
     )

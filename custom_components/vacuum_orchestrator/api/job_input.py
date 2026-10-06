@@ -25,7 +25,6 @@ ATTR_VACUUM_POWER = "vacuum_power"
 ATTR_MOP_INTENSITY = "mop_intensity"
 ATTR_MOP_ROUTE = "mop_route"
 ATTR_PASSES = "passes"
-ATTR_SOURCE = "source"
 ATTR_REASON = "reason"
 ATTR_NOTE = "note"
 ATTR_DEDUPE_KEY = "dedupe_key"
@@ -77,7 +76,6 @@ INTENT_FIELDS: dict[Any, Any] = {
     vol.Optional(ATTR_MOP_INTENSITY): water_level,
     vol.Optional(ATTR_MOP_ROUTE): mop_route,
     vol.Optional(ATTR_PASSES): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
-    vol.Optional(ATTR_SOURCE): cv.string,
     vol.Optional(ATTR_REASON): cv.string,
     vol.Optional(ATTR_NOTE): cv.string,
     vol.Optional(ATTR_DEDUPE_KEY): cv.string,
@@ -114,11 +112,11 @@ def intent_from_data(
             data.get(ATTR_MOP_ROUTE),
         ),
         passes=data.get(ATTR_PASSES, defaults.passes),
-        source=data.get(ATTR_SOURCE),
         reason=data.get(ATTR_REASON),
         note=data.get(ATTR_NOTE),
         dedupe_key=data.get(ATTR_DEDUPE_KEY),
         required_on=tuple(data[ATTR_REQUIRED_ON]),
         required_off=tuple(data[ATTR_REQUIRED_OFF]),
         settings_policy=data.get(ATTR_SETTINGS_POLICY, defaults.settings_policy),
+        all_rooms=data[ATTR_AREAS] == ALL_ROOMS,
     )

@@ -111,6 +111,16 @@ def nearest_supported[T: SettingValue](
     )
 
 
+class ProvenanceKind(StrEnum):
+    """How a job came into the queue; set by VOI, never by callers."""
+
+    MANUAL = "manual"
+    AUTOMATION = "automation"
+    TEMPLATE = "template"
+    AUTOMATIC = "automatic"
+    RETRY = "retry"
+
+
 class SettingsPolicy(StrEnum):
     """Handling of unsupported non-essential cleaning preferences."""
 

@@ -345,6 +345,51 @@ async def test_template_actions_instantiate_and_preserve_intent_snapshots(
     assert not (await call(hass, "get_templates"))["templates"]
 
 
+async def test_job_can_be_saved_as_template_and_shows_its_origin(hass, configured):
+    room_id = (await call(hass, "create_room", name="Room"))["room_id"]
+    created = await call(
+        hass,
+        "create_job",
+        areas=[room_id],
+        name="Evening",
+        note="Rug up",
+        reason="guests",
+        dedupe_key="evening",
+    )
+    job = await call(hass, "get_job", job_id=created["job_id"])
+    assert job["origin"] == {"kind": "automation", "template_id": None}
+    assert "source" not in job
+
+    saved = await call(
+        hass, "save_job_as_template", job_id=created["job_id"], name="Evening"
+    )
+    (template,) = (await call(hass, "get_templates"))["templates"]
+    assert template["template_id"] == saved["template_id"]
+    assert (template["name"], template["enabled"], template["automatic"]) == (
+        "Evening",
+        True,
+        False,
+    )
+    assert template["intent"]["areas"] == [room_id]
+    assert (template["intent"]["name"], template["intent"]["note"]) == (
+        "Evening",
+        "Rug up",
+    )
+    assert "reason" not in template["intent"]
+    assert "dedupe_key" not in template["intent"]
+
+    instance = await call(
+        hass, "create_job_from_template", template_id=saved["template_id"]
+    )
+    detail = await call(hass, "get_job", job_id=instance["job_id"])
+    assert detail["origin"] == {
+        "kind": "template",
+        "template_id": saved["template_id"],
+    }
+    with raises_code("unknown_job"):
+        await call(hass, "save_job_as_template", job_id="missing", name="Missing")
+
+
 async def test_job_defaults_are_copied_into_jobs_and_templates(hass, configured):
     core = configured.runtime_data.orchestrator
     room_id = (await call(hass, "create_room", name="Room"))["room_id"]

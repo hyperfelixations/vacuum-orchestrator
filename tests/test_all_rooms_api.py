@@ -97,14 +97,24 @@ async def test_jobs_and_templates_can_target_all_rooms(
     await hass.async_block_till_done()
 
     job = await call(hass, "create_job", areas="all", mode="vacuum")
-    assert (await call(hass, "get_job", job_id=job["job_id"]))["areas"] == [kitchen.id]
+    detail = await call(hass, "get_job", job_id=job["job_id"])
+    assert (detail["areas"], detail["all_rooms"]) == ([kitchen.id], True)
+    await call(hass, "update_job", job_id=job["job_id"], areas=[kitchen.id])
+    assert not (await call(hass, "get_job", job_id=job["job_id"]))["all_rooms"]
     await call(hass, "update_job", job_id=job["job_id"], areas="all")
+    assert (await call(hass, "get_job", job_id=job["job_id"]))["all_rooms"]
+    from_job = await call(
+        hass, "save_job_as_template", job_id=job["job_id"], name="From job"
+    )
     template = await call(
         hass, "save_template", name="All", intent={"areas": "all", "mode": "vacuum"}
     )
-    templates = (await call(hass, "get_templates"))["templates"]
-    assert templates[0]["template_id"] == template["template_id"]
-    assert templates[0]["intent"]["areas"] == "all"
+    templates = {
+        item["template_id"]: item
+        for item in (await call(hass, "get_templates"))["templates"]
+    }
+    assert templates[template["template_id"]]["intent"]["areas"] == "all"
+    assert templates[from_job["template_id"]]["intent"]["areas"] == "all"
 
     room = (await call(hass, "get_job", job_id=job["job_id"]))["room_ids"][0]
     await call(hass, "delete_job", job_id=job["job_id"])

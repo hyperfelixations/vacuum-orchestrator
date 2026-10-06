@@ -22,12 +22,32 @@ from .queue_runs import QueueRun
 from .requests import CommandOrigin
 from .room_registry import RoomRegistry
 from .templates import JobTemplate
-from .types import AttemptState, JobState, MoveDirection, QueueMode, WorkUnitState
+from .types import (
+    AttemptState,
+    JobState,
+    MoveDirection,
+    ProvenanceKind,
+    QueueMode,
+    WorkUnitState,
+)
 from .validation import seconds
 
 _TERMINAL = frozenset({JobState.COMPLETED, JobState.FAILED, JobState.CANCELLED})
 _ACTIVE = frozenset({JobState.DISPATCHING, JobState.RUNNING, JobState.CANCELING})
 _TARGET_RESERVED = _ACTIVE | {JobState.NEEDS_ATTENTION}
+
+
+@dataclass(frozen=True, slots=True)
+class JobProvenance:
+    """System origin of a job; template kinds name their template."""
+
+    kind: ProvenanceKind = ProvenanceKind.MANUAL
+    template_id: str | None = None
+
+    def __post_init__(self) -> None:
+        templated = self.kind in {ProvenanceKind.TEMPLATE, ProvenanceKind.AUTOMATIC}
+        if templated != (self.template_id is not None):
+            raise ValidationError("invalid_job_provenance")
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +66,7 @@ class Job:
     retries_job_id: str | None = None
     failure_code: str | None = None
     origin: CommandOrigin | None = None
+    provenance: JobProvenance = JobProvenance()
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,8 +163,12 @@ class OrchestratorState:
         now: datetime,
         *,
         origin: CommandOrigin | None = None,
+        provenance: JobProvenance | None = None,
     ) -> OrchestratorState:
-        """Append a new job with every setting its mode uses to the queue."""
+        """Append a new job with every setting its mode uses to the queue.
+
+        Without an explicit provenance, a request without a user is an automation.
+        """
         if job_id in self.jobs:
             raise ConflictError("job_already_exists")
         intent = self.job_defaults.complete(intent)
@@ -153,7 +178,22 @@ class OrchestratorState:
         ):
             raise ConflictError("dedupe_key_already_queued")
         jobs = dict(self.jobs)
-        jobs[job_id] = Job(job_id, 1, intent, JobState.QUEUED, now, now, origin=origin)
+        if provenance is None:
+            provenance = JobProvenance(
+                ProvenanceKind.AUTOMATION
+                if origin is not None and origin.user_id is None
+                else ProvenanceKind.MANUAL
+            )
+        jobs[job_id] = Job(
+            job_id,
+            1,
+            intent,
+            JobState.QUEUED,
+            now,
+            now,
+            origin=origin,
+            provenance=provenance,
+        )
         return self._replace(
             jobs=jobs,
             queue=(*self.queue, job_id),
@@ -739,6 +779,7 @@ class OrchestratorState:
             now,
             retries_job_id=job_id,
             origin=origin,
+            provenance=JobProvenance(ProvenanceKind.RETRY),
         )
         return self._replace(
             jobs=jobs,

@@ -198,8 +198,9 @@ data:
 ```
 
 Use `areas: all` for every enabled room that at least one robot can clean. The
-job keeps the rooms selected at creation. A template saved with `areas: all`
-selects the rooms again each time it creates a job.
+job keeps the rooms selected at creation. A template saved with `areas: all`,
+or from a job created that way, selects the rooms again each time it creates a
+job.
 
 **Start processing the queue:**
 
@@ -365,7 +366,9 @@ interval to disable that due calculation.
 ### Reuse a job with a template
 
 Save frequently used rooms and settings with `save_template`, then use
-`create_job_from_template` to add a copy to the queue.
+`create_job_from_template` to add a copy to the queue. To keep an existing
+job's rooms and settings, use `save_job_as_template` with its `job_id` and a
+`name`. Its title and note are kept; `reason` and `dedupe_key` are not.
 
 ```yaml
 action: vacuum_orchestrator.save_template
@@ -381,6 +384,10 @@ With `automatic: true`, a template can create a job when a room becomes due.
 It still respects room permissions, conditions and queue controls. A failed or
 cancelled automatic job does not cause endless retries. Inspect the cause first;
 `reset_template_demand` with the template's ID allows another automatic demand.
+
+Each job shows its `origin`, set by the integration: `manual`, `automation`
+(started without a signed-in user), `template`, `automatic` (created when due)
+or `retry`. Template origins include the `template_id`.
 
 ### Show room information in Home Assistant
 
