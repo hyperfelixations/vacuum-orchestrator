@@ -95,6 +95,35 @@ async def test_expired_grant_preserves_both_phases_but_blocks_new_job() -> None:
     assert orchestrator.readiness_for_job(second).reason_codes == ("room_not_released",)
 
 
+async def test_vacuum_receipt_counts_when_the_mop_phase_is_cancelled() -> None:
+    backend = RecordingBackend()
+    adapter = RecordingAdapter(backend, "robot")
+    orchestrator = await _orchestrator(backend, adapter)
+    job = await orchestrator.async_create_job(
+        _intent(mode=CleaningMode.VACUUM_THEN_MOP)
+    )
+    await orchestrator.async_start_job(job)
+    await orchestrator.async_confirm_start(
+        orchestrator.state.jobs[job].active_attempt_id
+    )
+    adapter.observation = replace(
+        adapter.observation, observed_at=NOW + timedelta(minutes=10)
+    )
+    await orchestrator.async_process_robot_observation("robot")
+    mop_attempt = orchestrator.state.jobs[job].active_attempt_id
+    assert adapter.dispatches[-1][0].operation is OperationKind.MOP
+    await orchestrator.async_confirm_start(mop_attempt)
+
+    await orchestrator.async_cancel_job(job)
+    await orchestrator.async_confirm_cancel(job)
+
+    room = orchestrator.rooms.registry.resolve("kitchen")
+    assert orchestrator.state.jobs[job].state is JobState.CANCELLED
+    assert room.last_confirmed[OperationKind.VACUUM].completed_at is not None
+    assert OperationKind.MOP not in room.last_confirmed
+    assert OperationKind.MOP not in room.last_cleaning
+
+
 async def test_gap_between_phases_reserves_room_and_can_be_cancelled() -> None:
     backend = RecordingBackend()
     first = RecordingAdapter(backend, "first", preference=10)

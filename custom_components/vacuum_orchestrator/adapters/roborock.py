@@ -53,26 +53,35 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
             entity_id = self.role_entity("cleaning_mode")
         elif name == "vacuum_levels":
             entity_id = self.entity_id
-            options = available_options(self._hass, entity_id)
             configured = {
+                "off": "off",
                 "low": "quiet",
                 "standard": "balanced",
-                "medium": "balanced",
                 "high": "turbo",
-                "maximum": "max_plus" if "max_plus" in options else "max",
+                "maximum": "max",
+                "maximum_plus": "max_plus",
             }
         elif name == "water_levels":
             entity_id = self.role_entity("mop_intensity")
             options = available_options(self._hass, entity_id)
+
+            def first(*names: str) -> str:
+                return next((item for item in names if item in options), names[0])
+
             configured = {
-                "low": "mild" if "mild" in options else "low",
-                "standard": "standard" if "standard" in options else "medium",
-                "medium": "standard" if "standard" in options else "medium",
-                "high": "intense" if "intense" in options else "high",
+                "off": "off",
+                "low": first("low", "mild"),
+                "medium": first("medium", "moderate", "standard"),
+                "high": first("high", "intense"),
             }
         else:
             entity_id = self.role_entity("mop_route")
-            configured = {"standard": "standard", "deep": "deep", "fast": "fast"}
+            configured = {
+                "fast": "fast",
+                "standard": "standard",
+                "deep": "deep",
+                "deep_plus": "deep_plus",
+            }
         return supported_mapping(configured, available_options(self._hass, entity_id))
 
     @property

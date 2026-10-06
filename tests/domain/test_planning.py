@@ -26,15 +26,20 @@ from custom_components.vacuum_orchestrator.domain.intents import (
     TargetRef,
     VendorExtension,
 )
-from custom_components.vacuum_orchestrator.domain.planning import Planner
+from custom_components.vacuum_orchestrator.domain.planning import (
+    Planner,
+    ResolvedSetting,
+    SettingsResolution,
+)
 from custom_components.vacuum_orchestrator.domain.types import (
     CleaningMode,
     MopRoute,
     OperationKind,
     PassScope,
     RobotAvailabilityState,
-    SemanticLevel,
     SettingsPolicy,
+    VacuumLevel,
+    WaterLevel,
 )
 
 
@@ -46,7 +51,7 @@ def _profile(robot_id: str = "robot-a", *, preference: int = 0) -> RobotProfile:
         target_map={"kitchen": "16", "hall": "17"},
         map_context="main",
         passes=PassCapability(3, PassScope.TARGET_SET),
-        vacuum_levels=frozenset({SemanticLevel.HIGH}),
+        vacuum_levels=frozenset({VacuumLevel.HIGH}),
         water_levels=frozenset(),
         cancel=CancelSemantics.STOP,
         start_evidence=frozenset({StartEvidence.ACTIVITY_START_TRANSITION}),
@@ -165,12 +170,12 @@ def test_selector_enforces_availability_overlap_and_one_job_per_robot() -> None:
         )
 
 
-def test_best_effort_reports_omitted_settings_but_strict_rejects() -> None:
+def test_best_effort_substitutes_nearest_setting_but_strict_rejects() -> None:
     profile = _profile()
     intent = JobIntent(
         (TargetRef("kitchen"),),
         CleaningMode.VACUUM,
-        preferences=CleaningPreferences(vacuum_power=SemanticLevel.MAXIMUM),
+        preferences=CleaningPreferences(vacuum_power=VacuumLevel.MAXIMUM),
     )
     unit = Planner().create_plan("job", intent).work_units[0]
     observations = {
@@ -184,7 +189,10 @@ def test_best_effort_reports_omitted_settings_but_strict_rejects() -> None:
         unit, (profile,), observations, {}, frozenset(), ()
     )
 
-    assert assignment.preference_resolution.omitted == ("vacuum_power",)
+    assert assignment.settings == SettingsResolution(
+        (ResolvedSetting("vacuum_power", "maximum", "high"),)
+    )
+    assert assignment.settings.substituted == ("vacuum_power",)
     strict = replace(unit, settings_policy=SettingsPolicy.STRICT)
     with pytest.raises(PlanningError, match="unsupported_cleaning_preference"):
         RobotSelector().assign(strict, (profile,), observations, {}, frozenset(), ())
@@ -435,7 +443,7 @@ def test_selector_applies_supported_preferences_and_validates_observation() -> N
                 (TargetRef("kitchen"),),
                 CleaningMode.VACUUM_AND_MOP,
                 preferences=CleaningPreferences(
-                    vacuum_power=SemanticLevel.HIGH,
+                    vacuum_power=VacuumLevel.HIGH,
                     mop_route=MopRoute.DEEP,
                 ),
             ),
@@ -463,7 +471,7 @@ def test_selector_applies_supported_preferences_and_validates_observation() -> N
         (),
     )
 
-    assert result.preference_resolution.applied == ("vacuum_power", "mop_route")
+    assert result.settings.applied == ("vacuum_power", "mop_route")
     with pytest.raises(PlanningError, match="invalid_battery_percentage"):
         RobotObservation("robot", "source", RobotAvailabilityState.AVAILABLE, 101)
 
@@ -483,7 +491,7 @@ def test_phase_only_applies_relevant_preferences(
         profile,
         capabilities=replace(
             profile.capabilities,
-            water_levels=frozenset({SemanticLevel.HIGH}),
+            water_levels=frozenset({WaterLevel.HIGH}),
             mop_routes=frozenset({MopRoute.DEEP}),
         ),
     )
@@ -495,7 +503,7 @@ def test_phase_only_applies_relevant_preferences(
                 (TargetRef("kitchen"),),
                 CleaningMode.VACUUM_THEN_MOP,
                 preferences=CleaningPreferences(
-                    SemanticLevel.HIGH, SemanticLevel.HIGH, MopRoute.DEEP
+                    VacuumLevel.HIGH, WaterLevel.HIGH, MopRoute.DEEP
                 ),
             ),
         )
@@ -512,8 +520,8 @@ def test_phase_only_applies_relevant_preferences(
         frozenset(),
         (),
     )
-    assert result.preference_resolution.applied == applied
-    assert result.preference_resolution.omitted == ()
+    assert result.settings.applied == applied
+    assert result.settings.omitted == ()
 
 
 def test_supported_preferences_outrank_preferred_robot_and_battery_minimum_blocks() -> (
@@ -531,7 +539,7 @@ def test_supported_preferences_outrank_preferred_robot_and_battery_minimum_block
             JobIntent(
                 (TargetRef("kitchen"),),
                 CleaningMode.VACUUM,
-                preferences=CleaningPreferences(vacuum_power=SemanticLevel.HIGH),
+                preferences=CleaningPreferences(vacuum_power=VacuumLevel.HIGH),
             ),
         )
         .work_units[0]

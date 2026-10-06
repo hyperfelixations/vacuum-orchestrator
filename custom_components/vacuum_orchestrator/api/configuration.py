@@ -23,6 +23,7 @@ from ..diagnostics import build_diagnostics
 from ..domain.errors import OrchestratorError, ValidationError
 from ..domain.releases import ReleaseKind
 from ..domain.templates import JobTemplate
+from ..domain.types import ROUTE_LADDER, VACUUM_LADDER, WATER_LADDER, SettingsPolicy
 from ..ha_context import request_context
 from ..room_configuration import (
     ROOM_PATCH_SCHEMA,
@@ -31,8 +32,21 @@ from ..room_configuration import (
 )
 from ..runtime import async_get_runtime
 from .errors import service_error
-from .job_input import ALL_ROOMS, CREATE_SCHEMA, intent_from_data
-from .presentation import present_job, view_metadata
+from .job_input import (
+    ALL_ROOMS,
+    CREATE_SCHEMA,
+    _mode,
+    intent_from_data,
+    mop_route,
+    vacuum_level,
+    water_level,
+)
+from .presentation import (
+    present_job,
+    present_job_defaults,
+    present_settings,
+    view_metadata,
+)
 from .room_presentation import present_room
 from .telemetry import command_trace
 
@@ -50,6 +64,16 @@ COMMANDS: dict[str, vol.Schema] = {
             vol.Required("grace_seconds"): vol.All(
                 vol.Coerce(float), vol.Range(min=0, max=86400)
             )
+        }
+    ),
+    "configure_job_defaults": vol.Schema(
+        {
+            vol.Optional("mode"): _mode,
+            vol.Optional("vacuum_power"): vacuum_level,
+            vol.Optional("mop_intensity"): water_level,
+            vol.Optional("mop_route"): mop_route,
+            vol.Optional("passes"): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
+            vol.Optional("settings_policy"): vol.Coerce(SettingsPolicy),
         }
     ),
     "save_template": vol.Schema(
@@ -122,12 +146,7 @@ async def async_query_configuration(
                 "eligible": item.eligibility_reason is None
                 and item.readiness.state.value == "ready",
                 "eligibility_reason": item.eligibility_reason,
-                "applied_preferences": list(item.preferences.applied)
-                if item.preferences
-                else [],
-                "omitted_preferences": list(item.preferences.omitted)
-                if item.preferences
-                else [],
+                "settings": present_settings(item.settings) if item.settings else [],
             }
             for item in explanations
         ],
@@ -141,15 +160,8 @@ async def async_query_configuration(
                 if attempt.completion_quality
                 else None,
                 "failure_code": attempt.failure_code,
-                "applied_preferences": list(
-                    core.state.assignments[
-                        attempt.attempt_id
-                    ].preference_resolution.applied
-                ),
-                "omitted_preferences": list(
-                    core.state.assignments[
-                        attempt.attempt_id
-                    ].preference_resolution.omitted
+                "settings": present_settings(
+                    core.state.assignments[attempt.attempt_id].settings
                 ),
             }
             for attempt in core.state.attempts.values()
@@ -281,15 +293,21 @@ def query_configuration(
                     },
                     "map_context": profile.capabilities.map_context,
                     "maximum_passes": profile.capabilities.passes.maximum,
-                    "vacuum_levels": sorted(
-                        item.value for item in profile.capabilities.vacuum_levels
-                    ),
-                    "water_levels": sorted(
-                        item.value for item in profile.capabilities.water_levels
-                    ),
-                    "mop_routes": sorted(
-                        item.value for item in profile.capabilities.mop_routes
-                    ),
+                    "vacuum_levels": [
+                        item.value
+                        for item in VACUUM_LADDER
+                        if item in profile.capabilities.vacuum_levels
+                    ],
+                    "water_levels": [
+                        item.value
+                        for item in WATER_LADDER
+                        if item in profile.capabilities.water_levels
+                    ],
+                    "mop_routes": [
+                        item.value
+                        for item in ROUTE_LADDER
+                        if item in profile.capabilities.mop_routes
+                    ],
                 },
             }
         )
@@ -316,10 +334,15 @@ async def _execute_configuration(
     if name == "configure_queue":
         await core.runs.async_configure(data["grace_seconds"])
         result["grace_seconds"] = core.state.queue_grace_seconds
+    elif name == "configure_job_defaults":
+        await core.async_configure_job_defaults(data)
+        result["job_defaults"] = present_job_defaults(core.state.job_defaults)
     elif name == "save_template":
         result["template_id"] = await core.templates.async_save(
             data["name"],
-            intent_from_data(data["intent"], core.eligible_room_ids),
+            intent_from_data(
+                data["intent"], core.eligible_room_ids, core.state.job_defaults
+            ),
             template_id=data.get("template_id"),
             enabled=data["enabled"],
             automatic=data["automatic"],

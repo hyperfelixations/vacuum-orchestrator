@@ -1,6 +1,7 @@
-"""Round-trip and relational corruption tests for storage schema 2."""
+"""Round-trip, migration and relational corruption tests for the storage schema."""
 
 from copy import deepcopy
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -16,12 +17,16 @@ from custom_components.vacuum_orchestrator.domain.intents import (
     TargetRef,
     VendorExtension,
 )
+from custom_components.vacuum_orchestrator.domain.job_defaults import JobDefaults
 from custom_components.vacuum_orchestrator.domain.planning import (
     DispatchAssignment,
     Planner,
-    PreferenceResolution,
+    ResolvedSetting,
+    SettingsResolution,
 )
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
+from custom_components.vacuum_orchestrator.domain.rooms import Room
+from custom_components.vacuum_orchestrator.domain.templates import JobTemplate
 from custom_components.vacuum_orchestrator.domain.types import (
     AttemptState,
     CleaningMode,
@@ -30,13 +35,15 @@ from custom_components.vacuum_orchestrator.domain.types import (
     OperationKind,
     PassScope,
     QueueMode,
-    SemanticLevel,
     SettingsPolicy,
+    VacuumLevel,
+    WaterLevel,
 )
 from custom_components.vacuum_orchestrator.infrastructure.codec import (
     decode_orchestrator_state,
     encode_orchestrator_state,
     migrate_schema_one,
+    migrate_schema_three,
 )
 from custom_components.vacuum_orchestrator.infrastructure.integrity import JsonObject
 
@@ -166,7 +173,7 @@ def _state() -> OrchestratorState:
         CleaningMode.VACUUM_AND_MOP,
         name="Kitchen",
         preferences=CleaningPreferences(
-            SemanticLevel.HIGH, SemanticLevel.MEDIUM, MopRoute.DEEP
+            VacuumLevel.HIGH, WaterLevel.MEDIUM, MopRoute.DEEP
         ),
         passes=2,
         source="manual",
@@ -188,7 +195,13 @@ def _state() -> OrchestratorState:
         "roborock",
         ("16",),
         "caps",
-        PreferenceResolution(("vacuum_power",), ("mop_route",)),
+        SettingsResolution(
+            (
+                ResolvedSetting("vacuum_power", "high", "high"),
+                ResolvedSetting("mop_intensity", "medium", "low"),
+                ResolvedSetting("mop_route", "deep", None),
+            )
+        ),
     )
     attempt = ExecutionAttempt(
         "attempt",
@@ -227,6 +240,90 @@ def test_stop_boundary_round_trips_and_is_optional_in_older_snapshots() -> None:
     assert decode_orchestrator_state(data) == stopped
     del data["attempts"]["attempt"]["stop_sent_at"]
     assert decode_orchestrator_state(data).attempts["attempt"].stop_sent_at is None
+
+
+def _schema_three(state: OrchestratorState) -> dict:
+    data = encode_orchestrator_state(state)
+    data["schema_version"] = 3
+    del data["job_defaults"]
+    for assignment in data["assignments"].values():
+        settings = assignment.pop("settings")
+        assignment["preference_resolution"] = {
+            "applied": [item["name"] for item in settings if item["applied"]],
+            "omitted": [item["name"] for item in settings if not item["applied"]],
+        }
+    return data
+
+
+def test_schema_three_vocabulary_is_mapped_and_unstarted_jobs_get_defaults() -> None:
+    queued = JobIntent((TargetRef("hall"),), CleaningMode.VACUUM_AND_MOP)
+    state = _state().add_job("queued", queued, NOW)
+    state = replace(
+        state,
+        room_registry=state.room_registry.put_room(Room("hall", "Hall")),
+        templates={
+            "t": JobTemplate(
+                "t", "Routine", JobIntent((TargetRef("hall"),), CleaningMode.MOP), NOW
+            )
+        },
+    )
+    data = _schema_three(state)
+    old = {"vacuum_power": "medium", "mop_intensity": "maximum", "mop_route": "auto"}
+    data["jobs"]["job"]["intent"]["preferences"] = dict(old)
+    next(iter(data["plans"].values()))["work_units"][0]["preferences"] = dict(old)
+    data["jobs"]["queued"]["intent"]["preferences"] = {
+        "vacuum_power": "auto",
+        "mop_intensity": "standard",
+        "mop_route": None,
+    }
+    data["templates"]["t"]["intent"]["preferences"] = {
+        "vacuum_power": None,
+        "mop_intensity": "off",
+        "mop_route": "fast",
+    }
+
+    migrated = migrate_schema_three(deepcopy(data))
+
+    assert migrated.job_defaults == JobDefaults()
+    planned = migrated.jobs["job"].intent.preferences
+    assert planned == CleaningPreferences(VacuumLevel.STANDARD, WaterLevel.HIGH, None)
+    unit = migrated.plans[migrated.jobs["job"].plan_id or ""].work_units[0]
+    assert unit.preferences == planned
+    assert migrated.assignments["attempt"].settings == SettingsResolution(
+        (
+            ResolvedSetting("vacuum_power", "standard", "standard"),
+            ResolvedSetting("mop_intensity", "high", "high"),
+        )
+    )
+    assert migrated.jobs["queued"].intent.preferences == CleaningPreferences(
+        VacuumLevel.STANDARD, WaterLevel.MEDIUM, MopRoute.STANDARD
+    )
+    assert migrated.templates["t"].intent.preferences == CleaningPreferences(
+        None, WaterLevel.MEDIUM, MopRoute.FAST
+    )
+    assert decode_orchestrator_state(encode_orchestrator_state(migrated)) == migrated
+    with pytest.raises(StorageIntegrityError, match="unsupported_previous"):
+        migrate_schema_three({**data, "schema_version": 4})
+    del data["jobs"]["job"]["intent"]
+    with pytest.raises(StorageIntegrityError, match="invalid_storage_payload"):
+        migrate_schema_three(data)
+
+
+def test_job_defaults_round_trip() -> None:
+    defaults = JobDefaults(
+        CleaningMode.VACUUM_THEN_MOP,
+        VacuumLevel.MAXIMUM_PLUS,
+        WaterLevel.LOW,
+        MopRoute.DEEP_PLUS,
+        3,
+        SettingsPolicy.STRICT,
+        True,
+    )
+    state = replace(OrchestratorState.empty("installation"), job_defaults=defaults)
+    data = encode_orchestrator_state(state)
+    assert decode_orchestrator_state(data).job_defaults == defaults
+    del data["job_defaults"]
+    assert decode_orchestrator_state(data).job_defaults == JobDefaults()
 
 
 @pytest.mark.parametrize(
@@ -368,8 +465,8 @@ def test_active_schema_one_ledgers_are_imported_and_robot_isolated(
     assert state.blocked_robots == {"source": "legacy_recovery_required"}
     assert assignment.adapter_targets == ("16",)
     assert unit.operation is OperationKind.VACUUM_AND_MOP
-    assert unit.preferences.vacuum_power is SemanticLevel.HIGH
-    assert unit.preferences.mop_intensity is SemanticLevel.MEDIUM
+    assert unit.preferences.vacuum_power is VacuumLevel.HIGH
+    assert unit.preferences.mop_intensity is WaterLevel.MEDIUM
     assert unit.preferences.mop_route is MopRoute.DEEP
     assert unit.vendor_extension is not None
     assert unit.vendor_extension.namespace == "roborock.v1"

@@ -66,6 +66,10 @@ async def test_commits_report_the_changed_scopes() -> None:
     assert seen[0] == {"jobs", "queue"}
     assert seen[1] == {"rooms"}
     assert {"jobs", "queue", "robots", "rooms"} <= set().union(*seen[2:])
+    seen.clear()
+    await core.async_configure_job_defaults({"passes": 2})
+    await core.async_configure_job_defaults({"passes": 2})
+    assert seen == [frozenset({"queue"})]
 
 
 async def test_controller_skips_passes_without_visible_change(

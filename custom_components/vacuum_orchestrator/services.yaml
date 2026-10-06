@@ -1,6 +1,7 @@
 create_job:
   name: Create job
-  description: Create a cleaning job and append it to the global queue.
+  description: Create a cleaning job and append it to the global queue. Omitted mode,
+    settings, passes and settings policy take the job defaults.
   fields:
     areas:
       name: Room or area IDs
@@ -11,7 +12,6 @@ create_job:
         object: {}
     mode:
       name: Cleaning mode
-      required: true
       selector:
         select:
           options:
@@ -28,28 +28,30 @@ create_job:
       selector: &id001
         select:
           options:
-          - 'off'
           - low
           - standard
-          - medium
           - high
           - maximum
-          - auto
+          - maximum_plus
     mop_intensity:
       name: Mop intensity
-      selector: *id001
+      selector: &water_levels
+        select:
+          options:
+          - low
+          - medium
+          - high
     mop_route:
       name: Mop route
       selector:
         select:
           options:
+          - fast
           - standard
           - deep
-          - fast
-          - auto
+          - deep_plus
     passes:
       name: Passes
-      default: 1
       selector:
         number:
           min: 1
@@ -84,7 +86,6 @@ create_job:
           multiple: true
     settings_policy:
       name: Settings policy
-      default: best_effort
       selector:
         select:
           options:
@@ -124,16 +125,16 @@ update_job:
       selector: *id001
     mop_intensity:
       name: Mop intensity
-      selector: *id001
+      selector: *water_levels
     mop_route:
       name: Mop route
       selector:
         select:
           options:
+          - fast
           - standard
           - deep
-          - fast
-          - auto
+          - deep_plus
     passes:
       name: Passes
       selector:
@@ -258,6 +259,49 @@ configure_queue:
           min: 0
           max: 86400
           mode: box
+configure_job_defaults:
+  name: Configure job defaults
+  description: Set the robot-neutral values new jobs receive when they name none;
+    existing jobs keep their values.
+  fields:
+    mode:
+      name: Cleaning mode
+      selector:
+        select:
+          options:
+          - vacuum
+          - mop
+          - vacuum_and_mop
+          - vacuum_then_mop
+    vacuum_power:
+      name: Vacuum power
+      selector: *id001
+    mop_intensity:
+      name: Mop intensity
+      selector: *water_levels
+    mop_route:
+      name: Mop route
+      selector:
+        select:
+          options:
+          - fast
+          - standard
+          - deep
+          - deep_plus
+    passes:
+      name: Passes
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+    settings_policy:
+      name: Settings policy
+      selector:
+        select:
+          options:
+          - best_effort
+          - strict
 create_room:
   name: Create room
   description: Create a room, initially locked.

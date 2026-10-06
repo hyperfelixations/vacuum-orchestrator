@@ -45,25 +45,70 @@ class OperationKind(StrEnum):
     VACUUM_AND_MOP = "vacuum_and_mop"
 
 
-class SemanticLevel(StrEnum):
-    """Manufacturer-neutral intensity request."""
+class VacuumLevel(StrEnum):
+    """Manufacturer-neutral suction level; see dev doc "Stufen"."""
 
     OFF = "off"
     LOW = "low"
     STANDARD = "standard"
-    MEDIUM = "medium"
     HIGH = "high"
     MAXIMUM = "maximum"
-    AUTO = "auto"
+    MAXIMUM_PLUS = "maximum_plus"
+
+
+class WaterLevel(StrEnum):
+    """Manufacturer-neutral mop water level."""
+
+    OFF = "off"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
 
 
 class MopRoute(StrEnum):
-    """Manufacturer-neutral mop route request."""
+    """Manufacturer-neutral mop route."""
 
+    FAST = "fast"
     STANDARD = "standard"
     DEEP = "deep"
-    FAST = "fast"
-    AUTO = "auto"
+    DEEP_PLUS = "deep_plus"
+
+
+SettingValue = VacuumLevel | WaterLevel | MopRoute
+
+# Ordered ladders of selectable values; `off` stays internal to adapters.
+VACUUM_LADDER: tuple[VacuumLevel, ...] = (
+    VacuumLevel.LOW,
+    VacuumLevel.STANDARD,
+    VacuumLevel.HIGH,
+    VacuumLevel.MAXIMUM,
+    VacuumLevel.MAXIMUM_PLUS,
+)
+WATER_LADDER: tuple[WaterLevel, ...] = (
+    WaterLevel.LOW,
+    WaterLevel.MEDIUM,
+    WaterLevel.HIGH,
+)
+ROUTE_LADDER: tuple[MopRoute, ...] = (
+    MopRoute.FAST,
+    MopRoute.STANDARD,
+    MopRoute.DEEP,
+    MopRoute.DEEP_PLUS,
+)
+
+
+def nearest_supported[T: SettingValue](
+    requested: T, ladder: tuple[T, ...], supported: frozenset[T]
+) -> T | None:
+    """Pick the supported rung closest to a request; ties prefer the lower one."""
+    candidates = [value for value in ladder if value in supported]
+    if not candidates:
+        return None
+    position = ladder.index(requested)
+    return min(
+        candidates,
+        key=lambda value: (abs(ladder.index(value) - position), ladder.index(value)),
+    )
 
 
 class SettingsPolicy(StrEnum):

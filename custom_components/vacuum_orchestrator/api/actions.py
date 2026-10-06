@@ -13,7 +13,7 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import config_validation as cv
-from homeassistant.util.json import JsonObjectType
+from homeassistant.util.json import JsonObjectType, JsonValueType
 
 from ..const import (
     API_VERSION,
@@ -34,10 +34,8 @@ from ..const import (
 from ..domain.errors import ConflictError, OrchestratorError
 from ..domain.intents import JobIntentPatch
 from ..domain.types import (
-    MopRoute,
     MoveDirection,
     QueueMode,
-    SemanticLevel,
     SettingsPolicy,
 )
 from ..ha_context import request_context
@@ -49,9 +47,12 @@ from .job_input import (
     _mode,
     areas,
     intent_from_data,
+    mop_route,
     selected_areas,
+    vacuum_level,
+    water_level,
 )
-from .presentation import present_job, present_queue, view_metadata
+from .presentation import present_job, present_queue, present_settings, view_metadata
 from .telemetry import command_trace
 
 ATTR_JOB_ID = "job_id"
@@ -81,9 +82,9 @@ UPDATE_SCHEMA = vol.Schema(
         vol.Optional(ATTR_AREAS): areas,
         vol.Optional(ATTR_MODE): _mode,
         vol.Optional(ATTR_NAME): vol.Any(None, cv.string),
-        vol.Optional(ATTR_VACUUM_POWER): vol.Any(None, vol.Coerce(SemanticLevel)),
-        vol.Optional(ATTR_MOP_INTENSITY): vol.Any(None, vol.Coerce(SemanticLevel)),
-        vol.Optional(ATTR_MOP_ROUTE): vol.Any(None, vol.Coerce(MopRoute)),
+        vol.Optional(ATTR_VACUUM_POWER): vol.Any(None, vacuum_level),
+        vol.Optional(ATTR_MOP_INTENSITY): vol.Any(None, water_level),
+        vol.Optional(ATTR_MOP_ROUTE): vol.Any(None, mop_route),
         vol.Optional(ATTR_PASSES): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
         vol.Optional(ATTR_SOURCE): vol.Any(None, cv.string),
         vol.Optional(ATTR_REASON): vol.Any(None, cv.string),
@@ -131,7 +132,9 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         job_id = await _translate_errors(
             runtime.orchestrator.async_create_job(
                 intent_from_data(
-                    dict(call.data), runtime.orchestrator.eligible_room_ids
+                    dict(call.data),
+                    runtime.orchestrator.eligible_room_ids,
+                    runtime.orchestrator.state.job_defaults,
                 )
             )
         )
@@ -175,7 +178,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
             {
                 ATTR_JOB_ID: call.data[ATTR_JOB_ID],
                 ATTR_ROBOT_ID: assignment.robot_id,
-                "omitted_preferences": list(assignment.preference_resolution.omitted),
+                "settings": cast(JsonValueType, present_settings(assignment.settings)),
             },
         )
 

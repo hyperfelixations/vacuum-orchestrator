@@ -11,6 +11,7 @@ from .completion import CleaningReceipt, CleaningSource, CompletionQuality
 from .errors import ConflictError, ValidationError
 from .execution import ExecutionAttempt, RobotLease, RobotRun, RunCorrelation
 from .intents import JobIntent, JobIntentPatch
+from .job_defaults import JobDefaults
 from .planning import (
     DispatchAssignment,
     ExecutionPlan,
@@ -70,6 +71,7 @@ class OrchestratorState:
     templates: Mapping[str, JobTemplate] = field(default_factory=dict)
     queue_run: QueueRun | None = None
     queue_grace_seconds: float = 900
+    job_defaults: JobDefaults = field(default_factory=JobDefaults)
 
     def __post_init__(self) -> None:
         seconds(self.queue_grace_seconds)
@@ -141,9 +143,10 @@ class OrchestratorState:
         *,
         origin: CommandOrigin | None = None,
     ) -> OrchestratorState:
-        """Append a new job to the single pending queue."""
+        """Append a new job with every setting its mode uses to the queue."""
         if job_id in self.jobs:
             raise ConflictError("job_already_exists")
+        intent = self.job_defaults.complete(intent)
         if intent.dedupe_key is not None and any(
             job.state is JobState.QUEUED and job.intent.dedupe_key == intent.dedupe_key
             for job in self.jobs.values()
@@ -164,7 +167,7 @@ class OrchestratorState:
         job = self._job(job_id)
         if job.state is not JobState.QUEUED:
             raise ConflictError("job_not_editable")
-        intent = patch.apply(job.intent)
+        intent = self.job_defaults.complete(patch.apply(job.intent))
         if intent == job.intent:
             return self
         if intent.dedupe_key is not None and any(
@@ -728,7 +731,7 @@ class OrchestratorState:
         jobs[retry_job_id] = Job(
             retry_job_id,
             1,
-            job.intent,
+            self.job_defaults.complete(job.intent),
             JobState.QUEUED,
             now,
             now,

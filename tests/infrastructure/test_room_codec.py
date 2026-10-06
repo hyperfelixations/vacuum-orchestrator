@@ -25,6 +25,7 @@ from custom_components.vacuum_orchestrator.domain.types import OperationKind
 from custom_components.vacuum_orchestrator.infrastructure.codec import (
     decode_orchestrator_state,
     encode_orchestrator_state,
+    migrate_schema_three,
     migrate_schema_two,
 )
 from custom_components.vacuum_orchestrator.infrastructure.critical_repository import (
@@ -148,7 +149,7 @@ async def test_v2_import_preserves_source_and_does_not_grant_rooms() -> None:
     original = deepcopy(old.data)
     current = CriticalOrchestratorRepository(Backend())
     repository = MigratingOrchestratorRepository(
-        current, Backend(), "installation", previous_backend=old
+        current, Backend(), "installation", previous_stores=((old, migrate_schema_two),)
     )
 
     imported = await repository.async_load()
@@ -169,10 +170,40 @@ async def test_v2_wrong_installation_and_unknown_schema_are_not_imported() -> No
     old.data = seal_snapshot(payload)
     current = CriticalOrchestratorRepository(Backend())
     repository = MigratingOrchestratorRepository(
-        current, Backend(), "installation", previous_backend=old
+        current, Backend(), "installation", previous_stores=((old, migrate_schema_two),)
     )
     with pytest.raises(StorageIntegrityError, match="ownership_mismatch"):
         await repository.async_load()
     assert await current.async_load() is None
     with pytest.raises(StorageIntegrityError, match="unsupported_previous"):
         migrate_schema_two({"schema_version": 99})
+
+
+async def test_newest_previous_store_is_imported_first() -> None:
+    def sealed(job_id: str, schema: int) -> Backend:
+        payload = encode_orchestrator_state(
+            OrchestratorState.empty("installation").add_job(job_id, INTENT, NOW)
+        )
+        payload["schema_version"] = schema
+        del payload["job_defaults"]
+        if schema == 2:
+            del payload["room_registry"]
+        backend = Backend()
+        backend.data = seal_snapshot(payload)
+        return backend
+
+    current = CriticalOrchestratorRepository(Backend())
+    repository = MigratingOrchestratorRepository(
+        current,
+        Backend(),
+        "installation",
+        previous_stores=(
+            (sealed("three", 3), migrate_schema_three),
+            (sealed("two", 2), migrate_schema_two),
+        ),
+    )
+
+    imported = await repository.async_load()
+
+    assert set(imported.jobs) == {"three"}
+    assert await current.async_load() == imported

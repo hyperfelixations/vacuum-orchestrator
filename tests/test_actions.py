@@ -205,13 +205,13 @@ async def test_queue_management_actions_are_simple_and_response_is_optional(
     assert all(item is not None for item in responses)
     commit_ids = [item["commit_id"] for item in responses if item is not None]
     assert commit_ids == sorted(commit_ids) and commit_ids[0] > 0
-    assert all(item["api_version"] == 2 for item in responses if item is not None)
+    assert all(item["api_version"] == 3 for item in responses if item is not None)
     assert moved is not None and moved[ATTR_JOB_ID] == second[ATTR_JOB_ID]
     assert response is not None and response["dispatched"] == 0
     assert response["robot_ids"] == []
-    assert paused == {"api_version": 2, "commit_id": commit_ids[3], "mode": "paused"}
+    assert paused == {"api_version": 3, "commit_id": commit_ids[3], "mode": "paused"}
     assert cancelled == {
-        "api_version": 2,
+        "api_version": 3,
         "commit_id": commit_ids[4],
         ATTR_JOB_ID: first[ATTR_JOB_ID],
     }
@@ -293,12 +293,13 @@ async def test_action_fields_support_complete_create_and_partial_clear(
 
     assert queried is not None
     assert updated == {
-        "api_version": 2,
+        "api_version": 3,
         "commit_id": created["commit_id"] + 1,
         ATTR_JOB_ID: job_id,
     }
     assert queried[ATTR_AREAS] == ["hall"]
-    assert queried[ATTR_VACUUM_POWER] is None
+    assert queried[ATTR_VACUUM_POWER] == "standard"
+    assert queried[ATTR_MOP_INTENSITY] is None
     assert queried["source"] is None
 
 

@@ -1,10 +1,14 @@
 """Tests for single-entry setup and Roborock subentries."""
 
 from copy import deepcopy
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 
 import pytest
-from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER
+from homeassistant.config_entries import (
+    SOURCE_RECONFIGURE,
+    SOURCE_USER,
+    ConfigSubentry,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -119,12 +123,53 @@ async def test_pre_release_config_entry_migration_is_single_installation(
 
     assert await async_migrate_entry(hass, legacy)
     assert legacy.version == 2
-    assert legacy.minor_version == 0
+    assert legacy.minor_version == 1
     assert legacy.title == "Vacuum Orchestrator"
     assert legacy.data == {CONF_INSTALLATION_ID: DOMAIN}
 
     unsupported = MockConfigEntry(domain=DOMAIN, data={}, version=99)
     assert not await async_migrate_entry(hass, unsupported)
+
+
+async def test_minor_one_migration_moves_option_mappings_onto_the_ladders(
+    hass: HomeAssistant,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN}, version=2, minor_version=0
+    )
+    entry.add_to_hass(hass)
+    old = {
+        CONF_ROBOT_ENTITY_ID: "vacuum.test",
+        "vacuum_levels": {"low": "quiet", "medium": "balanced", "auto": "smart"},
+        "water_levels": {
+            "standard": "moderate",
+            "maximum": "intense",
+            "high": "high",
+            "auto": "smart",
+        },
+        "mop_routes": {"deep": "deep", "auto": "smart"},
+    }
+    for unique_id, data in (("old", old), ("plain", {CONF_ROBOT_ENTITY_ID: "x"})):
+        hass.config_entries.async_add_subentry(
+            entry,
+            ConfigSubentry(
+                data=MappingProxyType(data),
+                subentry_type=SUBENTRY_TYPE_ROBOT,
+                title=unique_id,
+                unique_id=unique_id,
+            ),
+        )
+
+    assert await async_migrate_entry(hass, entry)
+
+    migrated = {item.unique_id: item.data for item in entry.subentries.values()}
+    assert migrated["old"]["vacuum_levels"] == {"low": "quiet", "standard": "balanced"}
+    assert migrated["old"]["water_levels"] == {"high": "high", "medium": "moderate"}
+    assert migrated["old"]["mop_routes"] == {"deep": "deep"}
+    assert migrated["plain"] == {CONF_ROBOT_ENTITY_ID: "x"}
+    assert entry.minor_version == 1
+    assert await async_migrate_entry(hass, entry)
+    assert {item.unique_id: item.data for item in entry.subentries.values()} == migrated
 
 
 async def test_reconfigure_tracks_renames_and_blocks_active_robot(

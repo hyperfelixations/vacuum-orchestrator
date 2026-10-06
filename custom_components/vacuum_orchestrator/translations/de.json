@@ -573,9 +573,6 @@
     "plan_storage_key_mismatch": {
       "message": "Gespeicherte Daten sind inkonsistent: Ein Plan ist unter dem falschen Schlüssel gespeichert"
     },
-    "preference_conflicts_with_cleaning_mode": {
-      "message": "Eine ausgeschaltete Einstellung widerspricht dem Reinigungsmodus"
-    },
     "preparation_timeout": {
       "message": "Die Vorbereitung des Roboters dauerte zu lange; es wurde kein Reinigungsbefehl gesendet"
     },

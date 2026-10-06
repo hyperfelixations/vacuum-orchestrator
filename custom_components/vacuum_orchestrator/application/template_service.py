@@ -54,7 +54,7 @@ class TemplateService:
             if template_id is not None and previous is None:
                 raise ConflictError("unknown_template")
             normalized = replace(
-                intent,
+                state.job_defaults.complete(intent),
                 areas=tuple(
                     TargetRef(
                         state.room_registry.resolve(target.area_id).room_id,

@@ -10,7 +10,7 @@ from types import MappingProxyType
 from .errors import ValidationError
 from .execution import ExecutionPolicy
 from .requirements import StateRequirement
-from .types import MopRoute, OperationKind, PassScope, SemanticLevel
+from .types import MopRoute, OperationKind, PassScope, VacuumLevel, WaterLevel
 
 
 class AreaAddressing(StrEnum):
@@ -65,13 +65,15 @@ class RobotCapabilities:
     target_map: Mapping[str, str | tuple[str, ...]]
     map_context: str | None
     passes: PassCapability
-    vacuum_levels: frozenset[SemanticLevel]
-    water_levels: frozenset[SemanticLevel]
+    vacuum_levels: frozenset[VacuumLevel]
+    water_levels: frozenset[WaterLevel]
     cancel: CancelSemantics
     start_evidence: frozenset[StartEvidence]
     completion_evidence: frozenset[CompletionEvidence]
     mop_routes: frozenset[MopRoute] = frozenset()
     vendor_extensions: frozenset[str] = frozenset()
+    # Settings whose bound entity is currently unusable; see dev doc "Stufen".
+    unavailable_settings: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         if not self.revision.strip():

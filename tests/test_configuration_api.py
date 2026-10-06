@@ -111,7 +111,7 @@ async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
     assert (await call(hass, "get_room", room_id=room))["released"]
     revoked = await call(hass, "revoke_room", room_id=room)
     assert revoked == {
-        "api_version": 2,
+        "api_version": 3,
         "commit_id": async_get_runtime(hass).orchestrator.state.commit_id,
         "room_id": room,
     }
@@ -327,6 +327,74 @@ async def test_template_actions_instantiate_and_preserve_intent_snapshots(
     assert not (await call(hass, "get_templates"))["templates"]
 
 
+async def test_job_defaults_are_copied_into_jobs_and_templates(hass, configured):
+    core = configured.runtime_data.orchestrator
+    room_id = (await call(hass, "create_room", name="Room"))["room_id"]
+    assert (await call(hass, "get_queue"))["job_defaults"] == {
+        "mode": "vacuum",
+        "vacuum_power": "standard",
+        "mop_intensity": "medium",
+        "mop_route": "standard",
+        "passes": 1,
+        "settings_policy": "best_effort",
+        "configured": False,
+    }
+    before = core.state.commit_id
+    configured_defaults = await call(
+        hass,
+        "configure_job_defaults",
+        mode="mop",
+        mop_intensity="high",
+        passes=2,
+        settings_policy="strict",
+    )
+    assert configured_defaults["commit_id"] == before + 1
+    assert configured_defaults["job_defaults"] == {
+        "mode": "mop",
+        "vacuum_power": "standard",
+        "mop_intensity": "high",
+        "mop_route": "standard",
+        "passes": 2,
+        "settings_policy": "strict",
+        "configured": True,
+    }
+    repeated = await call(hass, "configure_job_defaults", mode="mop")
+    assert repeated["commit_id"] == before + 1
+
+    plain = await call(hass, "create_job", areas=[room_id])
+    detail = await call(hass, "get_job", job_id=plain["job_id"])
+    assert (
+        detail["mode"],
+        detail["vacuum_power"],
+        detail["mop_intensity"],
+        detail["mop_route"],
+        detail["passes"],
+        detail["settings_policy"],
+    ) == ("mop", None, "high", "standard", 2, "strict")
+    explicit = await call(
+        hass, "create_job", areas=[room_id], mode="vacuum", vacuum_power="maximum_plus"
+    )
+    detail = await call(hass, "get_job", job_id=explicit["job_id"])
+    assert (detail["vacuum_power"], detail["mop_intensity"]) == ("maximum_plus", None)
+
+    await call(
+        hass,
+        "save_template",
+        name="Both",
+        intent={"areas": [room_id], "mode": "vacuum_and_mop"},
+    )
+    intent = (await call(hass, "get_templates"))["templates"][0]["intent"]
+    assert (
+        intent["vacuum_power"],
+        intent["mop_intensity"],
+        intent["mop_route"],
+        intent["passes"],
+    ) == ("standard", "high", "standard", 2)
+    for invalid in ({"vacuum_power": "medium"}, {"mop_intensity": "standard"}):
+        with pytest.raises(vol.Invalid):
+            await call(hass, "configure_job_defaults", **invalid)
+
+
 async def test_job_request_origin_survives_queueing_and_reaches_physical_calls(
     hass, configured
 ):
@@ -404,7 +472,7 @@ async def test_public_configuration_rejects_mistyped_fields_and_missing_area(
         )
 
 
-async def test_execution_query_explains_scoped_blockers_and_applied_preferences(
+async def test_execution_query_explains_scoped_blockers_and_resolved_settings(
     hass, configured
 ):
     await configured.runtime_data.controller.scheduler.async_close()
@@ -442,7 +510,9 @@ async def test_execution_query_explains_scoped_blockers_and_applied_preferences(
     assert core.state is before and not adapter.dispatches
     assert result["commit_id"] == before.commit_id
     vacuum, mop = result["robots"]
-    assert vacuum["eligible"] and vacuum["omitted_preferences"] == ["vacuum_power"]
+    assert vacuum["eligible"] and vacuum["settings"] == [
+        {"name": "vacuum_power", "requested": "high", "applied": None}
+    ]
     assert not mop["eligible"]
     condition = mop["readiness"]["requirements"][0]
     assert condition["room_id"] == room and condition["robot_id"] == "robot"

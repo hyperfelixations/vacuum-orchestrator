@@ -14,8 +14,19 @@ from .capabilities import (
 )
 from .errors import PlanningError
 from .execution import RobotLease
-from .planning import DispatchAssignment, PreferenceResolution, WorkUnit
-from .types import OperationKind, RobotAvailabilityState, SettingsPolicy
+from .intents import SETTING_NAMES, settings_for_operation
+from .job_defaults import JobDefaults
+from .planning import DispatchAssignment, ResolvedSetting, SettingsResolution, WorkUnit
+from .types import (
+    ROUTE_LADDER,
+    VACUUM_LADDER,
+    WATER_LADDER,
+    OperationKind,
+    RobotAvailabilityState,
+    SettingsPolicy,
+    SettingValue,
+    nearest_supported,
+)
 
 _REQUIRED_START_EVIDENCE = frozenset({StartEvidence.ACTIVITY_START_TRANSITION})
 _REQUIRED_COMPLETION_EVIDENCE = frozenset(
@@ -64,6 +75,8 @@ class RobotSelector:
         blocked_source_robot_ids: frozenset[str],
         active_target_sets: tuple[frozenset[str], ...],
         requested_robot_id: str | None = None,
+        *,
+        defaults: JobDefaults | None = None,
     ) -> DispatchAssignment:
         """Late-bind a unit or raise one stable, explainable reason."""
         if requested_robot_id is not None:
@@ -91,13 +104,15 @@ class RobotSelector:
                     observations.get(profile.robot_id),
                     leases,
                     blocked_source_robot_ids,
+                    defaults or JobDefaults(),
                 )
             except PlanningError as err:
                 failures.append(err.code)
                 continue
             observation = observations[profile.robot_id]
             score = (
-                -len(assignment.preference_resolution.omitted),
+                -len(assignment.settings.omitted)
+                - len(assignment.settings.substituted),
                 profile.preference,
                 observation.battery_percentage
                 if observation.battery_percentage is not None
@@ -119,6 +134,7 @@ class RobotSelector:
         observation: RobotObservation | None,
         leases: Mapping[str, RobotLease],
         blocked_source_robot_ids: frozenset[str],
+        defaults: JobDefaults,
     ) -> DispatchAssignment:
         capabilities = profile.capabilities
         if (
@@ -168,29 +184,7 @@ class RobotSelector:
         ):
             raise PlanningError("unsupported_vendor_extension")
 
-        applied: list[str] = []
-        omitted: list[str] = []
-        requested = {
-            "vacuum_power": (
-                unit.preferences.vacuum_power,
-                capabilities.vacuum_levels,
-            ),
-            "mop_intensity": (
-                unit.preferences.mop_intensity,
-                capabilities.water_levels,
-            ),
-            "mop_route": (unit.preferences.mop_route, capabilities.mop_routes),
-        }
-        for name, (value, supported) in requested.items():
-            if (name == "vacuum_power" and unit.operation is OperationKind.MOP) or (
-                name != "vacuum_power" and unit.operation is OperationKind.VACUUM
-            ):
-                continue
-            if value is None:
-                continue
-            (applied if value in supported else omitted).append(name)
-        if omitted and unit.settings_policy is SettingsPolicy.STRICT:
-            raise PlanningError("unsupported_cleaning_preference", omitted[0])
+        settings = resolve_settings(unit, profile, defaults)
         return DispatchAssignment(
             work_unit_id=unit.work_unit_id,
             robot_id=profile.robot_id,
@@ -202,12 +196,50 @@ class RobotSelector:
                 for segment in capabilities.targets_for(target)
             ),
             capability_revision=capabilities.revision,
-            preference_resolution=PreferenceResolution(tuple(applied), tuple(omitted)),
+            settings=settings,
             room_targets={
                 target: capabilities.targets_for(target)
                 for target in unit.canonical_targets
             },
         )
+
+
+def resolve_settings(
+    unit: WorkUnit, profile: RobotProfile, defaults: JobDefaults
+) -> SettingsResolution:
+    """Translate every setting the operation uses; see dev doc "Stufen".
+
+    A setting the job does not name (records from before defaults) uses the
+    current default. Best effort takes the nearest supported rung; strict needs
+    the exact value. A bound but unusable setting entity never starts.
+    """
+    capabilities = profile.capabilities
+    axes: dict[str, tuple[tuple[SettingValue, ...], frozenset[SettingValue]]] = {
+        "vacuum_power": (VACUUM_LADDER, frozenset(capabilities.vacuum_levels)),
+        "mop_intensity": (WATER_LADDER, frozenset(capabilities.water_levels)),
+        "mop_route": (ROUTE_LADDER, frozenset(capabilities.mop_routes)),
+    }
+    resolved: list[ResolvedSetting] = []
+    for name in SETTING_NAMES:
+        if name not in settings_for_operation(unit.operation):
+            continue
+        if name in capabilities.unavailable_settings:
+            raise PlanningError("setting_entity_unavailable", name)
+        requested = getattr(unit.preferences, name) or getattr(defaults, name)
+        ladder, supported = axes[name]
+        applied = (
+            requested
+            if requested in supported
+            else nearest_supported(requested, ladder, supported)
+        )
+        if applied != requested and unit.settings_policy is SettingsPolicy.STRICT:
+            raise PlanningError("unsupported_cleaning_preference", name)
+        resolved.append(
+            ResolvedSetting(
+                name, requested.value, None if applied is None else applied.value
+            )
+        )
+    return SettingsResolution(tuple(resolved))
 
 
 def assignment_supports_current_capabilities(

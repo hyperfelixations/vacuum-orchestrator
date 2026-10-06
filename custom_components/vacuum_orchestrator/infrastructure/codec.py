@@ -19,11 +19,14 @@ from ..domain.intents import (
     JobIntent,
     TargetRef,
     VendorExtension,
+    settings_for_operation,
 )
+from ..domain.job_defaults import JobDefaults
 from ..domain.planning import (
     DispatchAssignment,
     ExecutionPlan,
-    PreferenceResolution,
+    ResolvedSetting,
+    SettingsResolution,
     WorkUnit,
     plan_matches_intent,
 )
@@ -43,8 +46,9 @@ from ..domain.types import (
     OperationKind,
     PassScope,
     QueueMode,
-    SemanticLevel,
     SettingsPolicy,
+    VacuumLevel,
+    WaterLevel,
     WorkUnitState,
 )
 from .codec_values import (
@@ -69,7 +73,41 @@ from .codec_values import (
 from .integrity import JsonObject
 from .room_codec import _number, decode_room_registry, encode_room_registry
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
+
+# Schema-3 vocabulary mapped to the ordered ladders; `None` leaves the value to
+# the job defaults (see internal dev doc "Persistenz und Testbelege").
+_V3_VALUES: dict[str, dict[str, str | None]] = {
+    "vacuum_power": {
+        "off": None,
+        "low": "low",
+        "standard": "standard",
+        "medium": "standard",
+        "high": "high",
+        "maximum": "maximum",
+        "auto": None,
+    },
+    "mop_intensity": {
+        "off": None,
+        "low": "low",
+        "standard": "medium",
+        "medium": "medium",
+        "high": "high",
+        "maximum": "high",
+        "auto": None,
+    },
+    "mop_route": {
+        "standard": "standard",
+        "deep": "deep",
+        "fast": "fast",
+        "auto": None,
+    },
+}
+_LEGACY_SETTING_NAMES = {
+    "vacuum_level": "vacuum_power",
+    "water_level": "mop_intensity",
+    "mop_route": "mop_route",
+}
 
 
 def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
@@ -105,6 +143,7 @@ def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
         "blocked_robots": dict(state.blocked_robots),
         "room_registry": encode_room_registry(state.room_registry),
         "queue_grace_seconds": state.queue_grace_seconds,
+        "job_defaults": _encode_job_defaults(state.job_defaults),
         "queue_run": None
         if state.queue_run is None
         else {
@@ -183,6 +222,7 @@ def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
             },
             room_registry=decode_room_registry(_object(data["room_registry"])),
             queue_grace_seconds=_number(data.get("queue_grace_seconds", 900)),
+            job_defaults=_decode_job_defaults(data.get("job_defaults")),
             queue_run=_decode_queue_run(data.get("queue_run")),
             templates={
                 key: _decode_template(_object(value))
@@ -226,16 +266,116 @@ def _decode_queue_run(value: object) -> QueueRun | None:
     )
 
 
+def migrate_schema_three(data: JsonObject) -> OrchestratorState:
+    """Map the schema-3 vocabulary and give unstarted jobs concrete settings."""
+    if data.get("schema_version") != 3:
+        raise StorageIntegrityError("unsupported_previous_storage_schema")
+    try:
+        upgraded = _upgrade_schema_three(data)
+    except (KeyError, TypeError, ValueError) as err:
+        raise StorageIntegrityError("invalid_storage_payload") from err
+    return _with_default_settings(decode_orchestrator_state(upgraded))
+
+
+def _upgrade_schema_three(data: JsonObject) -> JsonObject:
+    def preferences(raw: object) -> JsonObject:
+        values = _object(raw)
+        return {
+            name: None
+            if values.get(name) is None
+            else _V3_VALUES[name][_str(values[name])]
+            for name in _V3_VALUES
+        }
+
+    def intent(raw: object) -> JsonObject:
+        value = _object(raw)
+        return {**value, "preferences": preferences(value["preferences"])}
+
+    plans = {
+        key: {
+            **_object(plan),
+            "work_units": [
+                {**unit, "preferences": preferences(unit["preferences"])}
+                for unit in _object_list(_object(plan)["work_units"])
+            ],
+        }
+        for key, plan in _string_mapping(data["plans"]).items()
+    }
+    requested_by_unit = {
+        _str(unit["work_unit_id"]): _object(unit["preferences"])
+        for plan in plans.values()
+        for unit in _object_list(plan["work_units"])
+    }
+
+    def assignment(raw: object) -> JsonObject:
+        value = dict(_object(raw))
+        resolution = _object(value.pop("preference_resolution"))
+        applied = set(_string_list(resolution["applied"]))
+        omitted = set(_string_list(resolution["omitted"]))
+        requested = requested_by_unit.get(_str(value["work_unit_id"]), {})
+        return {
+            **value,
+            "settings": [
+                {
+                    "name": name,
+                    "requested": requested[name],
+                    "applied": None if name in omitted else requested[name],
+                }
+                for name in _V3_VALUES
+                if requested.get(name) is not None and name in applied | omitted
+            ],
+        }
+
+    return {
+        **data,
+        "schema_version": SCHEMA_VERSION,
+        "jobs": {
+            key: {**_object(job), "intent": intent(_object(job)["intent"])}
+            for key, job in _string_mapping(data["jobs"]).items()
+        },
+        "plans": plans,
+        "assignments": {
+            key: assignment(value)
+            for key, value in _string_mapping(data["assignments"]).items()
+        },
+        "templates": {
+            key: {**_object(value), "intent": intent(_object(value)["intent"])}
+            for key, value in _string_mapping(data.get("templates", {})).items()
+        },
+        "job_defaults": _encode_job_defaults(JobDefaults()),
+    }
+
+
+def _with_default_settings(state: OrchestratorState) -> OrchestratorState:
+    """Give plan-free jobs and templates every setting their mode uses."""
+    defaults = state.job_defaults
+    return replace(
+        state,
+        jobs={
+            key: job
+            if job.plan_id is not None
+            else replace(job, intent=defaults.complete(job.intent))
+            for key, job in state.jobs.items()
+        },
+        templates={
+            key: replace(template, intent=defaults.complete(template.intent))
+            for key, template in state.templates.items()
+        },
+    )
+
+
 def migrate_schema_two(data: JsonObject) -> OrchestratorState:
     """Import legacy area identities without inventing grants or device mappings."""
     if data.get("schema_version") != 2:
         raise StorageIntegrityError("unsupported_previous_storage_schema")
-    candidate = {
-        **data,
-        "schema_version": SCHEMA_VERSION,
-        "room_registry": encode_room_registry(RoomRegistry()),
-    }
-    state = decode_orchestrator_state(candidate)
+    candidate = _upgrade_schema_three(
+        {
+            **data,
+            "schema_version": 3,
+            "room_registry": encode_room_registry(RoomRegistry()),
+        }
+    )
+    state = _with_default_settings(decode_orchestrator_state(candidate))
     rooms = {
         target.area_id: Room(
             target.area_id, target.area_id, area_id=target.area_id, area_missing=True
@@ -284,7 +424,7 @@ def migrate_schema_one(data: JsonObject, installation_id: str) -> OrchestratorSt
                 _str(old_unit["adapter"]),
                 tuple(_string_list(old_unit["adapter_targets"])),
                 _str(old_unit["capability_revision"]),
-                PreferenceResolution((), ()),
+                SettingsResolution(),
             )
             work_unit_states[attempt.work_unit_id] = _legacy_work_unit_state(
                 attempt.state
@@ -402,9 +542,9 @@ def _migrate_intent(data: JsonObject) -> JobIntent:
 
     def one_setting(name: str, enum_type: type[_EnumT]) -> _EnumT | None:
         values = {
-            _enum(enum_type, item[name])
+            value
             for item in operations
-            if item[name] is not None
+            if (value := _legacy_setting(name, item[name], enum_type)) is not None
         }
         if len(values) > 1:
             raise StorageIntegrityError(f"ambiguous_legacy_{name}")
@@ -430,8 +570,8 @@ def _migrate_intent(data: JsonObject) -> JobIntent:
         ),
         mode=mode,
         preferences=CleaningPreferences(
-            cast(SemanticLevel | None, one_setting("vacuum_level", SemanticLevel)),
-            cast(SemanticLevel | None, one_setting("water_level", SemanticLevel)),
+            cast(VacuumLevel | None, one_setting("vacuum_level", VacuumLevel)),
+            cast(WaterLevel | None, one_setting("water_level", WaterLevel)),
             cast(MopRoute | None, one_setting("mop_route", MopRoute)),
         ),
         passes=next(iter(pass_counts)),
@@ -453,24 +593,32 @@ def _migrate_plan(data: JsonObject) -> ExecutionPlan:
 def _migrate_work_unit(data: JsonObject) -> WorkUnit:
     operation = _object(data["operation"])
     kind = _str(operation["kind"])
+    operation_kind = (
+        OperationKind.VACUUM_AND_MOP if kind == "combined" else OperationKind(kind)
+    )
     return WorkUnit(
         work_unit_id=_str(data["work_unit_id"]),
-        operation=(
-            OperationKind.VACUUM_AND_MOP if kind == "combined" else OperationKind(kind)
-        ),
+        operation=operation_kind,
         canonical_targets=tuple(_string_list(data["canonical_targets"])),
         map_context=_optional_str(data["map_context"]),
         passes=_int(_object(operation["passes"])["count"]),
         pass_scope=_enum(PassScope, _object(operation["passes"])["scope"]),
         preferences=CleaningPreferences(
-            _optional_enum(SemanticLevel, operation["vacuum_level"]),
-            _optional_enum(SemanticLevel, operation["water_level"]),
-            _optional_enum(MopRoute, operation["mop_route"]),
-        ),
+            _legacy_setting("vacuum_level", operation["vacuum_level"], VacuumLevel),
+            _legacy_setting("water_level", operation["water_level"], WaterLevel),
+            _legacy_setting("mop_route", operation["mop_route"], MopRoute),
+        ).only(settings_for_operation(operation_kind)),
         settings_policy=SettingsPolicy.BEST_EFFORT,
         vendor_extension=_migrate_vendor_extension(operation["vendor_extension"]),
         depends_on=tuple(_string_list(data["depends_on"])),
     )
+
+
+def _legacy_setting(name: str, value: Any, enum_type: type[_EnumT]) -> _EnumT | None:
+    if value is None:
+        return None
+    mapped = _V3_VALUES[_LEGACY_SETTING_NAMES[name]].get(_str(value), _str(value))
+    return None if mapped is None else _enum(enum_type, mapped)
 
 
 def _migrate_vendor_extension(value: Any) -> VendorExtension | None:
@@ -721,11 +869,7 @@ def _decode_intent(data: JsonObject) -> JobIntent:
         ),
         mode=_enum(CleaningMode, data["mode"]),
         name=_optional_str(data["name"]),
-        preferences=CleaningPreferences(
-            _optional_enum(SemanticLevel, preferences["vacuum_power"]),
-            _optional_enum(SemanticLevel, preferences["mop_intensity"]),
-            _optional_enum(MopRoute, preferences["mop_route"]),
-        ),
+        preferences=_decode_preferences(preferences),
         passes=_int(data["passes"]),
         source=_optional_str(data["source"]),
         reason=_optional_str(data["reason"]),
@@ -799,11 +943,7 @@ def _decode_work_unit(data: JsonObject) -> WorkUnit:
         map_context=_optional_str(data["map_context"]),
         passes=_int(data["passes"]),
         pass_scope=_enum(PassScope, data["pass_scope"]),
-        preferences=CleaningPreferences(
-            _optional_enum(SemanticLevel, preferences["vacuum_power"]),
-            _optional_enum(SemanticLevel, preferences["mop_intensity"]),
-            _optional_enum(MopRoute, preferences["mop_route"]),
-        ),
+        preferences=_decode_preferences(preferences),
         settings_policy=_enum(SettingsPolicy, data["settings_policy"]),
         vendor_extension=extension,
         depends_on=tuple(_string_list(data["depends_on"])),
@@ -821,15 +961,14 @@ def _encode_assignment(assignment: DispatchAssignment) -> JsonObject:
         "adapter": assignment.adapter,
         "adapter_targets": list(assignment.adapter_targets),
         "capability_revision": assignment.capability_revision,
-        "preference_resolution": {
-            "applied": list(assignment.preference_resolution.applied),
-            "omitted": list(assignment.preference_resolution.omitted),
-        },
+        "settings": [
+            {"name": item.name, "requested": item.requested, "applied": item.applied}
+            for item in assignment.settings.settings
+        ],
     }
 
 
 def _decode_assignment(data: JsonObject) -> DispatchAssignment:
-    resolution = _object(data["preference_resolution"])
     return DispatchAssignment(
         _str(data["work_unit_id"]),
         _str(data["robot_id"]),
@@ -837,9 +976,15 @@ def _decode_assignment(data: JsonObject) -> DispatchAssignment:
         _str(data["adapter"]),
         tuple(_string_list(data["adapter_targets"])),
         _str(data["capability_revision"]),
-        PreferenceResolution(
-            tuple(_string_list(resolution["applied"])),
-            tuple(_string_list(resolution["omitted"])),
+        SettingsResolution(
+            tuple(
+                ResolvedSetting(
+                    _str(item["name"]),
+                    _str(item["requested"]),
+                    _optional_str(item["applied"]),
+                )
+                for item in _object_list(data["settings"])
+            )
         ),
         {
             key: tuple(_string_list(value))
@@ -984,4 +1129,39 @@ def _decode_lease(data: JsonObject) -> RobotLease:
         _str(data["attempt_id"]),
         _str(data["work_unit_id"]),
         _int(data["generation"]),
+    )
+
+
+def _decode_preferences(data: JsonObject) -> CleaningPreferences:
+    return CleaningPreferences(
+        _optional_enum(VacuumLevel, data["vacuum_power"]),
+        _optional_enum(WaterLevel, data["mop_intensity"]),
+        _optional_enum(MopRoute, data["mop_route"]),
+    )
+
+
+def _encode_job_defaults(defaults: JobDefaults) -> JsonObject:
+    return {
+        "mode": defaults.mode.value,
+        "vacuum_power": defaults.vacuum_power.value,
+        "mop_intensity": defaults.mop_intensity.value,
+        "mop_route": defaults.mop_route.value,
+        "passes": defaults.passes,
+        "settings_policy": defaults.settings_policy.value,
+        "configured": defaults.configured,
+    }
+
+
+def _decode_job_defaults(value: object) -> JobDefaults:
+    if value is None:
+        return JobDefaults()
+    data = _object(value)
+    return JobDefaults(
+        _enum(CleaningMode, data["mode"]),
+        _enum(VacuumLevel, data["vacuum_power"]),
+        _enum(WaterLevel, data["mop_intensity"]),
+        _enum(MopRoute, data["mop_route"]),
+        _int(data["passes"]),
+        _enum(SettingsPolicy, data["settings_policy"]),
+        _bool(data["configured"]),
     )

@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
+from typing import Any, cast
 from uuid import uuid4
 
 from ..domain.correlation import correlate_run
@@ -89,6 +90,7 @@ def changed_scopes(
                     "mode",
                     "queue_run",
                     "queue_grace_seconds",
+                    "job_defaults",
                     "blocked_robots",
                     "jobs",
                 ),
@@ -352,6 +354,19 @@ class VacuumOrchestrator:
 
         await self._mutate(update)
 
+    async def async_configure_job_defaults(self, changes: Mapping[str, object]) -> None:
+        """Replace named defaults for future jobs; existing jobs keep their values."""
+
+        def configure(state: OrchestratorState) -> OrchestratorState:
+            defaults = replace(
+                state.job_defaults, **cast(dict[str, Any], changes), configured=True
+            )
+            if defaults == state.job_defaults:
+                return state
+            return replace(state, commit_id=state.commit_id + 1, job_defaults=defaults)
+
+        await self._mutate(configure)
+
     async def async_delete_job(self, job_id: str) -> None:
         """Delete queued or terminal work."""
         await self._mutate(lambda state: state.delete_job(job_id))
@@ -395,6 +410,7 @@ class VacuumOrchestrator:
                         state.robot_leases,
                         frozenset(state.blocked_robots),
                         state.active_target_sets(),
+                        defaults=state.job_defaults,
                     )
                 except PlanningError:
                     continue
@@ -728,6 +744,7 @@ class VacuumOrchestrator:
                 frozenset(previous.blocked_robots),
                 previous.active_target_sets(excluding_job_id=job_id),
                 requested_robot_id,
+                defaults=previous.job_defaults,
             )
             adapter = self._adapters.get(assignment.robot_id)
             if adapter is None or not assignment_supports_current_capabilities(

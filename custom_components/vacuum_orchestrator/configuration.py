@@ -20,7 +20,7 @@ from .const import (
     SUBENTRY_TYPE_ROBOT,
 )
 from .domain.errors import ConflictError, ValidationError
-from .domain.types import MopRoute, OperationKind, SemanticLevel
+from .domain.types import MopRoute, OperationKind, VacuumLevel, WaterLevel
 from .domain.validation import identifier, seconds
 
 
@@ -201,8 +201,8 @@ def validate_robot_configuration(
         result[name] = dict(options)
         valid_keys = {
             "mode_options": {item.value for item in OperationKind},
-            "vacuum_levels": {item.value for item in SemanticLevel},
-            "water_levels": {item.value for item in SemanticLevel},
+            "vacuum_levels": {item.value for item in VacuumLevel},
+            "water_levels": {item.value for item in WaterLevel},
             "mop_routes": {item.value for item in MopRoute},
         }.get(name)
         if valid_keys is not None and not set(options) <= valid_keys:
@@ -233,6 +233,29 @@ def validate_robot_configuration(
             and subentry.data.get("source_robot_id") == result["source_robot_id"]
         ):
             raise ConflictError("already_configured")
+    return result
+
+
+# Minor-0 mapping keys; `None` drops a key that has no rung any more.
+_MINOR_ZERO_KEYS: dict[str, dict[str, str | None]] = {
+    "vacuum_levels": {"medium": "standard", "auto": None},
+    "water_levels": {"standard": "medium", "maximum": "high", "auto": None},
+    "mop_routes": {"auto": None},
+}
+
+
+def migrate_setting_mappings(data: Mapping[str, Any]) -> dict[str, Any]:
+    """Move minor-0 option mapping keys onto the ordered ladders."""
+    result = dict(data)
+    for name, renamed in _MINOR_ZERO_KEYS.items():
+        options = data.get(name)
+        if not isinstance(options, Mapping):
+            continue
+        migrated = {key: value for key, value in options.items() if key not in renamed}
+        for key, target in renamed.items():
+            if target is not None and key in options:
+                migrated.setdefault(target, options[key])
+        result[name] = migrated
     return result
 
 

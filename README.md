@@ -226,16 +226,33 @@ cannot carry it out. An accepted action does not mean cleaning has finished.
 The last mode waits for the vacuuming phase to succeed before starting the
 mopping phase. Different compatible robots may perform the two phases.
 
-Optional preferences include `vacuum_power`, `mop_intensity`, `mop_route` and
-`passes`. Available settings depend on the robot. `settings_policy: strict`
-requires the requested preferences; `best_effort` allows unsupported optional
-preferences to be omitted. Neither changes your rooms or cleaning mode.
+A job carries these settings, each as an ordered scale:
+
+| Setting | Values, lowest first |
+|---|---|
+| `vacuum_power` | `low`, `standard`, `high`, `maximum`, `maximum_plus` |
+| `mop_intensity` | `low`, `medium`, `high` |
+| `mop_route` | `fast`, `standard`, `deep`, `deep_plus` |
+
+A job keeps only the settings its mode uses. Anything you leave out, including
+`mode`, `passes` and `settings_policy`, comes from the job defaults. Out of the
+box these are `vacuum`, `standard`, `medium`, `standard`, one pass and
+`best_effort`; change them with `configure_job_defaults`. A change applies only
+to jobs created afterwards.
+
+Before every start VOI sets each setting the job uses on the robot, so nothing
+carries over from the previous job. If the robot lacks the requested level,
+`best_effort` uses the nearest level it offers (the lower one on a tie) and
+skips settings the robot does not have at all. `strict` starts the job only on
+a robot that offers every requested value. Neither changes your rooms or
+cleaning mode.
 
 ### Manage the queue
 
 | What you want to do | Action and fields |
 |---|---|
-| Add a job | `create_job`: `areas`, `mode`, optional `name` |
+| Add a job | `create_job`: `areas`, optional `mode`, `name` and settings |
+| Set the job defaults | `configure_job_defaults`: the defaults to change |
 | Edit a waiting job | `update_job`: `job_id` and the fields to change |
 | Change its position | `move_job`: `job_id`, `direction: up`, `down`, `top` or `bottom` |
 | Start processing | `run_queue` |

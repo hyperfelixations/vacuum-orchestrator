@@ -38,11 +38,45 @@ class ExecutionPlan:
 
 
 @dataclass(frozen=True, slots=True)
-class PreferenceResolution:
-    """Explicit result of resolving optional settings for one robot."""
+class ResolvedSetting:
+    """Requested and applied semantic value of one setting for one robot."""
 
-    applied: tuple[str, ...]
-    omitted: tuple[str, ...]
+    name: str
+    requested: str
+    applied: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class SettingsResolution:
+    """Every setting an operation uses, translated for one robot.
+
+    `applied` is `None` only where the robot has no such setting at all.
+    """
+
+    settings: tuple[ResolvedSetting, ...] = ()
+
+    @property
+    def applied(self) -> tuple[str, ...]:
+        """Name settings the adapter sets on the robot."""
+        return tuple(item.name for item in self.settings if item.applied is not None)
+
+    @property
+    def omitted(self) -> tuple[str, ...]:
+        """Name settings the robot does not have."""
+        return tuple(item.name for item in self.settings if item.applied is None)
+
+    @property
+    def substituted(self) -> tuple[str, ...]:
+        """Name settings applied with the nearest supported value."""
+        return tuple(
+            item.name
+            for item in self.settings
+            if item.applied is not None and item.applied != item.requested
+        )
+
+    def value(self, name: str) -> str | None:
+        """Return the applied value of one setting."""
+        return next((item.applied for item in self.settings if item.name == name), None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,7 +89,7 @@ class DispatchAssignment:
     adapter: str
     adapter_targets: tuple[str, ...]
     capability_revision: str
-    preference_resolution: PreferenceResolution
+    settings: SettingsResolution
     room_targets: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:

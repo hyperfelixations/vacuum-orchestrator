@@ -12,16 +12,19 @@ from custom_components.vacuum_orchestrator.domain.dispatching import RobotSelect
 from custom_components.vacuum_orchestrator.domain.errors import (
     ConflictError,
     DispatchNotStartedError,
+    PlanningError,
 )
 from custom_components.vacuum_orchestrator.domain.intents import CleaningPreferences
 from custom_components.vacuum_orchestrator.domain.planning import WorkUnit
 from custom_components.vacuum_orchestrator.domain.rooms import Room, RoomBinding
 from custom_components.vacuum_orchestrator.domain.types import (
+    MopRoute,
     OperationKind,
     PassScope,
     RobotAvailabilityState,
-    SemanticLevel,
     SettingsPolicy,
+    VacuumLevel,
+    WaterLevel,
 )
 from tests.adapters.dispatching import dispatch
 
@@ -150,9 +153,10 @@ async def test_native_segments_preserve_all_targets_and_repeats(
         "command": "app_segment_clean",
         "params": [{"segments": [16, 17], "repeat": 3}],
     }
-    assert SemanticLevel.AUTO not in adapter.profile.capabilities.vacuum_levels
-    assert SemanticLevel.OFF not in adapter.profile.capabilities.water_levels
-    assert adapter.option_mapping("vacuum_levels")["maximum"] == "max_plus"
+    assert VacuumLevel.OFF not in adapter.profile.capabilities.vacuum_levels
+    assert WaterLevel.OFF not in adapter.profile.capabilities.water_levels
+    assert adapter.option_mapping("vacuum_levels")["maximum"] == "max"
+    assert adapter.option_mapping("vacuum_levels")["maximum_plus"] == "max_plus"
 
 
 async def test_map_changes_or_disappearing_segments_reject_the_entire_assignment(
@@ -387,7 +391,7 @@ async def test_preferences_that_change_mode_block_cleaning(hass: HomeAssistant) 
 
     hass.services.async_register("select", "select_option", select)
     work = replace(
-        unit(), preferences=CleaningPreferences(mop_intensity=SemanticLevel.LOW)
+        unit(), preferences=CleaningPreferences(mop_intensity=WaterLevel.LOW)
     )
     with pytest.raises(ConflictError, match="cleaning_mode_not_confirmed"):
         await dispatch(adapter, work, await assignment(adapter, work))
@@ -409,3 +413,159 @@ async def test_map_read_failure_is_proven_before_start(
     with pytest.raises(DispatchNotStartedError, match="map_read_failed"):
         await dispatch(adapter, work, selected)
     assert not calls
+
+
+_MODE_RESET = {
+    "vacuum": ("balanced", "off", "standard"),
+    "vac_and_mop": ("balanced", "medium", "standard"),
+    "mop": ("off", "medium", "standard"),
+}
+
+
+def simulate_settings(hass: HomeAssistant) -> list[tuple[str, str]]:
+    """Behave like Roborock: only a mode change resets the other settings."""
+    log: list[tuple[str, str]] = []
+
+    def put(entity_id: str, value: str) -> None:
+        state = hass.states.get(entity_id)
+        hass.states.async_set(entity_id, value, dict(state.attributes))
+
+    def fan(value: str) -> None:
+        state = hass.states.get("vacuum.test")
+        hass.states.async_set(
+            "vacuum.test", state.state, {**state.attributes, "fan_speed": value}
+        )
+
+    async def select(call: ServiceCall) -> None:
+        entity_id, option = call.data["entity_id"], call.data["option"]
+        log.append((entity_id, option))
+        current = hass.states.get(entity_id).state
+        if entity_id == "select.cleaning_mode" and current != option:
+            speed, water, route = _MODE_RESET[option]
+            fan(speed)
+            put("select.mop_intensity", water)
+            put("select.mop_route", route)
+        put(entity_id, option)
+
+    async def set_fan(call: ServiceCall) -> None:
+        log.append(("vacuum.test", call.data["fan_speed"]))
+        fan(call.data["fan_speed"])
+
+    hass.services.async_register("select", "select_option", select)
+    hass.services.async_register("vacuum", "set_fan_speed", set_fan)
+    return log
+
+
+def device_settings(hass: HomeAssistant) -> tuple[str, ...]:
+    return (
+        hass.states.get("select.cleaning_mode").state,
+        hass.states.get("vacuum.test").attributes["fan_speed"],
+        hass.states.get("select.mop_intensity").state,
+        hass.states.get("select.mop_route").state,
+    )
+
+
+async def test_job_defaults_overwrite_every_setting_of_the_previous_job(
+    hass: HomeAssistant,
+) -> None:
+    adapter, _, _calls = setup_robot(hass)
+    await adapter.async_refresh_maps()
+    log = simulate_settings(hass)
+    first = replace(
+        unit(),
+        preferences=CleaningPreferences(
+            VacuumLevel.MAXIMUM, WaterLevel.HIGH, MopRoute.DEEP_PLUS
+        ),
+    )
+    await dispatch(adapter, first, await assignment(adapter, first))
+    # The route select publishes no deep_plus; best effort takes deep.
+    assert device_settings(hass) == ("vac_and_mop", "max", "high", "deep")
+    log.clear()
+
+    second = replace(unit(), work_unit_id="second")
+    await dispatch(adapter, second, await assignment(adapter, second))
+
+    assert device_settings(hass) == ("vac_and_mop", "balanced", "medium", "standard")
+    assert log == [
+        ("vacuum.test", "balanced"),
+        ("select.mop_intensity", "medium"),
+        ("select.mop_route", "standard"),
+    ]
+
+
+@pytest.mark.parametrize("previous_mode", ["vacuum", "vac_and_mop"])
+async def test_end_state_is_the_same_with_and_without_a_mode_switch(
+    hass: HomeAssistant, previous_mode: str
+) -> None:
+    adapter, _, _calls = setup_robot(hass)
+    await adapter.async_refresh_maps()
+    log = simulate_settings(hass)
+    state = hass.states.get("select.cleaning_mode")
+    hass.states.async_set("select.cleaning_mode", previous_mode, state.attributes)
+    hass.states.async_set(
+        "select.mop_route", "deep", {"options": ["standard", "deep", "fast"]}
+    )
+    work = replace(
+        unit(),
+        preferences=CleaningPreferences(
+            VacuumLevel.HIGH, WaterLevel.LOW, MopRoute.FAST
+        ),
+    )
+
+    await dispatch(adapter, work, await assignment(adapter, work))
+
+    assert device_settings(hass) == ("vac_and_mop", "turbo", "low", "fast")
+    switched = previous_mode != "vac_and_mop"
+    assert (log[0] == ("select.cleaning_mode", "vac_and_mop")) is switched
+
+
+async def test_fixed_vacuum_mode_switches_unused_water_off(
+    hass: HomeAssistant,
+) -> None:
+    adapter, _, _calls = setup_robot(
+        hass, config={"fixed_mode": "vacuum"}, unbound=("cleaning_mode",)
+    )
+    await adapter.async_refresh_maps()
+    log = simulate_settings(hass)
+    work = replace(unit(), operation=OperationKind.VACUUM)
+
+    await dispatch(adapter, work, await assignment(adapter, work))
+
+    assert ("select.mop_intensity", "off") in log
+    assert hass.states.get("select.mop_intensity").state == "off"
+
+
+@pytest.mark.parametrize(
+    ("options", "expected"),
+    [
+        (["off", "low", "medium", "high"], ("low", "medium", "high")),
+        (["off", "mild", "moderate", "intense"], ("mild", "moderate", "intense")),
+        (["off", "mild", "standard", "intense"], ("mild", "standard", "intense")),
+    ],
+)
+def test_water_levels_map_one_to_one_onto_published_options(
+    hass: HomeAssistant, options: list[str], expected: tuple[str, ...]
+) -> None:
+    adapter, _, _calls = setup_robot(hass)
+    hass.states.async_set("select.mop_intensity", options[1], {"options": options})
+    mapping = adapter.option_mapping("water_levels")
+    assert (mapping["low"], mapping["medium"], mapping["high"]) == expected
+    assert adapter.profile.capabilities.water_levels == frozenset(
+        {WaterLevel.LOW, WaterLevel.MEDIUM, WaterLevel.HIGH}
+    )
+    assert adapter.option_mapping("mop_routes") == {
+        "fast": "fast",
+        "standard": "standard",
+        "deep": "deep",
+    }
+
+
+async def test_unavailable_setting_entity_never_starts(hass: HomeAssistant) -> None:
+    adapter, _, calls = setup_robot(hass)
+    await adapter.async_refresh_maps()
+    hass.states.async_set("select.mop_route", "unavailable")
+    work = unit()
+    assert adapter.profile.capabilities.unavailable_settings == frozenset({"mop_route"})
+    with pytest.raises(PlanningError, match="setting_entity_unavailable"):
+        await assignment(adapter, work)
+    assert calls == []

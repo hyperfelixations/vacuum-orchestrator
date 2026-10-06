@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from ..const import API_VERSION, INTEGRATION_VERSION
+from ..domain.job_defaults import JobDefaults
+from ..domain.planning import SettingsResolution
 from ..domain.queue import Job, OrchestratorState
 from ..domain.readiness import ReadinessReport
 from ..domain.rooms import Room
@@ -20,6 +22,27 @@ def view_metadata(core: VacuumOrchestrator) -> dict[str, object]:
         "commit_id": core.state.commit_id,
         "runtime_id": core.runtime_id,
         "runtime_sequence": core.runtime_sequence,
+    }
+
+
+def present_settings(resolution: SettingsResolution) -> list[dict[str, object]]:
+    """List requested and applied values; `applied` null: no such setting."""
+    return [
+        {"name": item.name, "requested": item.requested, "applied": item.applied}
+        for item in resolution.settings
+    ]
+
+
+def present_job_defaults(defaults: JobDefaults) -> dict[str, object]:
+    """Serialize the values new jobs receive when they name none."""
+    return {
+        "mode": defaults.mode.value,
+        "vacuum_power": defaults.vacuum_power.value,
+        "mop_intensity": defaults.mop_intensity.value,
+        "mop_route": defaults.mop_route.value,
+        "passes": defaults.passes,
+        "settings_policy": defaults.settings_policy.value,
+        "configured": defaults.configured,
     }
 
 
@@ -123,6 +146,7 @@ def present_queue(
             for source_id, reason in state.blocked_robots.items()
         ],
         "queue_grace_seconds": state.queue_grace_seconds,
+        "job_defaults": present_job_defaults(state.job_defaults),
         "queue_run": None
         if state.queue_run is None
         else {

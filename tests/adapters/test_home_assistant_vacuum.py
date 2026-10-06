@@ -22,7 +22,8 @@ from custom_components.vacuum_orchestrator.domain.errors import (
 from custom_components.vacuum_orchestrator.domain.intents import CleaningPreferences
 from custom_components.vacuum_orchestrator.domain.planning import (
     DispatchAssignment,
-    PreferenceResolution,
+    ResolvedSetting,
+    SettingsResolution,
     WorkUnit,
 )
 from custom_components.vacuum_orchestrator.domain.rooms import Room, RoomBinding
@@ -30,8 +31,8 @@ from custom_components.vacuum_orchestrator.domain.types import (
     OperationKind,
     PassScope,
     RobotAvailabilityState,
-    SemanticLevel,
     SettingsPolicy,
+    VacuumLevel,
 )
 from custom_components.vacuum_orchestrator.ports.command_scope import command_guard
 from tests.adapters.dispatching import dispatch
@@ -108,7 +109,7 @@ async def test_dispatch_uses_public_clean_area_with_late_assignment(
         "roborock",
         ("kitchen",),
         adapter.profile.capabilities.revision,
-        PreferenceResolution((), ()),
+        SettingsResolution(),
     )
 
     await dispatch(adapter, unit, assignment)
@@ -159,7 +160,7 @@ async def test_invalid_assignment_and_empty_targets_are_rejected(
     adapter = _adapter(hass)
     unit = _unit()
     wrong = DispatchAssignment(
-        "other", "robot", "source", "roborock", (), "caps", PreferenceResolution((), ())
+        "other", "robot", "source", "roborock", (), "caps", SettingsResolution()
     )
     with pytest.raises(ConflictError, match="assignment_work_unit_mismatch"):
         await dispatch(adapter, unit, wrong)
@@ -178,7 +179,7 @@ def replace_assignment_work_unit(
         assignment.adapter,
         assignment.adapter_targets,
         assignment.capability_revision,
-        assignment.preference_resolution,
+        assignment.settings,
     )
 
 
@@ -196,7 +197,13 @@ def _assignment(
         "roborock",
         ("kitchen",),
         adapter.profile.capabilities.revision,
-        PreferenceResolution(applied, ()),
+        SettingsResolution(
+            tuple(
+                ResolvedSetting(name, value, value)
+                for name in applied
+                if (value := getattr(unit.preferences, name).value)
+            )
+        ),
     )
 
 
@@ -340,7 +347,7 @@ async def test_settings_are_acknowledged_in_order_before_start(
     hass.services.async_register("vacuum", "set_fan_speed", fan)
     hass.services.async_register("vacuum", "clean_area", clean)
     unit = replace(
-        _unit(), preferences=CleaningPreferences(vacuum_power=SemanticLevel.LOW)
+        _unit(), preferences=CleaningPreferences(vacuum_power=VacuumLevel.LOW)
     )
     await dispatch(adapter, unit, _assignment(adapter, unit, applied=("vacuum_power",)))
     assert calls == ["mode", "fan", "clean"]

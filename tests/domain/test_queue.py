@@ -24,7 +24,7 @@ from custom_components.vacuum_orchestrator.domain.planning import (
     DispatchAssignment,
     ExecutionPlan,
     Planner,
-    PreferenceResolution,
+    SettingsResolution,
     WorkUnit,
 )
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
@@ -71,7 +71,7 @@ def _dispatch_parts(
     RobotLease,
 ]:
     state = OrchestratorState.empty("installation").add_job("a", intent, NOW)
-    plan = Planner().create_plan("a", intent)
+    plan = Planner().create_plan("a", state.jobs["a"].intent)
     unit = plan.work_units[0]
     assignment = DispatchAssignment(
         unit.work_unit_id,
@@ -80,7 +80,7 @@ def _dispatch_parts(
         "fake",
         ("16",),
         "caps",
-        PreferenceResolution((), ()),
+        SettingsResolution(),
     )
     attempt = ExecutionAttempt(
         "attempt",

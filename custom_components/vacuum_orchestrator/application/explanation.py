@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from ..domain.dispatching import RobotSelector
 from ..domain.errors import ConflictError, PlanningError
-from ..domain.planning import Planner, PreferenceResolution
+from ..domain.planning import Planner, SettingsResolution
 from ..domain.readiness import ReadinessReport
 from ..domain.types import OperationKind
 
@@ -21,7 +21,7 @@ class RobotExplanation:
     operation: OperationKind
     readiness: ReadinessReport
     eligibility_reason: str | None
-    preferences: PreferenceResolution | None
+    settings: SettingsResolution | None
 
 
 async def explain_job(
@@ -45,7 +45,7 @@ async def explain_job(
                 job_id, robot_id=robot_id, operation=unit.operation
             )
             reason = None
-            preferences = None
+            settings = None
             try:
                 assignment = RobotSelector().assign(
                     unit,
@@ -55,11 +55,12 @@ async def explain_job(
                     frozenset(state.blocked_robots),
                     state.active_target_sets(excluding_job_id=job_id),
                     robot_id,
+                    defaults=state.job_defaults,
                 )
-                preferences = assignment.preference_resolution
+                settings = assignment.settings
             except PlanningError as err:
                 reason = err.code
             results.append(
-                RobotExplanation(robot_id, unit.operation, report, reason, preferences)
+                RobotExplanation(robot_id, unit.operation, report, reason, settings)
             )
     return tuple(results)

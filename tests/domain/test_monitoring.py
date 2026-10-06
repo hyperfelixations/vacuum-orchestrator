@@ -19,7 +19,7 @@ from custom_components.vacuum_orchestrator.domain.monitoring import (
 )
 from custom_components.vacuum_orchestrator.domain.planning import (
     DispatchAssignment,
-    PreferenceResolution,
+    SettingsResolution,
     WorkUnit,
 )
 from custom_components.vacuum_orchestrator.domain.types import (
@@ -44,7 +44,7 @@ UNIT = WorkUnit(
     (),
 )
 ASSIGNMENT = DispatchAssignment(
-    "unit", "robot", "source", "fake", ("16",), "caps", PreferenceResolution((), ())
+    "unit", "robot", "source", "fake", ("16",), "caps", SettingsResolution()
 )
 ATTEMPT = ExecutionAttempt(
     "attempt",

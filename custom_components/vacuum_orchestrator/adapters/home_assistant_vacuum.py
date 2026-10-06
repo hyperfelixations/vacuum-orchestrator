@@ -36,6 +36,7 @@ from ..domain.errors import (
     ValidationError,
 )
 from ..domain.execution import ExecutionPolicy
+from ..domain.intents import settings_for_operation
 from ..domain.planning import DispatchAssignment, WorkUnit
 from ..domain.rooms import Room
 from ..domain.types import (
@@ -43,13 +44,21 @@ from ..domain.types import (
     OperationKind,
     PassScope,
     RobotAvailabilityState,
-    SemanticLevel,
+    VacuumLevel,
+    WaterLevel,
 )
 from ..ha_context import physical_context
 from ..ports.command_scope import check_command_authorization
 from ..ports.telemetry import TelemetryEvent, report_adapter
 from .discovery import candidate_for, resolve_entity_id
 from .settings import async_set_option, available_options, supported_mapping
+
+# Semantic setting, option-map name and companion role (None: the vacuum itself).
+_SETTINGS = (
+    ("vacuum_power", "vacuum_levels", None),
+    ("mop_intensity", "water_levels", "mop_intensity"),
+    ("mop_route", "mop_routes", "mop_route"),
+)
 
 
 class HomeAssistantVacuumAdapter:
@@ -257,12 +266,17 @@ class HomeAssistantVacuumAdapter:
             map_context=None,
             passes=PassCapability(1, PassScope.TARGET_SET),
             vacuum_levels=frozenset(
-                SemanticLevel(key) for key in settings["vacuum_levels"]
+                VacuumLevel(key)
+                for key in settings["vacuum_levels"]
+                if key != VacuumLevel.OFF
             ),
             water_levels=frozenset(
-                SemanticLevel(key) for key in settings["water_levels"]
+                WaterLevel(key)
+                for key in settings["water_levels"]
+                if key != WaterLevel.OFF
             ),
             mop_routes=frozenset(MopRoute(key) for key in settings["mop_routes"]),
+            unavailable_settings=self.unavailable_settings(),
             cancel=CancelSemantics.STOP
             if self.supported_features & VacuumEntityFeature.STOP
             else CancelSemantics.UNSUPPORTED,
@@ -294,6 +308,16 @@ class HomeAssistantVacuumAdapter:
                 self._configuration.get("cancel_timeout_seconds", 120),
                 self._configuration.get("settle_seconds", 30),
             ),
+        )
+
+    def unavailable_settings(self) -> frozenset[str]:
+        """Name settings whose bound companion entity offers no options now."""
+        return frozenset(
+            name
+            for name, _option_map, role in _SETTINGS
+            if role is not None
+            and self.role_bound(role)
+            and not available_options(self._hass, self.role_entity(role))
         )
 
     @property
@@ -457,40 +481,38 @@ class HomeAssistantVacuumAdapter:
             )
         elif self._configuration.get("fixed_mode") != unit.operation.value:
             raise ConflictError("unsupported_operation")
-        for key, setting, value, entity_id in (
-            (
-                "vacuum_power",
-                "vacuum_levels",
-                unit.preferences.vacuum_power,
-                self.entity_id,
-            ),
-            (
-                "mop_intensity",
-                "water_levels",
-                unit.preferences.mop_intensity,
-                self.role_entity("mop_intensity"),
-            ),
-            (
-                "mop_route",
-                "mop_routes",
-                unit.preferences.mop_route,
-                self.role_entity("mop_route"),
-            ),
-        ):
-            if key not in assignment.preference_resolution.applied:
-                if key in assignment.preference_resolution.omitted:
-                    report_adapter(TelemetryEvent.SETTING, "omitted", key)
+        # Every setting the operation uses is set explicitly after the mode,
+        # because a mode switch may reset them; see dev doc "Gerätezustand".
+        used = settings_for_operation(unit.operation)
+        for name, option_map, role in _SETTINGS:
+            entity_id = self.entity_id if role is None else self.role_entity(role)
+            if name not in used:
+                # Without a mode switch, an unused axis must be switched off.
+                off = self.option_mapping(option_map).get("off")
+                if mode is None and off is not None and entity_id is not None:
+                    await self._ensure_available()
+                    await async_set_option(
+                        self._hass,
+                        entity_id,
+                        off,
+                        confirmation_seconds=timeout,
+                        setting=name,
+                    )
                 continue
-            option = (
-                self.option_mapping(setting).get(value.value)
-                if value is not None
-                else None
-            )
+            value = assignment.settings.value(name)
+            if value is None:
+                report_adapter(TelemetryEvent.SETTING, "omitted", name)
+                continue
+            option = self.option_mapping(option_map).get(value)
             if option is None or entity_id is None:
                 raise ConflictError("setting_option_unavailable")
             await self._ensure_available()
             await async_set_option(
-                self._hass, entity_id, option, confirmation_seconds=timeout, setting=key
+                self._hass,
+                entity_id,
+                option,
+                confirmation_seconds=timeout,
+                setting=name,
             )
         observed = self.observed_operation()
         if mode is not None and observed != unit.operation:

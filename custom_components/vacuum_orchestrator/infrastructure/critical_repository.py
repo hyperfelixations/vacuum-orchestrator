@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from typing import Protocol
 
 from ..domain.errors import ConflictError, StorageIntegrityError
@@ -10,7 +11,6 @@ from .codec import (
     decode_orchestrator_state,
     encode_orchestrator_state,
     migrate_schema_one,
-    migrate_schema_two,
 )
 from .integrity import JsonObject, seal_snapshot, verify_snapshot
 
@@ -66,8 +66,11 @@ class CriticalOrchestratorRepository:
             raise StorageIntegrityError("critical_commit_semantic_mismatch")
 
 
+PreviousStore = tuple[SnapshotBackend, Callable[[JsonObject], OrchestratorState]]
+
+
 class MigratingOrchestratorRepository:
-    """Load the current store or non-destructively import the legacy store once."""
+    """Load the current store or non-destructively import an older store once."""
 
     def __init__(
         self,
@@ -75,24 +78,24 @@ class MigratingOrchestratorRepository:
         legacy_backend: SnapshotBackend,
         installation_id: str,
         *,
-        previous_backend: SnapshotBackend | None = None,
+        previous_stores: Sequence[PreviousStore] = (),
     ) -> None:
         if not legacy_backend.atomic_writes:
             raise StorageIntegrityError("atomic_writes_required")
         self._current = current
         self._legacy_backend = legacy_backend
         self._installation_id = installation_id
-        self._previous_backend = previous_backend
+        self._previous_stores = tuple(previous_stores)
 
     async def async_load(self) -> OrchestratorState | None:
-        """Prefer current storage and import V2 before considering legacy V1."""
+        """Prefer current storage, then the newest previous store, then legacy V1."""
         current = await self._current.async_load()
         if current is not None:
             return current
-        if self._previous_backend is not None:
-            previous = await self._previous_backend.async_load_raw()
+        for backend, migrate in self._previous_stores:
+            previous = await backend.async_load_raw()
             if previous is not None:
-                migrated = migrate_schema_two(verify_snapshot(previous))
+                migrated = migrate(verify_snapshot(previous))
                 if migrated.installation_id != self._installation_id:
                     raise StorageIntegrityError(
                         "installation_storage_ownership_mismatch"

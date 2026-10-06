@@ -58,7 +58,8 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Migrate the pre-release fleet entry to the single-installation contract."""
+    """Migrate older entries to the single-installation contract and ladders."""
+    from .configuration import migrate_setting_mappings
     from .const import (
         CONF_INSTALLATION_ID,
         CONFIG_ENTRY_MINOR_VERSION,
@@ -72,7 +73,16 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             data={CONF_INSTALLATION_ID: DOMAIN},
             title="Vacuum Orchestrator",
             version=CONFIG_ENTRY_VERSION,
-            minor_version=CONFIG_ENTRY_MINOR_VERSION,
+            minor_version=0,
         )
-        return True
-    return entry.version == CONFIG_ENTRY_VERSION
+    if entry.version != CONFIG_ENTRY_VERSION:
+        return False
+    if entry.minor_version < 1:
+        for subentry in list(entry.subentries.values()):
+            data = migrate_setting_mappings(subentry.data)
+            if data != subentry.data:
+                hass.config_entries.async_update_subentry(entry, subentry, data=data)
+        hass.config_entries.async_update_entry(
+            entry, minor_version=CONFIG_ENTRY_MINOR_VERSION
+        )
+    return True

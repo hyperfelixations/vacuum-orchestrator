@@ -573,9 +573,6 @@
     "plan_storage_key_mismatch": {
       "message": "Stored data is inconsistent: a plan is stored under the wrong key"
     },
-    "preference_conflicts_with_cleaning_mode": {
-      "message": "A setting of off conflicts with the cleaning mode"
-    },
     "preparation_timeout": {
       "message": "Preparing the robot took too long; no cleaning command was sent"
     },

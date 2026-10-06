@@ -7,7 +7,14 @@ from enum import Enum
 from typing import TypeAlias, TypeVar
 
 from .errors import ValidationError
-from .types import CleaningMode, MopRoute, SemanticLevel, SettingsPolicy
+from .types import (
+    CleaningMode,
+    MopRoute,
+    OperationKind,
+    SettingsPolicy,
+    VacuumLevel,
+    WaterLevel,
+)
 
 JsonScalar: TypeAlias = str | int | float | bool | None
 
@@ -26,13 +33,47 @@ class TargetRef:
             raise ValidationError("empty_map_context")
 
 
+SETTING_NAMES = ("vacuum_power", "mop_intensity", "mop_route")
+_OPERATION_SETTINGS: dict[OperationKind, frozenset[str]] = {
+    OperationKind.VACUUM: frozenset({"vacuum_power"}),
+    OperationKind.MOP: frozenset({"mop_intensity", "mop_route"}),
+    OperationKind.VACUUM_AND_MOP: frozenset(SETTING_NAMES),
+}
+_MODE_SETTINGS: dict[CleaningMode, frozenset[str]] = {
+    CleaningMode.VACUUM: _OPERATION_SETTINGS[OperationKind.VACUUM],
+    CleaningMode.MOP: _OPERATION_SETTINGS[OperationKind.MOP],
+    CleaningMode.VACUUM_AND_MOP: frozenset(SETTING_NAMES),
+    CleaningMode.VACUUM_THEN_MOP: frozenset(SETTING_NAMES),
+}
+
+
+def settings_for_operation(operation: OperationKind) -> frozenset[str]:
+    """Name the settings one atomic operation uses."""
+    return _OPERATION_SETTINGS[operation]
+
+
+def settings_for_mode(mode: CleaningMode) -> frozenset[str]:
+    """Name the settings any phase of a cleaning mode uses."""
+    return _MODE_SETTINGS[mode]
+
+
 @dataclass(frozen=True, slots=True)
 class CleaningPreferences:
-    """Desired tuning; core cleaning semantics do not depend on support."""
+    """Requested semantic settings; `None` only in records from before defaults."""
 
-    vacuum_power: SemanticLevel | None = None
-    mop_intensity: SemanticLevel | None = None
+    vacuum_power: VacuumLevel | None = None
+    mop_intensity: WaterLevel | None = None
     mop_route: MopRoute | None = None
+
+    def __post_init__(self) -> None:
+        if self.vacuum_power is VacuumLevel.OFF or self.mop_intensity is WaterLevel.OFF:
+            raise ValidationError("unsupported_cleaning_preference", "off")
+
+    def only(self, names: frozenset[str]) -> CleaningPreferences:
+        """Drop the settings a mode or operation does not use."""
+        return CleaningPreferences(
+            *(getattr(self, name) if name in names else None for name in SETTING_NAMES)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,14 +121,9 @@ class JobIntent:
     def __post_init__(self) -> None:
         if not self.areas:
             raise ValidationError("job_requires_area")
-        if (
-            self.mode is not CleaningMode.MOP
-            and self.preferences.vacuum_power is SemanticLevel.OFF
-        ) or (
-            self.mode is not CleaningMode.VACUUM
-            and self.preferences.mop_intensity is SemanticLevel.OFF
-        ):
-            raise ValidationError("preference_conflicts_with_cleaning_mode")
+        object.__setattr__(
+            self, "preferences", self.preferences.only(settings_for_mode(self.mode))
+        )
         area_ids = [target.area_id for target in self.areas]
         if len(area_ids) != len(set(area_ids)):
             raise ValidationError("duplicate_area")
@@ -127,8 +163,8 @@ class JobIntentPatch:
     areas: tuple[TargetRef, ...] | PatchValue = UNSET
     mode: CleaningMode | PatchValue = UNSET
     name: str | PatchValue | None = UNSET
-    vacuum_power: SemanticLevel | PatchValue | None = UNSET
-    mop_intensity: SemanticLevel | PatchValue | None = UNSET
+    vacuum_power: VacuumLevel | PatchValue | None = UNSET
+    mop_intensity: WaterLevel | PatchValue | None = UNSET
     mop_route: MopRoute | PatchValue | None = UNSET
     passes: int | PatchValue = UNSET
     source: str | PatchValue | None = UNSET
