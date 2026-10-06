@@ -255,6 +255,7 @@ cleaning mode.
 | What you want to do | Action and fields |
 |---|---|
 | Add a job | `create_job`: `areas`, optional `mode`, `name` and settings |
+| Add a job and start it now | `create_job` with `start: true`, optional `robot_id` |
 | Set the job defaults | `configure_job_defaults`: the defaults to change |
 | Edit a waiting job | `update_job`: `job_id` and the fields to change |
 | Change its position | `move_job`: `job_id`, `direction: up`, `down`, `top` or `bottom` |
@@ -269,6 +270,10 @@ cleaning mode.
 
 All action names use the prefix `vacuum_orchestrator.`. Pausing lets already
 started jobs finish, including their remaining phases.
+
+`create_job` with `start: true` creates the job and reserves a robot in one
+step. If the job cannot start right now, for example because a room is not
+released or no robot is free, nothing is created and the error says why.
 
 Ending the queue keeps waiting jobs in the queue but starts nothing new. With
 `running_jobs: finish` (the default) started jobs, including a pending mopping

@@ -91,6 +91,18 @@ create_job:
           options:
           - best_effort
           - strict
+    start:
+      name: Start now
+      description: Create and start the job in one step. If it cannot start now,
+        nothing is created.
+      default: false
+      selector:
+        boolean: {}
+    robot_id:
+      name: Robot ID
+      description: Only with start; otherwise VOI chooses the robot.
+      selector:
+        text: {}
 update_job:
   name: Update job
   description: Change only the supplied fields of a queued job.

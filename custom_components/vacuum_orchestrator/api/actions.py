@@ -120,6 +120,13 @@ CANCEL_SCHEMA = vol.Schema(
     }
 )
 ROBOT_SCHEMA = vol.Schema({vol.Required(ATTR_ROBOT_ID): cv.string})
+ATTR_START = "start"
+CREATE_JOB_SCHEMA = CREATE_SCHEMA.extend(
+    {
+        vol.Optional(ATTR_START, default=False): cv.boolean,
+        vol.Optional(ATTR_ROBOT_ID): cv.string,
+    }
+)
 ATTR_RUNNING_JOBS = "running_jobs"
 END_QUEUE_SCHEMA = vol.Schema(
     {
@@ -150,16 +157,30 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
 
     async def create_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
-        job_id = await _translate_errors(
-            runtime.orchestrator.async_create_job(
-                intent_from_data(
-                    dict(call.data),
-                    runtime.orchestrator.eligible_room_ids,
-                    runtime.orchestrator.state.job_defaults,
-                )
+        intent = intent_from_data(
+            dict(call.data),
+            runtime.orchestrator.eligible_room_ids,
+            runtime.orchestrator.state.job_defaults,
+        )
+        if not call.data[ATTR_START]:
+            job_id = await _translate_errors(
+                runtime.orchestrator.async_create_job(intent)
+            )
+            return _command_response(call, runtime, {ATTR_JOB_ID: job_id})
+        job_id, assignment = await _translate_errors(
+            runtime.orchestrator.async_create_and_start_job(
+                intent, call.data.get(ATTR_ROBOT_ID)
             )
         )
-        return _command_response(call, runtime, {ATTR_JOB_ID: job_id})
+        return _command_response(
+            call,
+            runtime,
+            {
+                ATTR_JOB_ID: job_id,
+                ATTR_ROBOT_ID: assignment.robot_id,
+                "settings": cast(JsonValueType, present_settings(assignment.settings)),
+            },
+        )
 
     async def update_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
@@ -302,7 +323,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
             | view_metadata(runtime.orchestrator),
         )
 
-    _register(hass, SERVICE_CREATE_JOB, create_job, CREATE_SCHEMA)
+    _register(hass, SERVICE_CREATE_JOB, create_job, CREATE_JOB_SCHEMA)
     _register(hass, SERVICE_UPDATE_JOB, update_job, UPDATE_SCHEMA)
     _register(hass, SERVICE_DELETE_JOB, delete_job, JOB_SCHEMA)
     _register(hass, SERVICE_MOVE_JOB, move_job, MOVE_SCHEMA)

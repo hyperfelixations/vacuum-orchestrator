@@ -468,6 +468,22 @@ class VacuumOrchestrator:
             raise PlanningError("job_not_startable")
         return assignment
 
+    async def async_create_and_start_job(
+        self, intent: JobIntent, robot_id: str | None = None
+    ) -> tuple[str, DispatchAssignment]:
+        """Create and reserve atomically; nothing is created if it cannot start.
+
+        Failures after the reservation behave like `start_job`; see dev doc
+        "Sofortstart".
+        """
+        job_id = self._id_factory()
+        assignment = await self._async_dispatch_job(
+            job_id, robot_id, origin=command_origin.get(), intent=intent
+        )
+        if assignment is None:
+            raise PlanningError("job_not_startable")
+        return job_id, assignment
+
     async def async_run_queue(self) -> tuple[DispatchAssignment, ...]:
         """Enable queue processing and dispatch every currently safe candidate."""
         await self.async_set_queue_mode(QueueMode.RUNNING)
@@ -765,10 +781,22 @@ class VacuumOrchestrator:
         requested_robot_id: str | None,
         *,
         origin: CommandOrigin | None = None,
+        intent: JobIntent | None = None,
     ) -> DispatchAssignment | None:
+        """Select, reserve and start; with `intent`, create the job in that commit."""
         observations = await self._observe_robots()
         async with self._lock:
-            previous = self._verified_state()
+            committed = self._verified_state()
+            previous = (
+                committed
+                if intent is None
+                else committed.add_job(
+                    job_id,
+                    self._canonical_intent(committed, intent),
+                    self._clock(),
+                    origin=origin,
+                )
+            )
             job = previous.jobs.get(job_id)
             if job is None:
                 raise ConflictError("unknown_job")
@@ -836,7 +864,9 @@ class VacuumOrchestrator:
             prepared = admitted.prepare_dispatch(
                 job.job_id, plan, unit, assignment, attempt, lease, now
             )
-            await self._commit_locked(previous, prepared)
+            await self._commit_locked(
+                committed, replace(prepared, commit_id=committed.commit_id + 1)
+            )
             session = self._sessions.setdefault(
                 assignment.source_robot_id,
                 RobotSession(assignment.source_robot_id, generation - 1),

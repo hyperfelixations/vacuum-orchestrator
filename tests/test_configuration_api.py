@@ -516,6 +516,32 @@ async def test_cancel_and_return_actions_expose_the_return_choice(hass, configur
         await call(hass, "cancel_job", job_id=job, after_cancel="home")
 
 
+async def test_create_job_can_start_atomically(hass, configured):
+    await configured.runtime_data.controller.scheduler.async_close()
+    core = configured.runtime_data.orchestrator
+    room = (await call(hass, "create_room", name="Office"))["room_id"]
+    adapter = RecordingAdapter(RecordingBackend(), "robot", targets=(room,))
+    adapter._persisted_attempt_state = lambda: None
+    await core.async_replace_adapters({"robot": adapter})
+    await core.rooms.async_grant(room, ReleaseKind.PERMANENT)
+
+    started = await call(hass, "create_job", areas=[room], start=True, robot_id="robot")
+
+    assert started["robot_id"] == "robot" and started["settings"] == [
+        {"name": "vacuum_power", "requested": "standard", "applied": None}
+    ]
+    assert (await call(hass, "get_job", job_id=started["job_id"]))["state"] in {
+        "dispatching",
+        "running",
+    }
+    jobs = set(core.state.jobs)
+    with raises_code("target_overlap_active"):
+        await call(hass, "create_job", areas=[room], start=True)
+    assert set(core.state.jobs) == jobs
+    queued = await call(hass, "create_job", areas=[room], start=False)
+    assert set(queued) == {"api_version", "commit_id", "job_id"}
+
+
 async def test_job_request_origin_survives_queueing_and_reaches_physical_calls(
     hass, configured
 ):
