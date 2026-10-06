@@ -261,6 +261,7 @@ cleaning mode.
 | Start processing | `run_queue` |
 | Pause new jobs | `pause_queue` |
 | Continue processing | `resume_queue` |
+| End the queue run | `end_queue`: optional `running_jobs: finish` or `cancel`, `after_cancel` |
 | Cancel one job | `cancel_job`: `job_id`, optional `after_cancel: stay` or `return_to_dock` |
 | Send an idle robot home | `return_robot`: `robot_id` |
 | Try a failed or cancelled job again | `retry_job`: `job_id` |
@@ -268,6 +269,13 @@ cleaning mode.
 
 All action names use the prefix `vacuum_orchestrator.`. Pausing lets already
 started jobs finish, including their remaining phases.
+
+Ending the queue keeps waiting jobs in the queue but starts nothing new. With
+`running_jobs: finish` (the default) started jobs, including a pending mopping
+phase, complete first; the run then closes at once instead of waiting for the
+quiet period. With `cancel` they are cancelled like `cancel_job` and the run
+closes immediately. Either way, room permissions granted for this run end with
+it. `resume_queue` while the queue is ending keeps the run going.
 
 Cancelling a running job stops the robot. With `after_cancel: stay` (the
 default) it remains where it stopped and is free for the next job as soon as it

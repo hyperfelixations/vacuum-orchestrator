@@ -395,42 +395,57 @@ class VacuumOrchestrator:
     async def async_reconcile_queue_run(self) -> None:
         """Track queue quiescence without mistaking blocked pending work for a run."""
         await self.runs.async_set_mode(self.state.mode)
-        if self.state.mode is not QueueMode.RUNNING:
+        run = self.state.queue_run
+        if self.state.mode is not QueueMode.RUNNING and not (run and run.ending):
             return
         observations = await self._observe_robots()
 
         def ready(state: OrchestratorState) -> bool:
             for job_id in state.queue:
-                if self.readiness_for_job(job_id).state.value != "ready":
-                    continue
                 job = state.jobs[job_id]
+                if self.job_readiness(state, job).state.value != "ready":
+                    continue
                 unit = self._planner.create_plan(job_id, job.intent).work_units[0]
-                profiles = tuple(
-                    adapter.profile
-                    for adapter in self._adapters.values()
-                    if self.readiness_for_job(
-                        job_id,
-                        robot_id=adapter.profile.robot_id,
-                        operation=unit.operation,
-                    ).state.value
-                    == "ready"
-                )
                 try:
-                    self._selector.assign(
-                        unit,
-                        profiles,
-                        observations,
-                        state.robot_leases,
-                        frozenset(state.blocked_robots),
-                        state.active_target_sets(),
-                        defaults=state.job_defaults,
-                    )
+                    self.select_robot(state, job, unit, observations)
                 except PlanningError:
                     continue
                 return True
             return False
 
         await self.runs.async_reconcile(ready)
+
+    async def async_end_queue(
+        self, *, cancel_running: bool = False, return_to_dock: bool = False
+    ) -> None:
+        """End the queue run: let started jobs finish, or cancel them first.
+
+        Cancelling uses the cancel_job path for every started job and then
+        closes the run at once; see dev doc "Queue-Ende".
+        """
+        failure: Exception | None = None
+        if cancel_running:
+            started = [
+                job
+                for job in self.state.jobs.values()
+                if job.state in {JobState.DISPATCHING, JobState.RUNNING}
+            ]
+            if return_to_dock:
+                for job in started:
+                    attempt = self.state.attempts.get(job.active_attempt_id or "")
+                    robot = attempt and self._adapters.get(attempt.robot_id)
+                    if robot and not robot.profile.capabilities.returns_to_dock:
+                        raise ConflictError("return_to_dock_unsupported")
+            for job in started:
+                try:
+                    await self.async_cancel_job(
+                        job.job_id, return_to_dock=return_to_dock
+                    )
+                except Exception as err:
+                    failure = failure or err
+        await self.runs.async_end(close=cancel_running)
+        if failure is not None:
+            raise failure
 
     async def async_retry_job(self, job_id: str) -> str:
         """Create a distinct retry while preserving terminal history."""

@@ -214,6 +214,28 @@ pause_queue:
 resume_queue:
   name: Resume queue
   description: Resume automatic queue processing and dispatch safe jobs.
+end_queue:
+  name: End queue
+  description: End the current queue run. Waiting jobs stay queued. With finish, started
+    jobs (including a pending mopping phase) complete first and the run then closes
+    without a grace period; with cancel, they are cancelled and the run closes now.
+  fields:
+    running_jobs:
+      name: Started jobs
+      default: finish
+      selector:
+        select:
+          options:
+          - finish
+          - cancel
+    after_cancel:
+      name: After cancelling
+      default: stay
+      selector:
+        select:
+          options:
+          - stay
+          - return_to_dock
 cancel_job:
   name: Cancel job
   description: Cancel queued work or safely stop an active attempt. With return_to_dock

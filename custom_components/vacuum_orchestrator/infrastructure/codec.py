@@ -152,6 +152,9 @@ def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
             "grace_seconds": state.queue_run.grace_seconds,
             "idle_since": _encode_optional_datetime(state.queue_run.idle_since),
             "completed_at": _encode_optional_datetime(state.queue_run.completed_at),
+            "end_requested_at": _encode_optional_datetime(
+                state.queue_run.end_requested_at
+            ),
         },
         "templates": {
             key: {
@@ -263,6 +266,7 @@ def _decode_queue_run(value: object) -> QueueRun | None:
         _number(data["grace_seconds"]),
         _decode_optional_datetime(data["idle_since"]),
         _decode_optional_datetime(data["completed_at"]),
+        _decode_optional_datetime(data.get("end_requested_at")),
     )
 
 

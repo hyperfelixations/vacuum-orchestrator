@@ -499,6 +499,19 @@ async def test_cancel_and_return_actions_expose_the_return_choice(hass, configur
     assert adapter.cancel_returns == [True]
     with raises_code("robot_already_executing"):
         await call(hass, "return_robot", robot_id="robot")
+    second = (await call(hass, "create_job", areas=[room]))["job_id"]
+    await call(hass, "run_queue")
+    ended = await call(hass, "end_queue")
+    assert ended["mode"] == "paused"
+    assert (await call(hass, "get_queue"))["queue_run"]["ending"] is True
+    assert (await call(hass, "get_job", job_id=second))["state"] == "queued"
+    ended = await call(
+        hass, "end_queue", running_jobs="cancel", after_cancel="return_to_dock"
+    )
+    assert ended["mode"] == "idle"
+    assert (await call(hass, "get_queue"))["queue_run"]["ending"] is False
+    with pytest.raises(vol.Invalid):
+        await call(hass, "end_queue", running_jobs="abort")
     with pytest.raises(vol.Invalid):
         await call(hass, "cancel_job", job_id=job, after_cancel="home")
 

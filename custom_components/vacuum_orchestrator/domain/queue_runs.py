@@ -16,6 +16,8 @@ class QueueRun:
     grace_seconds: float = 900
     idle_since: datetime | None = None
     completed_at: datetime | None = None
+    # Set by end_queue: no new jobs, close without grace once nothing runs.
+    end_requested_at: datetime | None = None
 
     def __post_init__(self) -> None:
         identifier(self.run_id)
@@ -23,7 +25,7 @@ class QueueRun:
         seconds(self.grace_seconds)
         if self.grace_seconds > 86400:
             raise ValidationError("queue_grace_out_of_range")
-        for value in (self.idle_since, self.completed_at):
+        for value in (self.idle_since, self.completed_at, self.end_requested_at):
             if value is not None:
                 instant(value)
                 if value < self.started_at:
@@ -37,6 +39,11 @@ class QueueRun:
     def active(self) -> bool:
         """Return whether this run still owns its run-scoped room grants."""
         return self.completed_at is None
+
+    @property
+    def ending(self) -> bool:
+        """Return whether this active run closes as soon as nothing runs."""
+        return self.active and self.end_requested_at is not None
 
     @property
     def deadline(self) -> datetime | None:

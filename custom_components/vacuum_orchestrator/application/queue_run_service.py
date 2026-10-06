@@ -63,6 +63,8 @@ class QueueRunService:
                         rooms[key] = replace(
                             room, release=replace(grant, queue_run_id=run.run_id)
                         )
+            elif mode is QueueMode.RUNNING and run is not None and run.ending:
+                run = replace(run, end_requested_at=None)
             elif mode is not QueueMode.RUNNING and run is not None and run.active:
                 run = replace(run, idle_since=None)
             if state.mode is mode and state.queue_run == run:
@@ -77,11 +79,46 @@ class QueueRunService:
 
         await self._mutate(change)
 
+    async def async_end(self, *, close: bool) -> None:
+        """Stop starting jobs; close now or once nothing started is left running.
+
+        Waiting jobs stay queued; unbound run grants stay for the next run.
+        """
+
+        def end(state: OrchestratorState) -> OrchestratorState:
+            run = state.queue_run
+            if run is None or not run.active:
+                return (
+                    state
+                    if state.mode is QueueMode.IDLE
+                    else replace(
+                        state, commit_id=state.commit_id + 1, mode=QueueMode.IDLE
+                    )
+                )
+            now = self._clock()
+            if close or not _running(state):
+                return _closed(state, run, now)
+            ending = replace(
+                run, idle_since=None, end_requested_at=run.end_requested_at or now
+            )
+            if state.mode is QueueMode.PAUSED and ending == run:
+                return state
+            return replace(
+                state,
+                commit_id=state.commit_id + 1,
+                mode=QueueMode.PAUSED,
+                queue_run=ending,
+            )
+
+        await self._mutate(end)
+
     async def async_reconcile(self, ready: Callable[[OrchestratorState], bool]) -> None:
         """Close only after rechecking current dispatchability under the writer lock."""
 
         def reconcile(state: OrchestratorState) -> OrchestratorState:
             run = state.queue_run
+            if run is not None and run.ending:
+                return state if _running(state) else _closed(state, run, self._clock())
             if state.mode is not QueueMode.RUNNING or run is None or not run.active:
                 return state
             unfinished = bool(state.robot_leases) or any(
@@ -107,21 +144,7 @@ class QueueRunService:
             now = self._clock()
             run = replace(run, idle_since=run.idle_since or now)
             if run.deadline is not None and now >= run.deadline:
-                rooms = {
-                    key: replace(room, release=None)
-                    if room.release
-                    and room.release.kind is ReleaseKind.QUEUE_RUN
-                    and room.release.queue_run_id == run.run_id
-                    else room
-                    for key, room in state.room_registry.rooms.items()
-                }
-                return replace(
-                    state,
-                    commit_id=state.commit_id + 1,
-                    mode=QueueMode.IDLE,
-                    queue_run=replace(run, completed_at=now),
-                    room_registry=replace(state.room_registry, rooms=rooms),
-                )
+                return _closed(state, run, now)
             return (
                 state
                 if run == state.queue_run
@@ -133,3 +156,32 @@ class QueueRunService:
             )
 
         await self._mutate(reconcile)
+
+
+def _running(state: OrchestratorState) -> bool:
+    """Return whether started work, including a pending next phase, remains."""
+    return bool(state.robot_leases) or any(
+        job.state in {JobState.DISPATCHING, JobState.RUNNING, JobState.CANCELING}
+        for job in state.jobs.values()
+    )
+
+
+def _closed(
+    state: OrchestratorState, run: QueueRun, now: datetime
+) -> OrchestratorState:
+    """Finish the run, go idle and revoke the grants bound to this run."""
+    rooms = {
+        key: replace(room, release=None)
+        if room.release
+        and room.release.kind is ReleaseKind.QUEUE_RUN
+        and room.release.queue_run_id == run.run_id
+        else room
+        for key, room in state.room_registry.rooms.items()
+    }
+    return replace(
+        state,
+        commit_id=state.commit_id + 1,
+        mode=QueueMode.IDLE,
+        queue_run=replace(run, idle_since=run.idle_since or now, completed_at=now),
+        room_registry=replace(state.room_registry, rooms=rooms),
+    )

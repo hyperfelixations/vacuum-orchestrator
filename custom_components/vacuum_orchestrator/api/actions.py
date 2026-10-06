@@ -21,6 +21,7 @@ from ..const import (
     SERVICE_CANCEL_JOB,
     SERVICE_CREATE_JOB,
     SERVICE_DELETE_JOB,
+    SERVICE_END_QUEUE,
     SERVICE_GET_JOB,
     SERVICE_GET_QUEUE,
     SERVICE_MOVE_JOB,
@@ -119,6 +120,15 @@ CANCEL_SCHEMA = vol.Schema(
     }
 )
 ROBOT_SCHEMA = vol.Schema({vol.Required(ATTR_ROBOT_ID): cv.string})
+ATTR_RUNNING_JOBS = "running_jobs"
+END_QUEUE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(ATTR_RUNNING_JOBS, default="finish"): vol.In(("finish", "cancel")),
+        vol.Optional(ATTR_AFTER_CANCEL, default="stay"): vol.In(
+            ("stay", "return_to_dock")
+        ),
+    }
+)
 EMPTY_SCHEMA = vol.Schema({})
 GET_QUEUE_SCHEMA = vol.Schema(
     {
@@ -217,6 +227,18 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
     async def resume_queue(call: ServiceCall) -> ServiceResponse | None:
         return await run_queue(call)
 
+    async def end_queue(call: ServiceCall) -> ServiceResponse | None:
+        runtime = await _runtime_for_call(hass, call)
+        await _translate_errors(
+            runtime.orchestrator.async_end_queue(
+                cancel_running=call.data[ATTR_RUNNING_JOBS] == "cancel",
+                return_to_dock=call.data[ATTR_AFTER_CANCEL] == "return_to_dock",
+            )
+        )
+        return _command_response(
+            call, runtime, {ATTR_MODE: runtime.orchestrator.state.mode.value}
+        )
+
     async def cancel_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
         await _translate_errors(
@@ -288,6 +310,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
     _register(hass, SERVICE_RUN_QUEUE, run_queue, EMPTY_SCHEMA)
     _register(hass, SERVICE_PAUSE_QUEUE, pause_queue, EMPTY_SCHEMA)
     _register(hass, SERVICE_RESUME_QUEUE, resume_queue, EMPTY_SCHEMA)
+    _register(hass, SERVICE_END_QUEUE, end_queue, END_QUEUE_SCHEMA)
     _register(hass, SERVICE_CANCEL_JOB, cancel_job, CANCEL_SCHEMA)
     _register(hass, SERVICE_RETURN_ROBOT, return_robot, ROBOT_SCHEMA)
     _register(hass, SERVICE_RETRY_JOB, retry_job, JOB_SCHEMA)

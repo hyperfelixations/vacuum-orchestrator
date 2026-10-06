@@ -174,6 +174,7 @@ def present_queue(
             "deadline": state.queue_run.deadline.isoformat()
             if state.queue_run.deadline
             else None,
+            "ending": state.queue_run.ending,
             "completed_at": state.queue_run.completed_at.isoformat()
             if state.queue_run.completed_at
             else None,
