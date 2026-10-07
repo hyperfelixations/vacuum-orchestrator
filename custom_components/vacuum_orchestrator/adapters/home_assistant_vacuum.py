@@ -38,7 +38,8 @@ from ..domain.errors import (
 from ..domain.execution import ExecutionPolicy
 from ..domain.intents import settings_for_operation
 from ..domain.planning import DispatchAssignment, WorkUnit
-from ..domain.rooms import Room
+from ..domain.reach import ReachStatus, RoomReach, reachable_targets, without_overlaps
+from ..domain.rooms import Room, RoomBinding
 from ..domain.types import (
     MopRoute,
     OperationKind,
@@ -72,7 +73,7 @@ class HomeAssistantVacuumAdapter:
         source_robot_id: str,
         entity_id: str,
         adapter_name: str = "home_assistant",
-        target_areas: tuple[str, ...] = (),
+        target_areas: tuple[str, ...] | None = None,
         last_clean_start_entity_id: str | None = None,
         last_clean_end_entity_id: str | None = None,
         configuration: Mapping[str, Any] | None = None,
@@ -179,57 +180,69 @@ class HomeAssistantVacuumAdapter:
             and all(isinstance(item, str) and item for item in value)
         }
 
-    def target_mapping(self) -> dict[str, str | tuple[str, ...]]:
-        """Map canonical rooms only to fully configured HA areas."""
-        areas = self.area_mapping()
-        allowed = set(self._target_areas)
-        result: dict[str, str | tuple[str, ...]] = {}
-        if self._rooms is None:
-            result = {area: area for area in allowed if area in areas}
-        for room in self._rooms().values() if self._rooms is not None else ():
-            explicit = any(item.robot_id == self._robot_id for item in room.bindings)
-            binding = next(
-                (
-                    item
-                    for item in room.bindings
-                    if item.robot_id == self._robot_id and item.map_id is None
-                ),
-                None,
-            )
-            if binding is not None:
-                if binding.map_id is None and all(
-                    target in areas for target in binding.target_ids
-                ):
-                    result[room.room_id] = binding.target_ids
-            elif not explicit and room.area_id in allowed and room.area_id in areas:
-                result[room.room_id] = room.area_id
-        physical = {
-            room_id: tuple(
-                segment
-                for area in ((targets,) if isinstance(targets, str) else targets)
-                for segment in areas[area]
-            )
-            for room_id, targets in result.items()
-        }
-        unique = self._without_overlapping_targets(physical)
-        return {
-            room_id: targets for room_id, targets in result.items() if room_id in unique
-        }
+    def rooms(self) -> tuple[Room, ...]:
+        """Canonical rooms; without a room registry, one per mapped area."""
+        if self._rooms is not None:
+            return tuple(self._rooms().values())
+        areas = (
+            self.area_mapping() if self._target_areas is None else self._target_areas
+        )
+        return tuple(Room(area, area, area_id=area) for area in areas)
 
-    @staticmethod
-    def _without_overlapping_targets(
-        targets: dict[str, tuple[str, ...]],
-    ) -> dict[str, str | tuple[str, ...]]:
-        """Reject room aliases that would share physical ownership or receipts."""
-        owners: dict[str, set[str]] = {}
-        for room_id, values in targets.items():
-            for value in values:
-                owners.setdefault(value, set()).add(room_id)
-        return {
-            room_id: values
-            for room_id, values in targets.items()
-            if all(len(owners[value]) == 1 for value in values)
-        }
+    def room_reach(self) -> tuple[RoomReach, ...]:
+        """Explain per room whether and with which targets this robot cleans it.
+
+        The HA area mapping is read live; the profile's `target_areas` only
+        restricts it. See internal dev doc "Raumerreichbarkeit".
+        """
+        areas = self.area_mapping()
+        return without_overlaps(self._room_reach(room, areas) for room in self.rooms())
+
+    def target_mapping(self) -> dict[str, tuple[str, ...]]:
+        """Return the executable targets of every reachable room."""
+        return reachable_targets(self.room_reach())
+
+    def _room_reach(
+        self, room: Room, areas: Mapping[str, tuple[str, ...]]
+    ) -> RoomReach:
+        bindings = tuple(
+            item for item in room.bindings if item.robot_id == self._robot_id
+        )
+        if bindings:
+            return self._bound_reach(room.room_id, bindings, areas)
+        if room.area_id is None:
+            return RoomReach(room.room_id, ReachStatus.NO_AREA)
+        if self._target_areas is not None and room.area_id not in self._target_areas:
+            return RoomReach(room.room_id, ReachStatus.AREA_EXCLUDED)
+        if room.area_id not in areas:
+            return RoomReach(room.room_id, ReachStatus.AREA_NOT_MAPPED)
+        return self._area_reach(room.room_id, areas[room.area_id], room.area_id)
+
+    def _bound_reach(
+        self,
+        room_id: str,
+        bindings: tuple[RoomBinding, ...],
+        areas: Mapping[str, tuple[str, ...]],
+    ) -> RoomReach:
+        """Use an explicit binding only when every HA area it names is mapped."""
+        binding = next((item for item in bindings if item.map_id is None), None)
+        if binding is None:
+            return RoomReach(room_id, ReachStatus.BINDING_INVALID)
+        missing = tuple(item for item in binding.target_ids if item not in areas)
+        if missing:
+            return RoomReach(room_id, ReachStatus.BINDING_INVALID, ignored=missing)
+        physical = tuple(
+            segment for area in binding.target_ids for segment in areas[area]
+        )
+        return RoomReach(
+            room_id, ReachStatus.REACHABLE, binding.target_ids, (), physical
+        )
+
+    def _area_reach(
+        self, room_id: str, segments: tuple[str, ...], area_id: str
+    ) -> RoomReach:
+        """Clean the HA area through `vacuum.clean_area`."""
+        return RoomReach(room_id, ReachStatus.REACHABLE, (area_id,), (), segments)
 
     @property
     def profile(self) -> RobotProfile:

@@ -65,7 +65,9 @@ def build_adapters(
             source_robot_id=source_id,
             entity_id=str(data[CONF_ROBOT_ENTITY_ID]),
             adapter_name=str(data.get(CONF_ADAPTER, "home_assistant")),
-            target_areas=tuple(str(item) for item in data.get(CONF_TARGET_AREAS, ())),
+            target_areas=None
+            if data.get(CONF_TARGET_AREAS) is None
+            else tuple(str(item) for item in data[CONF_TARGET_AREAS]),
             last_clean_start_entity_id=data.get(CONF_LAST_CLEAN_START_ENTITY_ID),
             last_clean_end_entity_id=data.get(CONF_LAST_CLEAN_END_ENTITY_ID),
             configuration=data,

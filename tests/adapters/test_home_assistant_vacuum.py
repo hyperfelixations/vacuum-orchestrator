@@ -26,6 +26,7 @@ from custom_components.vacuum_orchestrator.domain.planning import (
     SettingsResolution,
     WorkUnit,
 )
+from custom_components.vacuum_orchestrator.domain.reach import ReachStatus
 from custom_components.vacuum_orchestrator.domain.rooms import Room, RoomBinding
 from custom_components.vacuum_orchestrator.domain.types import (
     OperationKind,
@@ -236,7 +237,7 @@ def test_room_addressing_never_invents_mode_or_unmapped_targets(
         target_areas=("kitchen", "missing"),
     )
     assert unknown.profile.capabilities.operations == frozenset()
-    assert unknown.profile.capabilities.target_map == {"kitchen": "kitchen"}
+    assert unknown.profile.capabilities.target_map == {"kitchen": ("kitchen",)}
     before = known.profile.capabilities.revision
     er.async_get(hass).async_update_entity_options(
         "vacuum.test", "vacuum", {"area_mapping": {"kitchen": ["different"]}}
@@ -468,6 +469,10 @@ def test_canonical_rooms_require_complete_explicit_bindings(
     assert adapter.profile.capabilities.target_map == {}
     rooms.pop("auto")
     assert adapter.profile.capabilities.target_map == {"custom": ("kitchen",)}
+    reach = {item.room_id: item for item in adapter.room_reach()}
+    assert reach["incomplete"].status is ReachStatus.BINDING_INVALID
+    assert reach["incomplete"].ignored == ("missing",)
+    assert reach["wrong-map"].status is ReachStatus.BINDING_INVALID
 
 
 async def test_setting_disappearing_while_waiting_never_acknowledges(
@@ -519,7 +524,7 @@ def test_overlapping_physical_segments_are_excluded(hass: HomeAssistant):
         "vacuum",
         {"area_mapping": {"kitchen": ["16"], "hall": ["17"]}},
     )
-    assert adapter.target_mapping() == {"kitchen": "kitchen", "hall": "hall"}
+    assert adapter.target_mapping() == {"kitchen": ("kitchen",), "hall": ("hall",)}
 
 
 async def test_start_revalidates_after_boundary_without_service_call(

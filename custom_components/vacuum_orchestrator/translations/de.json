@@ -20,10 +20,13 @@
           "description": "Registrierten Saugroboter auswählen. Die erweiterte Konfiguration nimmt Rollen, unterstützte Modi, Zuordnungen, Bedingungen und Zeitlimits auf.",
           "data": {
             "robot_entity_id": "Saugroboter-Entität",
-            "target_areas": "Zugeordnete Home-Assistant-Bereiche",
+            "target_areas": "Auf Bereiche beschränken",
             "last_clean_start_entity_id": "Sensor für letzten Reinigungsstart",
             "last_clean_end_entity_id": "Sensor für letztes Reinigungsende",
             "advanced": "Erweiterte Konfiguration"
+          },
+          "data_description": {
+            "target_areas": "Leer lassen, um alle Bereiche zu reinigen, die diesem Saugroboter in Home Assistant zugeordnet sind."
           }
         },
         "reconfigure": {
@@ -31,10 +34,13 @@
           "description": "Registrierten Saugroboter auswählen. Die erweiterte Konfiguration nimmt Rollen, unterstützte Modi, Zuordnungen, Bedingungen und Zeitlimits auf.",
           "data": {
             "robot_entity_id": "Saugroboter-Entität",
-            "target_areas": "Zugeordnete Home-Assistant-Bereiche",
+            "target_areas": "Auf Bereiche beschränken",
             "last_clean_start_entity_id": "Sensor für letzten Reinigungsstart",
             "last_clean_end_entity_id": "Sensor für letztes Reinigungsende",
             "advanced": "Erweiterte Konfiguration"
+          },
+          "data_description": {
+            "target_areas": "Leer lassen, um alle Bereiche zu reinigen, die diesem Saugroboter in Home Assistant zugeordnet sind."
           }
         }
       },

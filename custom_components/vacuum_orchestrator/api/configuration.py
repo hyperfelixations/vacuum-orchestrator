@@ -368,6 +368,17 @@ def query_configuration(
                 "robot_id": robot_id,
                 "name": subentry.title,
                 "configuration": dict(subentry.data),
+                "reach": []
+                if adapter is None
+                else [
+                    {
+                        "room_id": item.room_id,
+                        "status": item.status.value,
+                        "targets": list(item.targets),
+                        "ignored": list(item.ignored),
+                    }
+                    for item in adapter.room_reach()
+                ],
                 "active": any(
                     lease.robot_id == robot_id
                     for lease in core.state.robot_leases.values()

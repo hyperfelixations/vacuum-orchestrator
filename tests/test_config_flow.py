@@ -125,7 +125,7 @@ async def test_pre_release_config_entry_migration_is_single_installation(
 
     assert await async_migrate_entry(hass, legacy)
     assert legacy.version == 2
-    assert legacy.minor_version == 1
+    assert legacy.minor_version == 2
     assert legacy.title == "Vacuum Orchestrator"
     assert legacy.data == {CONF_INSTALLATION_ID: DOMAIN}
 
@@ -168,10 +168,74 @@ async def test_minor_one_migration_moves_option_mappings_onto_the_ladders(
     assert migrated["old"]["vacuum_levels"] == {"low": "quiet", "standard": "balanced"}
     assert migrated["old"]["water_levels"] == {"high": "high", "medium": "moderate"}
     assert migrated["old"]["mop_routes"] == {"deep": "deep"}
-    assert migrated["plain"] == {CONF_ROBOT_ENTITY_ID: "x"}
-    assert entry.minor_version == 1
+    assert migrated["plain"] == {CONF_ROBOT_ENTITY_ID: "x", CONF_TARGET_AREAS: None}
+    assert entry.minor_version == 2
     assert await async_migrate_entry(hass, entry)
     assert {item.unique_id: item.data for item in entry.subentries.values()} == migrated
+
+
+async def test_minor_two_migration_follows_the_ha_mapping_where_lists_copied_it(
+    hass: HomeAssistant,
+) -> None:
+    registry = er.async_get(hass)
+    vacuum = registry.async_get_or_create("vacuum", "demo", "mapped")
+    registry.async_update_entity_options(
+        vacuum.entity_id,
+        "vacuum",
+        {"area_mapping": {"kitchen": ["16"], "hall": ["17", "18"]}},
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN}, version=2, minor_version=1
+    )
+    entry.add_to_hass(hass)
+    lists = {
+        "copy": ["hall", "kitchen"],
+        "copy_with_removed_area": ["kitchen", "hall", "cellar"],
+        "empty": [],
+        "restriction": ["kitchen"],
+    }
+    for unique_id, targets in lists.items():
+        hass.config_entries.async_add_subentry(
+            entry,
+            ConfigSubentry(
+                data=MappingProxyType(
+                    {
+                        CONF_ROBOT_ENTITY_ID: vacuum.entity_id,
+                        CONF_ROBOT_REGISTRY_ID: vacuum.id,
+                        CONF_TARGET_AREAS: targets,
+                    }
+                ),
+                subentry_type=SUBENTRY_TYPE_ROBOT,
+                title=unique_id,
+                unique_id=unique_id,
+            ),
+        )
+    hass.config_entries.async_add_subentry(
+        entry,
+        ConfigSubentry(
+            data=MappingProxyType(
+                {CONF_ROBOT_ENTITY_ID: "vacuum.gone", CONF_TARGET_AREAS: ["kitchen"]}
+            ),
+            subentry_type=SUBENTRY_TYPE_ROBOT,
+            title="unregistered",
+            unique_id="unregistered",
+        ),
+    )
+
+    assert await async_migrate_entry(hass, entry)
+
+    migrated = {
+        item.unique_id: item.data[CONF_TARGET_AREAS]
+        for item in entry.subentries.values()
+    }
+    assert migrated == {
+        "copy": None,
+        "copy_with_removed_area": None,
+        "empty": None,
+        "restriction": ["kitchen"],
+        "unregistered": ["kitchen"],
+    }
+    assert entry.minor_version == 2
 
 
 async def test_reconfigure_tracks_renames_and_blocks_active_robot(

@@ -11,6 +11,8 @@ from .const import DOMAIN
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
@@ -62,6 +64,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from .configuration import migrate_setting_mappings
     from .const import (
         CONF_INSTALLATION_ID,
+        CONF_TARGET_AREAS,
         CONFIG_ENTRY_MINOR_VERSION,
         CONFIG_ENTRY_VERSION,
         DOMAIN,
@@ -82,7 +85,39 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             data = migrate_setting_mappings(subentry.data)
             if data != subentry.data:
                 hass.config_entries.async_update_subentry(entry, subentry, data=data)
+    if entry.minor_version < 2:
+        for subentry in list(entry.subentries.values()):
+            hass.config_entries.async_update_subentry(
+                entry,
+                subentry,
+                data={
+                    **subentry.data,
+                    CONF_TARGET_AREAS: _area_restriction(hass, subentry.data),
+                },
+            )
+    if entry.minor_version < CONFIG_ENTRY_MINOR_VERSION:
         hass.config_entries.async_update_entry(
             entry, minor_version=CONFIG_ENTRY_MINOR_VERSION
         )
     return True
+
+
+def _area_restriction(hass: HomeAssistant, data: Mapping[str, Any]) -> list[str] | None:
+    """Keep only area lists that leave out a mapped area; copies follow HA live.
+
+    See internal dev doc "Raumerreichbarkeit".
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    from .adapters.discovery import mapped_areas
+    from .const import CONF_ROBOT_ENTITY_ID, CONF_ROBOT_REGISTRY_ID, CONF_TARGET_AREAS
+
+    targets = data.get(CONF_TARGET_AREAS)
+    if not isinstance(targets, list) or not targets:
+        return None
+    vacuum = er.async_get(hass).async_get(
+        str(data.get(CONF_ROBOT_REGISTRY_ID) or data.get(CONF_ROBOT_ENTITY_ID, ""))
+    )
+    if vacuum is not None and set(mapped_areas(vacuum)) <= set(targets):
+        return None
+    return list(targets)

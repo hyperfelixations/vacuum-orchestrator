@@ -56,6 +56,21 @@ def resolve_entity_id(hass: HomeAssistant, registry_id: str) -> str | None:
     return None if entry is None or entry.disabled else entry.entity_id
 
 
+def mapped_areas(vacuum: er.RegistryEntry) -> dict[str, tuple[str, ...]]:
+    """Read HA's "segments to areas" mapping; malformed entries are skipped."""
+    raw = dict(vacuum.options.get("vacuum") or {}).get("area_mapping", {})
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        area_id: tuple(targets)
+        for area_id, targets in raw.items()
+        if isinstance(area_id, str)
+        and isinstance(targets, list)
+        and targets
+        and all(isinstance(item, str) and item for item in targets)
+    }
+
+
 def discover_robots(hass: HomeAssistant) -> tuple[RobotCandidate, ...]:
     """Inspect registered vacuums and versioned companion-entity roles."""
     registry = er.async_get(hass)
@@ -114,17 +129,6 @@ def discover_robots(hass: HomeAssistant) -> tuple[RobotCandidate, ...]:
             for role, values in matches.items()
             if len(values) > 1
         }
-        raw_mapping = dict(vacuum.options.get("vacuum") or {}).get("area_mapping", {})
-        area_targets = {}
-        if isinstance(raw_mapping, dict):
-            for area_id, targets in raw_mapping.items():
-                if (
-                    isinstance(area_id, str)
-                    and isinstance(targets, list)
-                    and targets
-                    and all(isinstance(item, str) and item for item in targets)
-                ):
-                    area_targets[area_id] = tuple(targets)
         protocol = (
             "roborock_v1"
             if vacuum.platform == "roborock"
@@ -141,7 +145,7 @@ def discover_robots(hass: HomeAssistant) -> tuple[RobotCandidate, ...]:
                 vacuum.device_id,
                 MappingProxyType(roles),
                 MappingProxyType(ambiguous),
-                MappingProxyType(area_targets),
+                MappingProxyType(mapped_areas(vacuum)),
                 protocol,
             )
         )

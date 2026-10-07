@@ -152,6 +152,31 @@ def test_generic_vacuum_accepts_manual_roles_without_claiming_a_mode(
 
 
 @pytest.mark.parametrize(
+    ("targets", "stored"),
+    [
+        ({}, None),
+        ({"target_areas": None}, None),
+        ({"target_areas": []}, None),
+        ({"target_areas": ["hall", "kitchen", "hall"]}, ["hall", "kitchen"]),
+    ],
+)
+def test_only_a_chosen_area_list_restricts_the_ha_mapping(
+    hass: HomeAssistant, targets: dict, stored: list[str] | None
+) -> None:
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    vacuum = registry.async_get_or_create("vacuum", "demo", "robot")
+    registry.async_update_entity_options(
+        vacuum.entity_id, "vacuum", {"area_mapping": {"kitchen": ["16"]}}
+    )
+    data = validate_robot_configuration(
+        hass, entry, {"robot_entity_id": vacuum.entity_id, **targets}
+    )
+    assert data["target_areas"] == stored
+
+
+@pytest.mark.parametrize(
     "settings",
     [
         {"roles": {"unknown": "sensor.any"}},

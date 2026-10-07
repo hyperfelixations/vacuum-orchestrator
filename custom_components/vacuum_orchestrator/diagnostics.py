@@ -1,5 +1,6 @@
 """Anonymized diagnostics built exclusively from allowlisted read models."""
 
+import re
 from itertools import islice
 from typing import Any
 
@@ -9,6 +10,9 @@ from homeassistant.core import HomeAssistant
 from .const import API_VERSION, INTEGRATION_VERSION, STORE_VERSION
 from .infrastructure.telemetry import LoggingSink
 from .runtime import TELEMETRY_KEY, VacuumOrchestratorRuntime, async_get_registry
+
+# Vendor segment IDs carry no names; HA area IDs do and are pseudonymized.
+_SEGMENT = re.compile(r"\d+(?:_\d+)?")
 
 
 def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
@@ -56,6 +60,18 @@ def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
                     item.value for item in profile.effective_operations
                 ),
                 "blocked": profile.source_robot_id in state.blocked_robots,
+                "reach": [
+                    {
+                        "room_id": anonymize(item.room_id),
+                        "status": item.status.value,
+                        "targets": len(item.targets),
+                        "ignored": [
+                            value if _SEGMENT.fullmatch(value) else anonymize(value)
+                            for value in item.ignored
+                        ],
+                    }
+                    for item in adapter.room_reach()
+                ],
             }
             for adapter in core.adapters.values()
             for profile in (adapter.profile,)

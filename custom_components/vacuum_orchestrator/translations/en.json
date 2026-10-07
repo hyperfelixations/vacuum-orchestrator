@@ -20,10 +20,13 @@
           "description": "Choose a registered vacuum. Advanced configuration accepts roles, supported modes, mappings, requirements and timeouts.",
           "data": {
             "robot_entity_id": "Vacuum entity",
-            "target_areas": "Mapped Home Assistant areas",
+            "target_areas": "Limit to areas",
             "last_clean_start_entity_id": "Last clean start sensor",
             "last_clean_end_entity_id": "Last clean end sensor",
             "advanced": "Advanced configuration"
+          },
+          "data_description": {
+            "target_areas": "Leave empty to clean every area mapped to this vacuum in Home Assistant."
           }
         },
         "reconfigure": {
@@ -31,10 +34,13 @@
           "description": "Choose a registered vacuum. Advanced configuration accepts roles, supported modes, mappings, requirements and timeouts.",
           "data": {
             "robot_entity_id": "Vacuum entity",
-            "target_areas": "Mapped Home Assistant areas",
+            "target_areas": "Limit to areas",
             "last_clean_start_entity_id": "Last clean start sensor",
             "last_clean_end_entity_id": "Last clean end sensor",
             "advanced": "Advanced configuration"
+          },
+          "data_description": {
+            "target_areas": "Leave empty to clean every area mapped to this vacuum in Home Assistant."
           }
         }
       },

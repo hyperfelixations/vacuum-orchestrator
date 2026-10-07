@@ -136,12 +136,15 @@ def validate_robot_configuration(
         roles[role] = entity.id
     result["roles"] = roles
     result["requirements"] = normalize_requirements(hass, data.get("requirements", []))
-    targets = data.get(CONF_TARGET_AREAS, list(candidate.area_targets))
-    if not isinstance(targets, list):
+    # No restriction (None or empty) follows the HA area mapping live.
+    targets = data.get(CONF_TARGET_AREAS) or None
+    if targets is not None and not isinstance(targets, list):
         raise ValidationError("invalid_target_areas")
-    for target in targets:
+    for target in targets or ():
         identifier(target, "invalid_target_areas")
-    result[CONF_TARGET_AREAS] = list(dict.fromkeys(targets))
+    result[CONF_TARGET_AREAS] = (
+        None if targets is None else list(dict.fromkeys(targets))
+    )
     operations = data.get("allowed_operations", [item.value for item in OperationKind])
     if not isinstance(operations, list):
         raise ValidationError("invalid_operation")

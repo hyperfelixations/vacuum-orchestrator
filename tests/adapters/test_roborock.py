@@ -16,6 +16,7 @@ from custom_components.vacuum_orchestrator.domain.errors import (
 )
 from custom_components.vacuum_orchestrator.domain.intents import CleaningPreferences
 from custom_components.vacuum_orchestrator.domain.planning import WorkUnit
+from custom_components.vacuum_orchestrator.domain.reach import ReachStatus
 from custom_components.vacuum_orchestrator.domain.rooms import Room, RoomBinding
 from custom_components.vacuum_orchestrator.domain.types import (
     MopRoute,
@@ -29,7 +30,14 @@ from custom_components.vacuum_orchestrator.domain.types import (
 from tests.adapters.dispatching import dispatch
 
 
-def setup_robot(hass: HomeAssistant, *, rooms=None, config=None, unbound=()):
+def setup_robot(
+    hass: HomeAssistant,
+    *,
+    rooms=None,
+    config=None,
+    unbound=(),
+    target_areas=("kitchen", "upstairs"),
+):
     registry = er.async_get(hass)
     vacuum = registry.async_get_or_create(
         "vacuum", "roborock", "unit", suggested_object_id="test"
@@ -109,7 +117,7 @@ def setup_robot(hass: HomeAssistant, *, rooms=None, config=None, unbound=()):
         source_robot_id="physical",
         entity_id=vacuum.entity_id,
         adapter_name="roborock",
-        target_areas=("kitchen", "upstairs"),
+        target_areas=target_areas,
         configuration={"roles": roles, "protocol": "roborock_v1", **(config or {})},
         rooms=rooms,
     )
@@ -170,7 +178,7 @@ async def test_map_changes_or_disappearing_segments_reject_the_entire_assignment
     with pytest.raises(ConflictError, match="capabilities_changed"):
         await dispatch(adapter, work, planned)
     assert calls == []
-    assert adapter.profile.capabilities.target_map == {}
+    assert adapter.profile.capabilities.target_map == {"kitchen": ("0_16",)}
     hass.states.async_set(
         "select.selected_map", "Upper", {"options": ["Ground", "Upper"]}
     )
@@ -190,12 +198,17 @@ async def test_custom_room_uses_explicit_map_scoped_binding(
             ),
         )
     }
-    adapter, _, calls = setup_robot(hass, rooms=lambda: rooms)
+    adapter, inventory, calls = setup_robot(hass, rooms=lambda: rooms)
     await adapter.async_refresh_maps()
     assert adapter.profile.capabilities.target_map == {"custom": ("0_16", "0_17")}
     work = unit(targets=("custom",))
     await dispatch(adapter, work, await assignment(adapter, work))
     assert calls[0].data["params"] == [{"segments": [16, 17], "repeat": 1}]
+    inventory["maps"][0]["rooms"].pop("17")
+    await adapter.async_refresh_maps()
+    reach = {item.room_id: item for item in adapter.room_reach()}
+    assert reach["custom"].status is ReachStatus.BINDING_INVALID
+    assert reach["custom"].ignored == ("0_17",)
 
 
 @pytest.mark.parametrize(
@@ -629,3 +642,105 @@ async def test_cancel_with_return_stops_first_and_needs_return_support(
     await adapter.async_cancel()
     await adapter.async_return_to_dock()
     assert sent == ["stop", "return_to_base", "stop", "return_to_base"]
+
+
+def _rooms(**areas: str | None) -> dict[str, Room]:
+    return {
+        room_id: Room(room_id, room_id, area_id=area) for room_id, area in areas.items()
+    }
+
+
+async def test_stale_segments_in_the_ha_mapping_never_make_a_room_unreachable(
+    hass: HomeAssistant,
+) -> None:
+    rooms = _rooms(bath="bath", kitchen="kitchen")
+    adapter, _, calls = setup_robot(
+        hass, rooms=lambda: rooms, config={}, target_areas=None
+    )
+    er.async_get(hass).async_update_entity_options(
+        "vacuum.test",
+        "vacuum",
+        {"area_mapping": {"bath": ["0_9", "0_17"], "kitchen": ["0_16"]}},
+    )
+    await adapter.async_refresh_maps()
+    reach = {item.room_id: item for item in adapter.room_reach()}
+    assert reach["bath"].status is ReachStatus.REACHABLE
+    assert reach["bath"].targets == ("0_17",)
+    assert reach["bath"].ignored == ("0_9",)
+    assert adapter.profile.capabilities.target_map == {
+        "bath": ("0_17",),
+        "kitchen": ("0_16",),
+    }
+    work = unit(targets=("bath",))
+    await dispatch(adapter, work, await assignment(adapter, work))
+    assert calls[0].data["params"] == [{"segments": [17], "repeat": 1}]
+
+
+async def test_reach_names_why_a_room_cannot_be_cleaned(hass: HomeAssistant) -> None:
+    rooms = {
+        **_rooms(
+            kitchen="kitchen",
+            upstairs="upstairs",
+            cellar="cellar",
+            garden=None,
+            nook="nook",
+            dining="dining",
+        ),
+        "studio": Room(
+            "studio", "studio", bindings=(RoomBinding("robot", ("16",), "1"),)
+        ),
+    }
+    adapter, _, _ = setup_robot(hass, rooms=lambda: rooms, target_areas=None)
+    er.async_get(hass).async_update_entity_options(
+        "vacuum.test",
+        "vacuum",
+        {
+            "area_mapping": {
+                "kitchen": ["0_16"],
+                "upstairs": ["1_16"],
+                "nook": ["0_17"],
+                "dining": ["0_17"],
+            }
+        },
+    )
+    await adapter.async_refresh_maps()
+    assert {item.room_id: item.status for item in adapter.room_reach()} == {
+        "kitchen": ReachStatus.REACHABLE,
+        "upstairs": ReachStatus.NOT_ON_CURRENT_MAP,
+        "cellar": ReachStatus.AREA_NOT_MAPPED,
+        "garden": ReachStatus.NO_AREA,
+        "nook": ReachStatus.OVERLAP,
+        "dining": ReachStatus.OVERLAP,
+        "studio": ReachStatus.NOT_ON_CURRENT_MAP,
+    }
+    hass.states.async_set("select.selected_map", "unknown")
+    assert {item.room_id: item.status for item in adapter.room_reach()}["kitchen"] is (
+        ReachStatus.MAP_UNKNOWN
+    )
+
+
+async def test_without_a_restriction_reach_follows_the_ha_mapping_live(
+    hass: HomeAssistant,
+) -> None:
+    rooms = _rooms(kitchen="kitchen", hall="hall")
+    adapter, _, _ = setup_robot(hass, rooms=lambda: rooms, target_areas=None)
+    await adapter.async_refresh_maps()
+    assert set(adapter.profile.capabilities.target_map) == {"kitchen"}
+    er.async_get(hass).async_update_entity_options(
+        "vacuum.test",
+        "vacuum",
+        {"area_mapping": {"kitchen": ["0_16"], "hall": ["0_17"]}},
+    )
+    assert set(adapter.profile.capabilities.target_map) == {"kitchen", "hall"}
+
+
+async def test_a_restriction_excludes_the_other_mapped_areas(
+    hass: HomeAssistant,
+) -> None:
+    rooms = _rooms(kitchen="kitchen", upstairs="upstairs")
+    adapter, _, _ = setup_robot(hass, rooms=lambda: rooms, target_areas=("upstairs",))
+    await adapter.async_refresh_maps()
+    assert {item.room_id: item.status for item in adapter.room_reach()} == {
+        "kitchen": ReachStatus.AREA_EXCLUDED,
+        "upstairs": ReachStatus.NOT_ON_CURRENT_MAP,
+    }

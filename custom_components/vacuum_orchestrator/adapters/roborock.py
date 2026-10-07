@@ -1,6 +1,7 @@
 """Roborock public-entity semantics and map-scoped V1 segment commands."""
 
 import json
+from collections.abc import Mapping
 from dataclasses import replace
 from hashlib import sha256
 from typing import Any
@@ -11,6 +12,8 @@ from ..domain.capabilities import AreaAddressing, PassCapability, RobotProfile
 from ..domain.dispatching import RobotObservation
 from ..domain.errors import ConflictError, DispatchNotStartedError, OrchestratorError
 from ..domain.planning import DispatchAssignment, WorkUnit
+from ..domain.reach import ReachStatus, RoomReach
+from ..domain.rooms import RoomBinding
 from ..domain.types import PassScope, RobotAvailabilityState
 from ..ha_context import physical_context
 from ..ports.telemetry import TelemetryEvent, report_adapter
@@ -177,58 +180,57 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
             raise ConflictError("map_inventory_unavailable")
         super()._validate_start(unit, assignment)
 
-    def target_mapping(self) -> dict[str, str | tuple[str, ...]]:
-        """Exclude targets on other maps before the selector can assign a job."""
+    def _area_reach(
+        self, room_id: str, segments: tuple[str, ...], area_id: str
+    ) -> RoomReach:
+        """Send the area's segments on the current map; others are ignored."""
         if not self.native_segments:
-            areas = self.area_mapping()
-            return {
-                room_id: targets
-                for room_id, targets in super().target_mapping().items()
-                if all(
-                    self._safe_public_target(segment)
-                    for area in ((targets,) if isinstance(targets, str) else targets)
-                    for segment in areas[area]
-                )
-            }
+            return self._public_reach(super()._area_reach(room_id, segments, area_id))
         current = self.current_map_id
         if current is None:
-            return {}
-        areas = self.area_mapping()
-        candidates: dict[str, tuple[str, ...]] = {}
-        if self._rooms is None:
-            candidates = {
-                area: areas[area] for area in self._target_areas if area in areas
-            }
-        else:
-            for room in self._rooms().values():
-                explicit = any(
-                    item.robot_id == self._robot_id for item in room.bindings
-                )
-                binding = next(
-                    (
-                        item
-                        for item in room.bindings
-                        if item.robot_id == self._robot_id and item.map_id == current
-                    ),
-                    None,
-                )
-                if binding is not None:
-                    candidates[room.room_id] = tuple(
-                        f"{current}_{target}" for target in binding.target_ids
-                    )
-                elif (
-                    not explicit
-                    and room.area_id in self._target_areas
-                    and room.area_id in areas
-                ):
-                    candidates[room.room_id] = areas[room.area_id]
-        return self._without_overlapping_targets(
-            {
-                room_id: targets
-                for room_id, targets in candidates.items()
-                if all(self._valid_segment(target, current) for target in targets)
-            }
+            return RoomReach(room_id, ReachStatus.MAP_UNKNOWN)
+        return self._segment_reach(room_id, segments, current)
+
+    def _bound_reach(
+        self,
+        room_id: str,
+        bindings: tuple[RoomBinding, ...],
+        areas: Mapping[str, tuple[str, ...]],
+    ) -> RoomReach:
+        """Use the binding of the current map; segment IDs carry its flag."""
+        if not self.native_segments:
+            return self._public_reach(super()._bound_reach(room_id, bindings, areas))
+        current = self.current_map_id
+        if current is None:
+            return RoomReach(room_id, ReachStatus.MAP_UNKNOWN)
+        binding = next((item for item in bindings if item.map_id == current), None)
+        if binding is None:
+            return RoomReach(room_id, ReachStatus.NOT_ON_CURRENT_MAP)
+        segments = tuple(f"{current}_{target}" for target in binding.target_ids)
+        invalid = tuple(
+            item for item in segments if not self._valid_segment(item, current)
         )
+        if invalid:
+            return RoomReach(room_id, ReachStatus.BINDING_INVALID, ignored=invalid)
+        return RoomReach(room_id, ReachStatus.REACHABLE, segments, (), segments)
+
+    def _segment_reach(
+        self, room_id: str, segments: tuple[str, ...], current: str
+    ) -> RoomReach:
+        valid = tuple(item for item in segments if self._valid_segment(item, current))
+        ignored = tuple(item for item in segments if item not in valid)
+        if not valid:
+            return RoomReach(room_id, ReachStatus.NOT_ON_CURRENT_MAP, ignored=ignored)
+        return RoomReach(room_id, ReachStatus.REACHABLE, valid, ignored, valid)
+
+    def _public_reach(self, reach: RoomReach) -> RoomReach:
+        """HA sends every mapped segment; any unsafe one blocks the room."""
+        unsafe = tuple(
+            item for item in reach.physical if not self._safe_public_target(item)
+        )
+        if reach.status is not ReachStatus.REACHABLE or not unsafe:
+            return reach
+        return RoomReach(reach.room_id, ReachStatus.NOT_ON_CURRENT_MAP, ignored=unsafe)
 
     def _valid_segment(self, target: str, current: str) -> bool:
         parts = target.split("_")

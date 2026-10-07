@@ -7,6 +7,7 @@ from typing import Protocol
 from ..domain.capabilities import RobotProfile
 from ..domain.dispatching import RobotObservation
 from ..domain.planning import DispatchAssignment, WorkUnit
+from ..domain.reach import RoomReach
 
 
 class RobotAdapter(Protocol):
@@ -15,6 +16,9 @@ class RobotAdapter(Protocol):
     @property
     def profile(self) -> RobotProfile:
         """Return the current immutable capability snapshot."""
+
+    def room_reach(self) -> tuple[RoomReach, ...]:
+        """Explain per canonical room whether this robot can clean it."""
 
     async def async_observe(self) -> RobotObservation:
         """Return one normalized point-in-time availability observation."""

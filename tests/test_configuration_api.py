@@ -68,6 +68,48 @@ async def call(hass, action, **data):
     )
 
 
+async def test_robots_report_room_reach_from_the_live_ha_mapping(hass, configured):
+    core = configured.runtime_data.orchestrator
+    registry = er.async_get(hass)
+    vacuum = registry.async_get_or_create("vacuum", "demo", "reach")
+    hass.states.async_set(
+        vacuum.entity_id,
+        "docked",
+        {"supported_features": int(VacuumEntityFeature.CLEAN_AREA)},
+    )
+    registry.async_update_entity_options(
+        vacuum.entity_id, "vacuum", {"area_mapping": {"kitchen": ["7"]}}
+    )
+    kitchen = await core.rooms.async_create("Kitchen", area_id="kitchen")
+    hall = await core.rooms.async_create("Hall", area_id="hall")
+    robot = (
+        await call(
+            hass,
+            "add_robot",
+            configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
+        )
+    )["robot_id"]
+    await hass.async_block_till_done()
+
+    projection = (await call(hass, "get_robots"))["robots"][0]
+    assert projection["robot_id"] == robot
+    assert projection["configuration"]["target_areas"] is None
+    assert {item["room_id"]: item for item in projection["reach"]} == {
+        kitchen: {
+            "room_id": kitchen,
+            "status": "reachable",
+            "targets": ["kitchen"],
+            "ignored": [],
+        },
+        hall: {
+            "room_id": hall,
+            "status": "area_not_mapped",
+            "targets": [],
+            "ignored": [],
+        },
+    }
+
+
 async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
     hass, configured
 ):
