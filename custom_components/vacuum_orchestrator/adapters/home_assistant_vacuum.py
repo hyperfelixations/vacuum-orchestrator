@@ -51,7 +51,7 @@ from ..domain.types import (
 from ..ha_context import physical_context
 from ..ports.command_scope import check_command_authorization
 from ..ports.telemetry import TelemetryEvent, report_adapter
-from .discovery import candidate_for, resolve_entity_id
+from .discovery import candidate_for, mapped_areas, resolve_entity_id
 from .settings import async_set_option, available_options, supported_mapping
 
 # Semantic setting, option-map name and companion role (None: the vacuum itself).
@@ -164,21 +164,7 @@ class HomeAssistantVacuumAdapter:
         entry = er.async_get(self._hass).async_get(
             self._registry_id or self.entity_id or ""
         )
-        raw = (
-            dict(entry.options.get("vacuum") or {}).get("area_mapping", {})
-            if entry
-            else {}
-        )
-        if not isinstance(raw, dict):
-            return {}
-        return {
-            key: tuple(value)
-            for key, value in raw.items()
-            if isinstance(key, str)
-            and isinstance(value, list)
-            and value
-            and all(isinstance(item, str) and item for item in value)
-        }
+        return {} if entry is None else mapped_areas(entry)
 
     def rooms(self) -> tuple[Room, ...]:
         """Canonical rooms; without a room registry, one per mapped area."""
