@@ -120,6 +120,7 @@ async def websocket_queue_get(
         jobs = [
             present_job(
                 state.jobs[job_id],
+                orchestrator.entity_references,
                 orchestrator.readiness_for_job(job_id),
                 state.room_registry.rooms,
             )
@@ -151,6 +152,7 @@ async def websocket_job_get(
             msg["id"],
             present_job(
                 job,
+                orchestrator.entity_references,
                 orchestrator.readiness_before_start(job.job_id),
                 orchestrator.state.room_registry.rooms,
                 orchestrator.state.attempts,
@@ -195,7 +197,10 @@ async def websocket_jobs_list(
                 "limit": limit,
                 "jobs": [
                     present_job(
-                        job, rooms=state.room_registry.rooms, attempts=state.attempts
+                        job,
+                        orchestrator.entity_references,
+                        rooms=state.room_registry.rooms,
+                        attempts=state.attempts,
                     )
                     for job in ordered[offset : offset + limit]
                 ],

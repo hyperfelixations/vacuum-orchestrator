@@ -38,6 +38,7 @@ from ..domain.types import (
     RobotAvailabilityState,
 )
 from ..ports.command_scope import check_command_authorization, command_origin
+from ..ports.entities import EntityReferences, LiteralEntityReferences
 from ..ports.repository import OrchestratorRepository
 from ..ports.robot import RobotAdapter
 from ..ports.telemetry import adapter_reporter
@@ -125,6 +126,7 @@ class VacuumOrchestrator:
         readiness: ReadinessEvaluator | None = None,
         state_reader: StateReader = _empty_state_reader,
         requirement_reader: RequirementReader | None = None,
+        entity_references: EntityReferences | None = None,
         clock: Clock = _utcnow,
         id_factory: IdFactory = _uuid,
         trace: TraceRecorder | None = None,
@@ -144,6 +146,7 @@ class VacuumOrchestrator:
                 ).items()
             }
         )
+        self.entity_references = entity_references or LiteralEntityReferences()
         self._clock = clock
         self._id_factory = id_factory
         self._state: OrchestratorState | None = None

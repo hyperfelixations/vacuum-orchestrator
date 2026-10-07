@@ -360,8 +360,11 @@ class RuntimeController:
                 )
                 if reference:
                     watched.add(reference)
+        references = self.orchestrator.entity_references
         for job in self.orchestrator.state.jobs.values():
-            watched.update((*job.intent.required_on, *job.intent.required_off))
+            for reference in (*job.intent.required_on, *job.intent.required_off):
+                if entity_id := references.entity_id(reference):
+                    watched.add(entity_id)
         for room in self.orchestrator.rooms.registry.rooms.values():
             for requirement in room.requirements:
                 entity_id = (

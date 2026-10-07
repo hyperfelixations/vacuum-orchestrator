@@ -51,8 +51,6 @@ class VacuumOrchestratorConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Create the integration-wide queue before robots are added."""
         if user_input is not None:
-            await self.async_set_unique_id(DOMAIN)
-            self._abort_if_unique_id_configured()
             return self.async_create_entry(
                 title="Vacuum Orchestrator",
                 data={CONF_INSTALLATION_ID: DOMAIN},

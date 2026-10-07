@@ -160,6 +160,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
             dict(call.data),
             runtime.orchestrator.eligible_room_ids,
             runtime.orchestrator.state.job_defaults,
+            runtime.orchestrator.entity_references,
         )
         if not call.data[ATTR_START]:
             job_id = await _translate_errors(
@@ -294,6 +295,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         jobs = [
             present_job(
                 state.jobs[job_id],
+                runtime.orchestrator.entity_references,
                 runtime.orchestrator.readiness_for_job(job_id),
                 state.room_registry.rooms,
             )
@@ -315,6 +317,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
             ServiceResponse,
             present_job(
                 job,
+                runtime.orchestrator.entity_references,
                 runtime.orchestrator.readiness_before_start(job.job_id),
                 state.room_registry.rooms,
                 state.attempts,
@@ -411,7 +414,7 @@ def _patch_from_call(
             values["all_rooms"] = value == ALL_ROOMS
             value = selected_areas(value, runtime.orchestrator.eligible_room_ids)
         elif public_name in {ATTR_REQUIRED_ON, ATTR_REQUIRED_OFF}:
-            value = tuple(value)
+            value = tuple(map(runtime.orchestrator.entity_references.reference, value))
         values[field_name] = value
     return JobIntentPatch(**values)  # type: ignore[arg-type]
 

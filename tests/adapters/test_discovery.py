@@ -27,7 +27,9 @@ from custom_components.vacuum_orchestrator.domain.errors import (
 )
 
 
-def test_roborock_dock_roles_are_isolated_per_device(hass: HomeAssistant) -> None:
+def test_roborock_dock_roles_are_isolated_per_device(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
     entry = MockConfigEntry(domain="roborock")
     entry.add_to_hass(hass)
     devices = dr.async_get(hass)
@@ -88,6 +90,7 @@ def test_roborock_dock_roles_are_isolated_per_device(hass: HomeAssistant) -> Non
     registry.async_update_entity(vacuum.entity_id, new_entity_id="vacuum.renamed")
     assert resolve_entity_id(hass, vacuum.id) == "vacuum.renamed"
     assert candidate_for(hass, vacuum.id).source_robot_id == candidate.source_robot_id
+    assert "deprecated" not in caplog.text
 
 
 def test_ambiguous_roles_are_not_chosen_and_missing_registry_has_no_binding(
@@ -286,3 +289,109 @@ def test_return_timeout_defaults_and_reaches_the_execution_policy(
         configuration=data,
     )
     assert adapter.profile.execution_policy.return_seconds == 600.0
+
+
+def test_a_dock_of_another_config_entry_is_never_a_companion(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    entry = MockConfigEntry(domain="roborock")
+    entry.add_to_hass(hass)
+    foreign = MockConfigEntry(domain="roborock")
+    foreign.add_to_hass(hass)
+    devices = dr.async_get(hass)
+    registry = er.async_get(hass)
+    robot = devices.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "unit-a")}
+    )
+    foreign_dock = devices.async_get_or_create(
+        config_entry_id=foreign.entry_id, identifiers={("roborock", "unit-a_dock")}
+    )
+    vacuum = registry.async_get_or_create(
+        "vacuum", "roborock", "robot-a", config_entry=entry, device_id=robot.id
+    )
+    registry.async_get_or_create(
+        "sensor",
+        "roborock",
+        "error-a",
+        config_entry=foreign,
+        device_id=foreign_dock.id,
+        translation_key="dock_error",
+    )
+    assert "dock_error" not in candidate_for(hass, vacuum.id).roles
+    assert "deprecated" not in caplog.text
+
+
+def test_a_vacuum_on_a_child_device_keeps_to_its_own_device(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    entry = MockConfigEntry(domain="matter")
+    entry.add_to_hass(hass)
+    devices = dr.async_get(hass)
+    registry = er.async_get(hass)
+    parent = devices.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("matter", "hub")},
+        connections={(dr.CONNECTION_NETWORK_MAC, "02:00:00:00:00:02")},
+    )
+    child = devices.async_get_or_create_child(
+        config_entry_id=entry.entry_id,
+        identifiers={("matter", "hub-vacuum")},
+        parent_device_id=parent.id,
+    )
+    vacuum = registry.async_get_or_create(
+        "vacuum", "matter", "robot", config_entry=entry, device_id=child.id
+    )
+    own_mode = registry.async_get_or_create(
+        "select",
+        "matter",
+        "own-mode",
+        config_entry=entry,
+        device_id=child.id,
+        translation_key="clean_mode",
+    )
+    registry.async_get_or_create(
+        "sensor",
+        "matter",
+        "hub-battery",
+        config_entry=entry,
+        device_id=parent.id,
+        original_device_class="battery",
+    )
+    candidate = candidate_for(hass, vacuum.id)
+    assert candidate.roles == {"cleaning_mode": own_mode.id}
+    assert candidate.source_robot_id == f"device_registry:{child.id}"
+    assert "deprecated" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "selects",
+    [
+        ("cleaning_mode", "water_flow", "cleaning_route"),
+        ("cleaning_mode",),
+    ],
+    ids=["b01_q7", "b01_q10"],
+)
+def test_b01_roborock_models_never_get_the_v1_segment_protocol(
+    hass: HomeAssistant, selects: tuple[str, ...]
+) -> None:
+    entry = MockConfigEntry(domain="roborock")
+    entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "b01")}
+    )
+    registry = er.async_get(hass)
+    vacuum = registry.async_get_or_create(
+        "vacuum", "roborock", "b01", config_entry=entry, device_id=device.id
+    )
+    for key in selects:
+        registry.async_get_or_create(
+            "select",
+            "roborock",
+            key,
+            config_entry=entry,
+            device_id=device.id,
+            translation_key=key,
+        )
+    candidate = candidate_for(hass, vacuum.id)
+    assert candidate.adapter == "roborock"
+    assert candidate.protocol is None

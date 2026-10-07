@@ -78,12 +78,15 @@ def discover_robots(hass: HomeAssistant) -> tuple[RobotCandidate, ...]:
             if len(identifiers) == 1:
                 duid = next(iter(identifiers))
                 source_id = f"roborock:{duid}"
-                for companion in devices.devices:
-                    if (
-                        ("roborock", f"{duid}_dock") in companion.identifiers
-                        and vacuum.config_entry_id in companion.config_entries
-                    ):
-                        companion_ids.add(companion.id)
+                dock = (
+                    devices.async_get_device_by_identifier(
+                        ("roborock", f"{duid}_dock"), vacuum.config_entry_id
+                    )
+                    if vacuum.config_entry_id
+                    else None
+                )
+                if dock is not None:
+                    companion_ids.add(dock.id)
         if isinstance(device, dr.DeviceEntry):
             macs = {
                 value.lower().replace(":", "").replace("-", "")

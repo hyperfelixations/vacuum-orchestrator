@@ -21,6 +21,9 @@ from custom_components.vacuum_orchestrator.const import (
 from custom_components.vacuum_orchestrator.domain.intents import JobIntent, TargetRef
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
 from custom_components.vacuum_orchestrator.domain.types import CleaningMode, JobState
+from custom_components.vacuum_orchestrator.ports.entities import (
+    LiteralEntityReferences,
+)
 from custom_components.vacuum_orchestrator.runtime import (
     RUNTIME_KEY,
     VacuumOrchestratorRuntime,
@@ -40,6 +43,7 @@ class StubOrchestrator:
         self.runtime_id = "runtime"
         self.runtime_sequence = 1
         self.changed_scopes = frozenset({"queue", "jobs"})
+        self.entity_references = LiteralEntityReferences()
 
     def readiness_for_job(self, job_id: str) -> object:
         assert job_id == "job"

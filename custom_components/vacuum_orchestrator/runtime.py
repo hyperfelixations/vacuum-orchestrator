@@ -12,6 +12,7 @@ from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
+from .adapters.entity_references import RegistryEntityReferences
 from .application.orchestrator import VacuumOrchestrator
 from .application.robot_session import RobotOwnershipRegistry
 from .application.room_service import AreaSnapshot
@@ -109,10 +110,15 @@ async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> b
             ),
         )
 
+        entity_references = RegistryEntityReferences(hass)
+
         def state_reader(references: tuple[str, ...]) -> dict[str, str | None]:
             return {
                 reference: (
-                    state.state if (state := hass.states.get(reference)) else None
+                    state.state
+                    if (entity_id := entity_references.entity_id(reference))
+                    and (state := hass.states.get(entity_id))
+                    else None
                 )
                 for reference in references
             }
@@ -144,6 +150,7 @@ async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> b
             adapters,
             state_reader=state_reader,
             requirement_reader=requirement_reader,
+            entity_references=entity_references,
             trace=trace,
         )
         await orchestrator.async_initialize()

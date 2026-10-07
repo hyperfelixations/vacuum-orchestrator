@@ -13,6 +13,7 @@ from ..domain.queue import Job, OrchestratorState
 from ..domain.readiness import ReadinessReport
 from ..domain.rooms import Room
 from ..domain.types import JobState
+from ..ports.entities import EntityReferences
 
 if TYPE_CHECKING:
     from ..application.orchestrator import VacuumOrchestrator
@@ -48,8 +49,16 @@ def present_job_defaults(defaults: JobDefaults) -> dict[str, object]:
     }
 
 
+def present_references(
+    references: tuple[str, ...], entities: EntityReferences
+) -> list[str]:
+    """Name stored references by their current entity ID where one exists."""
+    return [entities.entity_id(reference) or reference for reference in references]
+
+
 def present_job(
     job: Job,
+    entities: EntityReferences,
     readiness: ReadinessReport | None = None,
     rooms: Mapping[str, Room] | None = None,
     attempts: Mapping[str, ExecutionAttempt] | None = None,
@@ -97,8 +106,8 @@ def present_job(
         "reason": intent.reason,
         "note": intent.note,
         "dedupe_key": intent.dedupe_key,
-        "required_on": list(intent.required_on),
-        "required_off": list(intent.required_off),
+        "required_on": present_references(intent.required_on, entities),
+        "required_off": present_references(intent.required_off, entities),
         "settings_policy": intent.settings_policy.value,
         "created_at": job.created_at.isoformat(),
         "updated_at": job.updated_at.isoformat(),
@@ -118,9 +127,9 @@ def present_job(
     if readiness is not None:
         result["readiness"] = {
             "state": readiness.state.value,
-            "failed_on": list(readiness.failed_on),
-            "failed_off": list(readiness.failed_off),
-            "unknown": list(readiness.unknown),
+            "failed_on": present_references(readiness.failed_on, entities),
+            "failed_off": present_references(readiness.failed_off, entities),
+            "unknown": present_references(readiness.unknown, entities),
             "reason_codes": list(readiness.reason_codes),
             "blocked_room_ids": list(readiness.blocked_room_ids),
             "requirements": [

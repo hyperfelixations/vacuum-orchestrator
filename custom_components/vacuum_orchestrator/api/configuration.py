@@ -28,6 +28,7 @@ from ..domain.releases import ReleaseKind
 from ..domain.templates import JobTemplate
 from ..domain.types import ROUTE_LADDER, VACUUM_LADDER, WATER_LADDER, SettingsPolicy
 from ..ha_context import request_context
+from ..ports.entities import EntityReferences
 from ..room_configuration import (
     ROOM_PATCH_SCHEMA,
     apply_room_patch,
@@ -57,6 +58,7 @@ from .job_input import (
 from .presentation import (
     present_job,
     present_job_defaults,
+    present_references,
     present_settings,
     view_metadata,
 )
@@ -174,7 +176,9 @@ async def async_query_configuration(
             {
                 "robot_id": item.robot_id,
                 "operation": item.operation.value,
-                "readiness": present_job(job, item.readiness)["readiness"],
+                "readiness": present_job(job, core.entity_references, item.readiness)[
+                    "readiness"
+                ],
                 "eligible": item.eligibility_reason is None
                 and item.readiness.state.value == "ready",
                 "eligibility_reason": item.eligibility_reason,
@@ -209,7 +213,9 @@ async def _async_preview(
     intent, area_reason = None, None
     if ATTR_AREAS in data:
         try:
-            intent = intent_from_data(data, core.eligible_room_ids, defaults)
+            intent = intent_from_data(
+                data, core.eligible_room_ids, defaults, core.entity_references
+            )
         except ConflictError as err:
             area_reason = err.code
     preview: JobPreview = await preview_job(
@@ -316,7 +322,10 @@ def query_configuration(
         )
     if name == "get_templates":
         return page(
-            [present_template(value) for value in core.state.templates.values()],
+            [
+                present_template(value, core.entity_references)
+                for value in core.state.templates.values()
+            ],
             data,
             "templates",
         )
@@ -441,7 +450,10 @@ async def _execute_configuration(
         result["template_id"] = await core.templates.async_save(
             data["name"],
             intent_from_data(
-                data["intent"], core.eligible_room_ids, core.state.job_defaults
+                data["intent"],
+                core.eligible_room_ids,
+                core.state.job_defaults,
+                core.entity_references,
             ),
             template_id=data.get("template_id"),
             enabled=data["enabled"],
@@ -506,7 +518,9 @@ async def _execute_configuration(
     return result
 
 
-def present_template(template: JobTemplate) -> dict[str, Any]:
+def present_template(
+    template: JobTemplate, references: EntityReferences
+) -> dict[str, Any]:
     """Return a reusable public intent without internal execution records."""
     intent = template.intent
     values: dict[str, Any] = {
@@ -516,8 +530,8 @@ def present_template(template: JobTemplate) -> dict[str, Any]:
         "mode": intent.mode.value,
         "passes": intent.passes,
         "settings_policy": intent.settings_policy.value,
-        "required_on": list(intent.required_on),
-        "required_off": list(intent.required_off),
+        "required_on": present_references(intent.required_on, references),
+        "required_off": present_references(intent.required_off, references),
     }
     for key in ("name", "reason", "note", "dedupe_key"):
         if (value := getattr(intent, key)) is not None:

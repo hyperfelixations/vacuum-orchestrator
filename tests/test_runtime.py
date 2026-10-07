@@ -12,7 +12,9 @@ from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.vacuum_orchestrator.api.websocket import (
@@ -148,6 +150,57 @@ async def test_runtime_discovers_robot_and_preserves_explicit_removal(
     await hass.async_block_till_done()
     assert not entry.subentries
     await async_unload_orchestrator(hass, entry)
+
+
+async def test_setup_never_moves_foreign_entities_or_devices_into_areas(
+    hass: HomeAssistant,
+    enable_custom_integrations: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    MemoryBackend.data = None
+    monkeypatch.setattr(
+        "custom_components.vacuum_orchestrator.runtime.HomeAssistantSnapshotBackend",
+        MemoryBackend,
+    )
+    areas = ar.async_get(hass)
+    office = areas.async_create("Office")
+    kitchen = areas.async_create("Kitchen")
+    vendor = MockConfigEntry(domain="roborock")
+    vendor.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=vendor.entry_id, identifiers={("roborock", "unit")}
+    )
+    dr.async_get(hass).async_update_device(device.id, area_id=office.id)
+    registry = er.async_get(hass)
+    vacuum = registry.async_get_or_create(
+        "vacuum", "roborock", "unit", config_entry=vendor, device_id=device.id
+    )
+    registry.async_update_entity_options(
+        vacuum.entity_id, "vacuum", {"area_mapping": {kitchen.id: ["0_16"]}}
+    )
+    foreign_before = {
+        entry.entity_id: entry.area_id for entry in registry.entities.values()
+    }
+
+    assert await async_setup_component(hass, DOMAIN, {})
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.subentries
+    assert {
+        entity_id: registry.async_get(entity_id).area_id  # type: ignore[union-attr]
+        for entity_id in foreign_before
+    } == foreign_before
+    assert dr.async_get(hass).async_get(device.id).area_id == office.id  # type: ignore[union-attr]
+    own = [
+        item
+        for item in registry.entities.values()
+        if item.config_entry_id == entry.entry_id
+    ]
+    assert own
+    assert all(item.device_id is None and item.area_id is None for item in own)
 
 
 async def test_room_state_change_wakes_queue_and_unload_fences_active_job(

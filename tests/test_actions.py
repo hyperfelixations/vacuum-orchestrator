@@ -8,6 +8,7 @@ import voluptuous as vol
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -300,6 +301,71 @@ async def test_action_fields_support_complete_create_and_partial_clear(
     assert queried[ATTR_MOP_INTENSITY] is None
     assert queried["origin"] == {"kind": "automation", "template_id": None}
     assert queried["all_rooms"] is False
+
+
+async def test_job_conditions_follow_a_renamed_entity(
+    hass: HomeAssistant,
+    enable_custom_integrations: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "custom_components.vacuum_orchestrator.runtime.HomeAssistantSnapshotBackend",
+        MemoryBackend,
+    )
+    assert await async_setup_component(hass, DOMAIN, {})
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    registry = er.async_get(hass)
+    door = registry.async_get_or_create(
+        "binary_sensor", "demo", "door", suggested_object_id="door"
+    )
+    hass.states.async_set(door.entity_id, "on")
+    hass.states.async_set("input_boolean.away", "off")
+
+    created = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_CREATE_JOB,
+        {
+            ATTR_AREAS: ["kitchen"],
+            ATTR_REQUIRED_ON: [door.entity_id],
+            ATTR_REQUIRED_OFF: ["input_boolean.away"],
+        },
+        blocking=True,
+        return_response=True,
+    )
+    assert created is not None
+    job_id = created[ATTR_JOB_ID]
+    registry.async_update_entity(door.entity_id, new_entity_id="binary_sensor.front")
+    hass.states.async_remove(door.entity_id)
+    hass.states.async_set("binary_sensor.front", "on")
+    await hass.async_block_till_done()
+
+    queried = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_GET_JOB,
+        {ATTR_JOB_ID: job_id},
+        blocking=True,
+        return_response=True,
+    )
+    assert queried is not None
+    assert queried[ATTR_REQUIRED_ON] == ["binary_sensor.front"]
+    assert queried[ATTR_REQUIRED_OFF] == ["input_boolean.away"]
+    assert queried["readiness"]["unknown"] == []
+    assert queried["readiness"]["failed_on"] == []
+
+    hass.states.async_set("binary_sensor.front", "off")
+    await hass.async_block_till_done()
+    queried = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_GET_JOB,
+        {ATTR_JOB_ID: job_id},
+        blocking=True,
+        return_response=True,
+    )
+    assert queried is not None
+    assert queried["readiness"]["failed_on"] == ["binary_sensor.front"]
 
 
 async def test_action_validation_permissions_and_unloaded_runtime_are_clear(

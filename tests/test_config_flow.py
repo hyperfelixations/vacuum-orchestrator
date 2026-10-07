@@ -61,6 +61,8 @@ async def test_user_flow_creates_single_global_orchestrator(
     )
     assert duplicate["type"] == "abort"
     assert duplicate["reason"] == "single_instance_allowed"
+    assert duplicate["translation_domain"] == "homeassistant"
+    assert hass.config_entries.async_entries(DOMAIN)[0].unique_id is None
 
 
 async def test_robot_subentry_persists_stable_registry_identity(

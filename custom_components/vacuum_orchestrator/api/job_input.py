@@ -16,6 +16,7 @@ from ..domain.types import (
     SettingsPolicy,
     parse_cleaning_mode,
 )
+from ..ports.entities import EntityReferences
 
 ATTR_JOB_ID = "job_id"
 ATTR_AREAS = "areas"
@@ -100,6 +101,7 @@ def intent_from_data(
     data: dict[str, Any],
     eligible_rooms: Callable[[], tuple[str, ...]],
     defaults: JobDefaults,
+    references: EntityReferences,
 ) -> JobIntent:
     """Build the canonical intent; unnamed values come from the job defaults."""
     return JobIntent(
@@ -115,8 +117,8 @@ def intent_from_data(
         reason=data.get(ATTR_REASON),
         note=data.get(ATTR_NOTE),
         dedupe_key=data.get(ATTR_DEDUPE_KEY),
-        required_on=tuple(data[ATTR_REQUIRED_ON]),
-        required_off=tuple(data[ATTR_REQUIRED_OFF]),
+        required_on=tuple(map(references.reference, data[ATTR_REQUIRED_ON])),
+        required_off=tuple(map(references.reference, data[ATTR_REQUIRED_OFF])),
         settings_policy=data.get(ATTR_SETTINGS_POLICY, defaults.settings_policy),
         all_rooms=data[ATTR_AREAS] == ALL_ROOMS,
     )
