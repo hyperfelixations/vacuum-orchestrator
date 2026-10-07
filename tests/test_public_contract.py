@@ -58,7 +58,7 @@ def test_distribution_metadata_and_translations_are_consistent():
         "issue_tracker",
         "codeowners",
     } <= manifest.keys()
-    assert manifest["version"] == "0.1.0"
+    assert manifest["version"] == "0.1.1"
     assert json.loads((ROOT / "hacs.json").read_text())["homeassistant"] == "2026.9.0"
     strings = json.loads((integration / "strings.json").read_text(encoding="utf-8"))
     english = json.loads(

@@ -1,7 +1,7 @@
 """Constants for Vacuum Orchestrator."""
 
 DOMAIN = "vacuum_orchestrator"
-INTEGRATION_VERSION = "0.1.0"
+INTEGRATION_VERSION = "0.1.1"
 API_VERSION = 3
 SIGNAL_VIEW_CHANGED = f"{DOMAIN}_view_changed"
 CONFIG_ENTRY_VERSION = 2

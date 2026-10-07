@@ -84,11 +84,11 @@ def version_gate(version: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_version_gate_accepts_this_repository_and_rejects_other_versions() -> None:
-    accepted = version_gate("0.1.0")
+    accepted = version_gate("0.1.1")
     assert accepted.returncode == 0, accepted.stderr
-    rejected = version_gate("0.1.1")
+    rejected = version_gate("0.1.0")
     assert rejected.returncode != 0
-    assert "expected '0.1.1'" in rejected.stderr
+    assert "expected '0.1.0'" in rejected.stderr
 
 
 class Repository:

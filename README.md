@@ -31,7 +31,7 @@ pick up the next job. Keep jobs for later without having to start them today.
 
 ## Before you start
 
-**Version 0.1.0 is a preview for controlled testing.** It has not yet completed
+**Version 0.1.1 is a preview for controlled testing.** It has not yet completed
 real-device acceptance testing. Start with one robot
 and one room, and supervise the first cleaning. Avoid running another cleaning
 automation against the same robot during the test.
