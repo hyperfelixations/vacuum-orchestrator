@@ -177,9 +177,10 @@ class JobIntentPatch:
     vendor_extension: VendorExtension | PatchValue | None = UNSET
     all_rooms: bool | PatchValue = UNSET
 
-    def apply(self, intent: JobIntent) -> JobIntent:
-        """Apply only explicitly supplied fields and re-run all invariants."""
-        if all(
+    @property
+    def empty(self) -> bool:
+        """Return whether the patch names no field."""
+        return all(
             value is UNSET
             for value in (
                 self.areas,
@@ -197,7 +198,11 @@ class JobIntentPatch:
                 self.settings_policy,
                 self.vendor_extension,
             )
-        ):
+        )
+
+    def apply(self, intent: JobIntent) -> JobIntent:
+        """Apply only explicitly supplied fields and re-run all invariants."""
+        if self.empty:
             raise ValidationError("empty_job_update")
         return JobIntent(
             areas=_patched(self.areas, intent.areas),

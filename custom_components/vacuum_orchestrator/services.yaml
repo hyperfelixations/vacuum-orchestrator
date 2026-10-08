@@ -180,11 +180,25 @@ update_job:
           options:
           - best_effort
           - strict
+    hold_id:
+      name: Hold token
+      description: Only for the dashboard card, which passes the token of its edit or
+        delete protection. Automations leave it empty.
+      advanced: true
+      selector:
+        text:
 delete_job:
   name: Delete job
   description: Delete a queued or terminal job.
-  fields: &id003
+  fields:
     job_id: *id002
+    hold_id:
+      name: Hold token
+      description: Only for the dashboard card, which passes the token of its edit or
+        delete protection. Automations leave it empty.
+      advanced: true
+      selector:
+        text:
 move_job:
   name: Move job
   description: Move a queued job up, down, to the top, or to the bottom.
@@ -266,7 +280,8 @@ return_robot:
 retry_job:
   name: Retry job
   description: Create a new queued job from a terminal job.
-  fields: *id003
+  fields:
+    job_id: *id002
 get_queue:
   name: Get queue
   description: Return a bounded page from the global pending queue.
@@ -289,7 +304,8 @@ get_queue:
 get_job:
   name: Get job
   description: Return one job including its complete public intent.
-  fields: *id003
+  fields:
+    job_id: *id002
 configure_queue:
   name: Configure queue
   description: Set the idle grace period for future queue runs and the start delay

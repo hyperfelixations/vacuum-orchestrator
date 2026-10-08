@@ -147,6 +147,7 @@ async def test_v2_import_preserves_source_and_does_not_grant_rooms() -> None:
     payload = encode_orchestrator_state(old_state)
     del payload["room_registry"]
     del payload["start_delay_seconds"]
+    del payload["job_holds"]
     del payload["jobs"]["job"]["start_after"]
     payload["schema_version"] = 2
     old = Backend()
@@ -191,6 +192,7 @@ async def test_newest_previous_store_is_imported_first() -> None:
         )
         payload["schema_version"] = schema
         del payload["start_delay_seconds"]
+        del payload["job_holds"]
         for job in payload["jobs"].values():
             del job["start_after"]
         if schema < 4:

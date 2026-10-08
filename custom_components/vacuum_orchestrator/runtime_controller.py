@@ -414,6 +414,11 @@ class RuntimeController:
             if (start := self.orchestrator.state.jobs[job_id].start_after) is not None
             and start > now
         )
+        deadlines.extend(
+            hold.expires_at
+            for hold in self.orchestrator.state.job_holds.values()
+            if hold.expires_at > now
+        )
         requirements = [
             requirement
             for adapter in self.orchestrator.adapters.values()

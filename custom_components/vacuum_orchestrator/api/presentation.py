@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from ..const import API_VERSION, INTEGRATION_VERSION
 from ..domain.execution import ExecutionAttempt
+from ..domain.holds import JobHold
 from ..domain.job_defaults import JobDefaults
 from ..domain.planning import SettingsResolution
 from ..domain.queue import Job, OrchestratorState
@@ -62,8 +63,10 @@ def present_job(
     readiness: ReadinessReport | None = None,
     rooms: Mapping[str, Room] | None = None,
     attempts: Mapping[str, ExecutionAttempt] | None = None,
+    *,
+    hold: JobHold | None = None,
 ) -> dict[str, object]:
-    """Serialize one bounded job record without leaking mutable internals."""
+    """Serialize one bounded job record; a hold never reveals its token."""
     intent = job.intent
     canceling = (
         attempts.get(job.active_attempt_id)
@@ -112,6 +115,9 @@ def present_job(
         "created_at": job.created_at.isoformat(),
         "updated_at": job.updated_at.isoformat(),
         "start_after": job.start_after.isoformat() if job.start_after else None,
+        "hold": None
+        if hold is None
+        else {"purpose": hold.purpose.value, "expires_at": hold.expires_at.isoformat()},
         "active_attempt_id": job.active_attempt_id,
         "origin": {
             "kind": job.provenance.kind.value,

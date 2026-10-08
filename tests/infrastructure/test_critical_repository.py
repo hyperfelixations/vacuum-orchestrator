@@ -90,7 +90,7 @@ async def test_deleting_executed_job_preserves_reloadable_ledger(outcome: str) -
         state = state.complete_attempt("attempt", run, correlation, NOW)
     assert state.mark_dispatch_accepted("attempt", NOW) is state
     state = state.retry_job("a", "retry", NOW)
-    deleted = state.delete_job("a")
+    deleted = state.delete_job("a", NOW)
     repository = CriticalOrchestratorRepository(Backend())
 
     await repository.async_commit(deleted, expected_previous_commit_id=state.commit_id)

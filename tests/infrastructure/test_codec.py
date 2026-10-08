@@ -11,6 +11,11 @@ from custom_components.vacuum_orchestrator.domain.execution import (
     ExecutionAttempt,
     RobotLease,
 )
+from custom_components.vacuum_orchestrator.domain.holds import (
+    HoldPurpose,
+    JobHold,
+    lease_end,
+)
 from custom_components.vacuum_orchestrator.domain.intents import (
     CleaningPreferences,
     JobIntent,
@@ -251,6 +256,7 @@ def _schema_four(state: OrchestratorState) -> dict:
     data = encode_orchestrator_state(state)
     data["schema_version"] = 4
     del data["start_delay_seconds"]
+    del data["job_holds"]
     for job in data["jobs"].values():
         del job["start_after"]
     return data
@@ -279,11 +285,15 @@ def test_schema_four_jobs_get_no_start_delay_and_installs_the_default() -> None:
         migrate_schema_four(data)
 
 
-def test_start_delay_and_start_after_round_trip_and_are_required() -> None:
+def test_start_delay_start_after_and_holds_round_trip_and_are_required() -> None:
     state = replace(_state(), start_delay_seconds=0.5).add_job(
         "queued", JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM), NOW
     )
+    state = state.hold_job(
+        JobHold("hold", "queued", HoldPurpose.CONFIRM, NOW, lease_end(NOW)), NOW
+    )
     data = encode_orchestrator_state(state)
+    assert data["job_holds"]["queued"]["purpose"] == "confirm"
     assert (
         data["jobs"]["queued"]["start_after"]
         == (NOW + timedelta(seconds=0.5)).isoformat()
@@ -292,6 +302,8 @@ def test_start_delay_and_start_after_round_trip_and_are_required() -> None:
     for remove in (
         lambda value: value.pop("start_delay_seconds"),
         lambda value: value["jobs"]["queued"].pop("start_after"),
+        lambda value: value.pop("job_holds"),
+        lambda value: value["job_holds"]["queued"].pop("expires_at"),
     ):
         broken = deepcopy(data)
         remove(broken)

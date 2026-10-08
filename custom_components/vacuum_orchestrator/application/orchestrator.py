@@ -23,6 +23,7 @@ from ..domain.errors import (
     StorageIntegrityError,
 )
 from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun
+from ..domain.holds import HoldPurpose, JobHold, lease_end
 from ..domain.intents import JobIntent, JobIntentPatch, TargetRef
 from ..domain.planning import DispatchAssignment, ExecutionPlan, Planner, WorkUnit
 from ..domain.queue import Job, OrchestratorState
@@ -341,20 +342,49 @@ class VacuumOrchestrator:
         )
         return job_id
 
-    async def async_update_job(self, job_id: str, patch: JobIntentPatch) -> None:
-        """Apply a partial update without exposing internal revisions."""
+    async def async_update_job(
+        self, job_id: str, patch: JobIntentPatch, *, hold_id: str | None = None
+    ) -> None:
+        """Apply a partial update; with the holder's `hold_id` it ends the hold."""
 
         def update(state: OrchestratorState) -> OrchestratorState:
             if job_id not in state.jobs:
                 raise ConflictError("unknown_job")
-            intent = self._canonical_intent(
-                state, patch.apply(state.jobs[job_id].intent)
-            )
-            return state.update_job(
-                job_id, replace(patch, areas=intent.areas), self._clock()
-            )
+            canonical = patch
+            if not patch.empty:
+                intent = self._canonical_intent(
+                    state, patch.apply(state.jobs[job_id].intent)
+                )
+                canonical = replace(patch, areas=intent.areas)
+            return state.update_job(job_id, canonical, self._clock(), hold_id=hold_id)
 
         await self._mutate(update)
+
+    async def async_hold_job(self, job_id: str, purpose: HoldPurpose) -> JobHold:
+        """Keep a waiting job from starting; see dev doc "Bearbeitungsschutz"."""
+        now = self._clock()
+        hold = JobHold(self._id_factory(), job_id, purpose, now, lease_end(now))
+        await self._mutate(lambda state: state.hold_job(hold, now))
+        return hold
+
+    async def async_renew_job_hold(self, hold_id: str) -> JobHold:
+        """Extend the caller's hold by one lease period."""
+        await self._mutate(lambda state: state.renew_job_hold(hold_id, self._clock()))
+        return next(
+            hold for hold in self.state.job_holds.values() if hold.hold_id == hold_id
+        )
+
+    async def async_release_job_hold(self, hold_id: str) -> None:
+        """End the caller's hold; the job's start delay begins again."""
+        await self._mutate(lambda state: state.release_job_hold(hold_id, self._clock()))
+
+    async def async_expire_job_holds(self) -> None:
+        """End lapsed holds; their jobs get a new start delay."""
+        await self._mutate(lambda state: state.expire_job_holds(self._clock()))
+
+    def job_hold(self, job_id: str) -> JobHold | None:
+        """Return the hold that protects a job right now."""
+        return self.state.active_hold(job_id, self._clock())
 
     async def async_configure_job_defaults(self, changes: Mapping[str, object]) -> None:
         """Replace named defaults for future jobs; existing jobs keep their values."""
@@ -369,9 +399,13 @@ class VacuumOrchestrator:
 
         await self._mutate(configure)
 
-    async def async_delete_job(self, job_id: str) -> None:
-        """Delete queued or terminal work."""
-        await self._mutate(lambda state: state.delete_job(job_id))
+    async def async_delete_job(
+        self, job_id: str, *, hold_id: str | None = None
+    ) -> None:
+        """Delete queued or terminal work that no one else holds."""
+        await self._mutate(
+            lambda state: state.delete_job(job_id, self._clock(), hold_id=hold_id)
+        )
 
     async def async_move_job(self, job_id: str, direction: MoveDirection) -> None:
         """Move a pending job using one intuitive direction."""
@@ -479,7 +513,11 @@ class VacuumOrchestrator:
         return await self.async_dispatch_available()
 
     async def async_dispatch_available(self) -> tuple[DispatchAssignment, ...]:
-        """Dispatch continuations first, then scan queued jobs without reordering."""
+        """Dispatch continuations first, then scan queued jobs without reordering.
+
+        Lapsed holds end first, so their jobs wait for a new start delay.
+        """
+        await self.async_expire_job_holds()
         state = self._verified_state()
         candidates = [
             job.job_id
@@ -495,7 +533,12 @@ class VacuumOrchestrator:
                     job_id, None, automatic=True
                 )
             except (PlanningError, ConflictError) as err:
-                if err.code not in {"job_blocked", "job_unknown", "start_delayed"}:
+                if err.code not in {
+                    "job_blocked",
+                    "job_unknown",
+                    "start_delayed",
+                    "job_held",
+                }:
                     self.trace.record(
                         TraceEvent.BLOCKED,
                         self._clock(),
@@ -798,6 +841,9 @@ class VacuumOrchestrator:
             if job.state not in {JobState.QUEUED, JobState.DISPATCHING}:
                 raise ConflictError("job_not_dispatchable")
             if job.state is JobState.QUEUED:
+                hold = previous.job_holds.get(job_id)
+                if hold is not None and (automatic or hold.active(self._clock())):
+                    raise ConflictError("job_held", hold.purpose.value)
                 if (
                     automatic
                     and job.start_after is not None

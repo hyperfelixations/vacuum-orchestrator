@@ -200,7 +200,7 @@ def test_cancel_retry_delete_lifecycles_are_distinct() -> None:
     queued = OrchestratorState.empty("installation").add_job("a", INTENT, NOW)
     cancelled, generation = queued.request_cancel("a", NOW)
     retried = cancelled.retry_job("a", "retry", NOW)
-    deleted = retried.delete_job("a")
+    deleted = retried.delete_job("a", NOW)
 
     assert generation is None
     assert retried.jobs["a"].state is JobState.CANCELLED
@@ -228,7 +228,7 @@ def test_active_jobs_cannot_be_edited_moved_or_deleted() -> None:
     with pytest.raises(ConflictError, match="job_not_movable"):
         state.move_job("a", MoveDirection.UP)
     with pytest.raises(ConflictError, match="job_not_deletable"):
-        state.delete_job("a")
+        state.delete_job("a", NOW)
 
 
 def test_invariants_reject_duplicate_dedupe_key_and_bad_queue() -> None:
@@ -398,7 +398,7 @@ def test_pending_unit_and_lookup_failures_are_explicit() -> None:
     with pytest.raises(ConflictError, match="job_plan_missing"):
         queued.next_pending_unit(queued.jobs["a"])
     with pytest.raises(ValidationError, match="unknown_job"):
-        queued.delete_job("missing")
+        queued.delete_job("missing", NOW)
 
     prepared, unit_id = _prepared()
     exhausted = replace(

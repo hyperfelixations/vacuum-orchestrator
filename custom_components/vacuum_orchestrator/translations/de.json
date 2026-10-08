@@ -324,6 +324,9 @@
     "external_receipt_requires_confirmation": {
       "message": "Ein Reinigungsbeleg von außerhalb des Vacuum Orchestrators braucht einen bestätigten Nachweis"
     },
+    "hold_expired": {
+      "message": "Der Schutz dieses Auftrags ist abgelaufen; lade neu und versuche es erneut"
+    },
     "inactive_job_has_active_attempt": {
       "message": "Gespeicherte Daten sind inkonsistent: Ein beendeter Auftrag hat noch einen aktiven Versuch"
     },
@@ -371,6 +374,9 @@
     },
     "invalid_identifier": {
       "message": "Eine Kennung ist leer, zu lang oder hat umgebende Leerzeichen"
+    },
+    "invalid_job_hold": {
+      "message": "Gespeicherte Daten sind ungültig: Ein Auftragsschutz passt nicht zu seinem Auftrag"
     },
     "invalid_job_provenance": {
       "message": "Die gespeicherte Herkunft des Auftrags ist ungültig"
@@ -477,6 +483,9 @@
     "job_has_no_pending_work_unit": {
       "message": "Der Auftrag hat keinen verbleibenden Arbeitsschritt"
     },
+    "job_held": {
+      "message": "Dieser Auftrag wird gerade bearbeitet oder sein Löschen bestätigt"
+    },
     "job_not_cancellable": {
       "message": "Der Auftrag kann nicht mehr abgebrochen werden"
     },
@@ -500,6 +509,9 @@
     },
     "job_not_startable": {
       "message": "Der Auftrag wurde nicht gestartet"
+    },
+    "job_not_waiting": {
+      "message": "Der Auftrag wartet nicht mehr in der Warteschlange"
     },
     "job_plan_identity_conflict": {
       "message": "Der Auftrag hat bereits einen anderen Plan"

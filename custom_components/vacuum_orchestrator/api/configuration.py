@@ -23,6 +23,7 @@ from ..const import API_VERSION, DOMAIN
 from ..diagnostics import build_diagnostics
 from ..domain.capabilities import CancelSemantics
 from ..domain.errors import ConflictError, OrchestratorError, ValidationError
+from ..domain.holds import HoldPurpose
 from ..domain.intents import CleaningPreferences
 from ..domain.maps import RobotMaps
 from ..domain.queue import MAX_START_DELAY_SECONDS
@@ -145,6 +146,17 @@ COMMANDS: dict[str, vol.Schema | vol.All] = {
     "resolve_recovery": vol.Schema(
         {**ROBOT_ID, vol.Optional("confirm_stopped", default=False): bool}
     ),
+}
+# Card sessions only, never actions; see dev doc "Bearbeitungsschutz".
+SESSION_COMMANDS: dict[str, vol.Schema] = {
+    "hold_job": vol.Schema(
+        {
+            vol.Required("job_id"): cv.string,
+            vol.Required("purpose"): vol.Coerce(HoldPurpose),
+        }
+    ),
+    "renew_job_hold": vol.Schema({vol.Required("hold_id"): cv.string}),
+    "release_job_hold": vol.Schema({vol.Required("hold_id"): cv.string}),
 }
 QUERIES: dict[str, vol.Schema] = {
     "get_job_execution": vol.Schema({vol.Required("job_id"): cv.string}),
@@ -461,7 +473,25 @@ async def _execute_configuration(
     room_id = data.get("room_id")
     robot_id = data.get("robot_id")
     result: dict[str, Any] = {"api_version": API_VERSION}
-    if name == "configure_queue":
+    if name == "hold_job":
+        hold = await core.async_hold_job(data["job_id"], data["purpose"])
+        result.update(
+            hold_id=hold.hold_id,
+            expires_at=hold.expires_at.isoformat(),
+            job=present_job(
+                core.state.jobs[hold.job_id],
+                core.entity_references,
+                core.readiness_for_job(hold.job_id),
+                core.state.room_registry.rooms,
+                hold=hold,
+            ),
+        )
+    elif name == "renew_job_hold":
+        renewed = await core.async_renew_job_hold(data["hold_id"])
+        result["expires_at"] = renewed.expires_at.isoformat()
+    elif name == "release_job_hold":
+        await core.async_release_job_hold(data["hold_id"])
+    elif name == "configure_queue":
         await core.runs.async_configure(
             grace_seconds=data.get("grace_seconds"),
             start_delay_seconds=data.get("start_delay_seconds"),

@@ -14,6 +14,7 @@ from ..domain.execution import (
     RobotRun,
     RunCorrelation,
 )
+from ..domain.holds import HoldPurpose, JobHold
 from ..domain.intents import (
     CleaningPreferences,
     JobIntent,
@@ -145,6 +146,16 @@ def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
         "room_registry": encode_room_registry(state.room_registry),
         "queue_grace_seconds": state.queue_grace_seconds,
         "start_delay_seconds": state.start_delay_seconds,
+        "job_holds": {
+            key: {
+                "hold_id": hold.hold_id,
+                "job_id": hold.job_id,
+                "purpose": hold.purpose.value,
+                "acquired_at": _encode_datetime(hold.acquired_at),
+                "expires_at": _encode_datetime(hold.expires_at),
+            }
+            for key, hold in state.job_holds.items()
+        },
         "job_defaults": _encode_job_defaults(state.job_defaults),
         "queue_run": None
         if state.queue_run is None
@@ -227,6 +238,10 @@ def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
             room_registry=decode_room_registry(_object(data["room_registry"])),
             queue_grace_seconds=_number(data.get("queue_grace_seconds", 900)),
             start_delay_seconds=_number(data["start_delay_seconds"]),
+            job_holds={
+                key: _decode_hold(_object(value))
+                for key, value in _string_mapping(data["job_holds"]).items()
+            },
             job_defaults=_decode_job_defaults(data.get("job_defaults")),
             queue_run=_decode_queue_run(data.get("queue_run")),
             templates={
@@ -240,6 +255,16 @@ def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
         raise StorageIntegrityError("invalid_storage_payload") from err
     _validate_relational_integrity(state)
     return state
+
+
+def _decode_hold(data: JsonObject) -> JobHold:
+    return JobHold(
+        _str(data["hold_id"]),
+        _str(data["job_id"]),
+        _enum(HoldPurpose, data["purpose"]),
+        _decode_datetime(data["acquired_at"]),
+        _decode_datetime(data["expires_at"]),
+    )
 
 
 def _decode_template(data: JsonObject) -> JobTemplate:
@@ -275,7 +300,7 @@ def _decode_queue_run(value: object) -> QueueRun | None:
 
 
 def migrate_schema_four(data: JsonObject) -> OrchestratorState:
-    """Install the default start delay; stored jobs start without one."""
+    """Install the default start delay; stored jobs start without one or a hold."""
     if data.get("schema_version") != 4:
         raise StorageIntegrityError("unsupported_previous_storage_schema")
     try:
@@ -290,6 +315,7 @@ def _upgrade_schema_four(data: JsonObject) -> JsonObject:
         **data,
         "schema_version": SCHEMA_VERSION,
         "start_delay_seconds": START_DELAY_SECONDS,
+        "job_holds": {},
         "jobs": {
             key: {**_object(job), "start_after": None}
             for key, job in _string_mapping(data["jobs"]).items()

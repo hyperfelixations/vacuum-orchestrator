@@ -24,6 +24,7 @@ from ..runtime import async_get_runtime
 from .configuration import (
     COMMANDS,
     QUERIES,
+    SESSION_COMMANDS,
     async_query_configuration,
     execute_configuration,
 )
@@ -81,7 +82,7 @@ async def websocket_configuration_get(
 @websocket_command(
     {
         vol.Required("type"): "vacuum_orchestrator/configuration/command",
-        vol.Required("command"): vol.In(COMMANDS),
+        vol.Required("command"): vol.In({**COMMANDS, **SESSION_COMMANDS}),
         vol.Required("parameters"): dict,
     }
 )
@@ -92,7 +93,7 @@ async def websocket_configuration_command(
 ) -> None:
     """Use the same validated commands for HA and optional clients."""
     try:
-        data = COMMANDS[msg["command"]](msg["parameters"])
+        data = {**COMMANDS, **SESSION_COMMANDS}[msg["command"]](msg["parameters"])
         with request_context(connection.context(msg)):
             connection.send_result(
                 msg["id"], await execute_configuration(hass, msg["command"], data)
@@ -123,6 +124,7 @@ async def websocket_queue_get(
                 orchestrator.entity_references,
                 orchestrator.readiness_for_job(job_id),
                 state.room_registry.rooms,
+                hold=orchestrator.job_hold(job_id),
             )
             for job_id in selected
         ]
@@ -156,6 +158,7 @@ async def websocket_job_get(
                 orchestrator.readiness_before_start(job.job_id),
                 orchestrator.state.room_registry.rooms,
                 orchestrator.state.attempts,
+                hold=orchestrator.job_hold(job.job_id),
             )
             | view_metadata(orchestrator),
         )
@@ -201,6 +204,7 @@ async def websocket_jobs_list(
                         orchestrator.entity_references,
                         rooms=state.room_registry.rooms,
                         attempts=state.attempts,
+                        hold=orchestrator.job_hold(job.job_id),
                     )
                     for job in ordered[offset : offset + limit]
                 ],

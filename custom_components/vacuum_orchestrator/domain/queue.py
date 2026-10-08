@@ -10,6 +10,7 @@ from types import MappingProxyType
 from .completion import CleaningReceipt, CleaningSource, CompletionQuality
 from .errors import ConflictError, ValidationError
 from .execution import ExecutionAttempt, RobotLease, RobotRun, RunCorrelation
+from .holds import JobHold
 from .intents import JobIntent, JobIntentPatch
 from .job_defaults import JobDefaults
 from .planning import (
@@ -98,6 +99,7 @@ class OrchestratorState:
     queue_grace_seconds: float = 900
     job_defaults: JobDefaults = field(default_factory=JobDefaults)
     start_delay_seconds: float = START_DELAY_SECONDS
+    job_holds: Mapping[str, JobHold] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         seconds(self.queue_grace_seconds)
@@ -116,6 +118,7 @@ class OrchestratorState:
             "robot_leases",
             "blocked_robots",
             "templates",
+            "job_holds",
         ):
             object.__setattr__(
                 self, field_name, MappingProxyType(dict(getattr(self, field_name)))
@@ -139,6 +142,9 @@ class OrchestratorState:
         }
         if queued_ids != set(self.queue):
             raise ValidationError("queued_job_missing_from_queue")
+        for key, hold in self.job_holds.items():
+            if key != hold.job_id or key not in queued_ids:
+                raise ValidationError("invalid_job_hold")
 
     @classmethod
     def empty(cls, installation_id: str) -> OrchestratorState:
@@ -208,14 +214,26 @@ class OrchestratorState:
         )
 
     def update_job(
-        self, job_id: str, patch: JobIntentPatch, now: datetime
+        self,
+        job_id: str,
+        patch: JobIntentPatch,
+        now: datetime,
+        *,
+        hold_id: str | None = None,
     ) -> OrchestratorState:
-        """Apply a user-friendly partial update to a queued job."""
+        """Apply a partial update to a queued job; saving also ends its hold."""
         job = self._job(job_id)
         if job.state is not JobState.QUEUED:
             raise ConflictError("job_not_editable")
-        intent = self.job_defaults.complete(patch.apply(job.intent))
-        if intent == job.intent:
+        held = self._permitted_hold(job_id, hold_id, now)
+        if hold_id is not None and held is None:
+            raise ConflictError("hold_expired")
+        if patch.empty and held is not None:
+            intent = job.intent
+        else:
+            intent = self.job_defaults.complete(patch.apply(job.intent))
+        changed = intent != job.intent
+        if not changed and held is None:
             return self
         if intent.dedupe_key is not None and any(
             other.job_id != job_id
@@ -228,17 +246,20 @@ class OrchestratorState:
         jobs[job_id] = replace(
             job,
             intent=intent,
-            revision=job.revision + 1,
-            updated_at=now,
+            revision=job.revision + changed,
+            updated_at=now if changed else job.updated_at,
             start_after=self.delayed_start(now),
         )
-        return self._replace(jobs=jobs)
+        return self._replace(jobs=jobs, job_holds=self._holds_without(job_id))
 
-    def delete_job(self, job_id: str) -> OrchestratorState:
-        """Delete queued or terminal history, never active or ambiguous work."""
+    def delete_job(
+        self, job_id: str, now: datetime, *, hold_id: str | None = None
+    ) -> OrchestratorState:
+        """Delete queued or terminal history, never active, ambiguous or held work."""
         job = self._job(job_id)
         if job.state not in {JobState.QUEUED, *_TERMINAL}:
             raise ConflictError("job_not_deletable")
+        self._permitted_hold(job_id, hold_id, now)
         jobs = dict(self.jobs)
         del jobs[job_id]
         queue = tuple(item for item in self.queue if item != job_id)
@@ -262,6 +283,7 @@ class OrchestratorState:
         retained_run_ids = {value.robot_run_id for value in correlations.values()}
         return self._replace(
             jobs=jobs,
+            job_holds=self._holds_without(job_id),
             queue=queue,
             queue_revision=self.queue_revision + (queue != self.queue),
             plans={
@@ -400,6 +422,7 @@ class OrchestratorState:
         queue = tuple(item for item in self.queue if item != job_id)
         return self._replace(
             jobs=jobs,
+            job_holds=self._holds_without(job_id),
             plans=plans,
             work_unit_states=work_unit_states,
             assignments=assignments,
@@ -600,6 +623,7 @@ class OrchestratorState:
         if job.state is JobState.QUEUED or (
             job.state is JobState.DISPATCHING and job.active_attempt_id is None
         ):
+            self._permitted_hold(job_id, None, now)
             jobs = dict(self.jobs)
             jobs[job_id] = replace(
                 job,
@@ -610,6 +634,7 @@ class OrchestratorState:
             return (
                 self._replace(
                     jobs=jobs,
+                    job_holds=self._holds_without(job_id),
                     queue=tuple(item for item in self.queue if item != job_id),
                     queue_revision=self.queue_revision + (job_id in self.queue),
                     work_unit_states={
@@ -945,6 +970,77 @@ class OrchestratorState:
         if job.plan_id is None or job.plan_id not in self.plans:
             raise ConflictError("job_plan_missing")
         return self.plans[job.plan_id]
+
+    def hold_job(self, hold: JobHold, now: datetime) -> OrchestratorState:
+        """Protect a waiting job from every start until the hold ends."""
+        job = self._job(hold.job_id)
+        if job.state is not JobState.QUEUED:
+            raise ConflictError("job_not_waiting")
+        self._permitted_hold(hold.job_id, None, now)
+        return self._replace(job_holds={**self.job_holds, hold.job_id: hold})
+
+    def renew_job_hold(self, hold_id: str, now: datetime) -> OrchestratorState:
+        """Extend the holder's own active lease."""
+        hold = self._hold_by_id(hold_id)
+        if hold is None or not hold.active(now):
+            raise ConflictError("hold_expired")
+        return self._replace(
+            job_holds={**self.job_holds, hold.job_id: hold.renewed(now)}
+        )
+
+    def release_job_hold(self, hold_id: str, now: datetime) -> OrchestratorState:
+        """End a hold and restart the job's start delay; a gone hold is a no-op."""
+        hold = self._hold_by_id(hold_id)
+        if hold is None:
+            return self
+        return self._released(hold.job_id, now)
+
+    def expire_job_holds(self, now: datetime) -> OrchestratorState:
+        """End every lapsed hold as if its holder had released it now."""
+        lapsed = [key for key, hold in self.job_holds.items() if not hold.active(now)]
+        if not lapsed:
+            return self
+        start_after = self.delayed_start(now)
+        return self._replace(
+            jobs={
+                **self.jobs,
+                **{
+                    key: replace(self.jobs[key], start_after=start_after)
+                    for key in lapsed
+                },
+            },
+            job_holds={
+                key: hold for key, hold in self.job_holds.items() if key not in lapsed
+            },
+        )
+
+    def active_hold(self, job_id: str, now: datetime) -> JobHold | None:
+        """Return the hold that currently protects a job."""
+        hold = self.job_holds.get(job_id)
+        return hold if hold is not None and hold.active(now) else None
+
+    def _permitted_hold(
+        self, job_id: str, hold_id: str | None, now: datetime
+    ) -> JobHold | None:
+        """Reject a foreign active hold; return the caller's own active hold."""
+        hold = self.active_hold(job_id, now)
+        if hold is not None and hold.hold_id != hold_id:
+            raise ConflictError("job_held", hold.purpose.value)
+        return hold
+
+    def _hold_by_id(self, hold_id: str) -> JobHold | None:
+        return next(
+            (hold for hold in self.job_holds.values() if hold.hold_id == hold_id),
+            None,
+        )
+
+    def _released(self, job_id: str, now: datetime) -> OrchestratorState:
+        jobs = dict(self.jobs)
+        jobs[job_id] = replace(jobs[job_id], start_after=self.delayed_start(now))
+        return self._replace(jobs=jobs, job_holds=self._holds_without(job_id))
+
+    def _holds_without(self, job_id: str) -> dict[str, JobHold]:
+        return {key: value for key, value in self.job_holds.items() if key != job_id}
 
     def delayed_start(self, now: datetime) -> datetime | None:
         """Return when a job queued or edited now may start automatically."""

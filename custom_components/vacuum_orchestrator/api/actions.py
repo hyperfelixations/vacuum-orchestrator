@@ -76,6 +76,7 @@ ATTR_DIRECTION = "direction"
 ATTR_ROBOT_ID = "robot_id"
 ATTR_OFFSET = "offset"
 ATTR_LIMIT = "limit"
+ATTR_HOLD_ID = "hold_id"
 
 
 UPDATE_SCHEMA = vol.Schema(
@@ -94,9 +95,16 @@ UPDATE_SCHEMA = vol.Schema(
         vol.Optional(ATTR_REQUIRED_ON): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(ATTR_REQUIRED_OFF): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(ATTR_SETTINGS_POLICY): vol.Coerce(SettingsPolicy),
+        vol.Optional(ATTR_HOLD_ID): cv.string,
     }
 )
 JOB_SCHEMA = vol.Schema({vol.Required(ATTR_JOB_ID): cv.string})
+DELETE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_JOB_ID): cv.string,
+        vol.Optional(ATTR_HOLD_ID): cv.string,
+    }
+)
 START_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_JOB_ID): cv.string,
@@ -186,7 +194,9 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         runtime = await _runtime_for_call(hass, call)
         await _translate_errors(
             runtime.orchestrator.async_update_job(
-                call.data[ATTR_JOB_ID], _patch_from_call(runtime, call)
+                call.data[ATTR_JOB_ID],
+                _patch_from_call(runtime, call),
+                hold_id=call.data.get(ATTR_HOLD_ID),
             )
         )
         return _command_response(call, runtime, {ATTR_JOB_ID: call.data[ATTR_JOB_ID]})
@@ -194,7 +204,9 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
     async def delete_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
         await _translate_errors(
-            runtime.orchestrator.async_delete_job(call.data[ATTR_JOB_ID])
+            runtime.orchestrator.async_delete_job(
+                call.data[ATTR_JOB_ID], hold_id=call.data.get(ATTR_HOLD_ID)
+            )
         )
         return _command_response(call, runtime, {ATTR_JOB_ID: call.data[ATTR_JOB_ID]})
 
@@ -298,6 +310,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
                 runtime.orchestrator.entity_references,
                 runtime.orchestrator.readiness_for_job(job_id),
                 state.room_registry.rooms,
+                hold=runtime.orchestrator.job_hold(job_id),
             )
             for job_id in selected
         ]
@@ -321,13 +334,14 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
                 runtime.orchestrator.readiness_before_start(job.job_id),
                 state.room_registry.rooms,
                 state.attempts,
+                hold=runtime.orchestrator.job_hold(job.job_id),
             )
             | view_metadata(runtime.orchestrator),
         )
 
     _register(hass, SERVICE_CREATE_JOB, create_job, CREATE_JOB_SCHEMA)
     _register(hass, SERVICE_UPDATE_JOB, update_job, UPDATE_SCHEMA)
-    _register(hass, SERVICE_DELETE_JOB, delete_job, JOB_SCHEMA)
+    _register(hass, SERVICE_DELETE_JOB, delete_job, DELETE_SCHEMA)
     _register(hass, SERVICE_MOVE_JOB, move_job, MOVE_SCHEMA)
     _register(hass, SERVICE_START_JOB, start_job, START_SCHEMA)
     _register(hass, SERVICE_RUN_QUEUE, run_queue, EMPTY_SCHEMA)
