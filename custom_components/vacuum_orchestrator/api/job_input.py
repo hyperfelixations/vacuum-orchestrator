@@ -90,22 +90,22 @@ CREATE_SCHEMA = vol.Schema(INTENT_FIELDS)
 
 
 def selected_areas(
-    value: list[str] | str, eligible_rooms: Callable[[], tuple[str, ...]]
+    value: list[str] | str, active_rooms: Callable[[], tuple[str, ...]]
 ) -> tuple[TargetRef, ...]:
     """Snapshot an all-rooms selection or keep the requested references."""
-    room_ids = eligible_rooms() if value == ALL_ROOMS else value
+    room_ids = active_rooms() if value == ALL_ROOMS else value
     return tuple(TargetRef(room_id) for room_id in room_ids)
 
 
 def intent_from_data(
     data: dict[str, Any],
-    eligible_rooms: Callable[[], tuple[str, ...]],
+    active_rooms: Callable[[], tuple[str, ...]],
     defaults: JobDefaults,
     references: EntityReferences,
 ) -> JobIntent:
     """Build the canonical intent; unnamed values come from the job defaults."""
     return JobIntent(
-        areas=selected_areas(data[ATTR_AREAS], eligible_rooms),
+        areas=selected_areas(data[ATTR_AREAS], active_rooms),
         mode=data.get(ATTR_MODE, defaults.mode),
         name=data.get(ATTR_NAME),
         preferences=CleaningPreferences(

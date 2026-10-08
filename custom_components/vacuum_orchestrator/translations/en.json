@@ -546,11 +546,11 @@
     "negative_storage_revision": {
       "message": "Stored data is invalid: the revision is negative"
     },
+    "no_active_rooms": {
+      "message": "No active room: every room is excluded or its area was removed"
+    },
     "no_eligible_robot": {
       "message": "No robot can run this job now"
-    },
-    "no_eligible_rooms": {
-      "message": "No room is enabled, present and mapped to a robot"
     },
     "no_robot_configured": {
       "message": "No robot is configured"

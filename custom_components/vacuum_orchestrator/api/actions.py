@@ -158,7 +158,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         runtime = await _runtime_for_call(hass, call)
         intent = intent_from_data(
             dict(call.data),
-            runtime.orchestrator.eligible_room_ids,
+            runtime.orchestrator.active_room_ids,
             runtime.orchestrator.state.job_defaults,
             runtime.orchestrator.entity_references,
         )
@@ -412,7 +412,7 @@ def _patch_from_call(
         value = call.data[public_name]
         if public_name == ATTR_AREAS:
             values["all_rooms"] = value == ALL_ROOMS
-            value = selected_areas(value, runtime.orchestrator.eligible_room_ids)
+            value = selected_areas(value, runtime.orchestrator.active_room_ids)
         elif public_name in {ATTR_REQUIRED_ON, ATTR_REQUIRED_OFF}:
             value = tuple(map(runtime.orchestrator.entity_references.reference, value))
         values[field_name] = value

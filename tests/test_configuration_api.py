@@ -201,7 +201,7 @@ async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
     assert (await call(hass, "get_room", room_id=room))["released"]
     revoked = await call(hass, "revoke_room", room_id=room)
     assert revoked == {
-        "api_version": 3,
+        "api_version": 4,
         "commit_id": async_get_runtime(hass).orchestrator.state.commit_id,
         "room_id": room,
     }
@@ -561,9 +561,10 @@ async def test_preview_and_robot_capabilities_use_the_ladders(hass, configured):
 
     draft = await call(hass, "preview_job", mode="vacuum")
     assert draft["startable_now"] is False and draft["reason"] == "job_requires_area"
+    assert draft["unreachable_room_ids"] == []
     assert draft["settings"] == {
         "vacuum_power": {
-            "initial": "low",
+            "requested": "standard",
             "options": [
                 {"value": "low", "supported_by_all": True},
                 {"value": "maximum", "supported_by_all": True},
@@ -580,7 +581,8 @@ async def test_preview_and_robot_capabilities_use_the_ladders(hass, configured):
         1,
         "best_effort",
     )
-    assert preview["settings"]["vacuum_power"]["initial"] == "maximum"
+    assert preview["settings"]["vacuum_power"]["requested"] == "high"
+    assert preview["unreachable_room_ids"] == []
     assert preview["reason"] == "job_blocked" and not preview["startable_now"]
     assert preview["robots"] == [
         {
@@ -596,9 +598,14 @@ async def test_preview_and_robot_capabilities_use_the_ladders(hass, configured):
     await core.rooms.async_grant(room, ReleaseKind.PERMANENT)
     ready = await call(hass, "preview_job", areas="all")
     assert ready["startable_now"] and ready["reason"] is None
+    attic = (await call(hass, "create_room", name="Attic"))["room_id"]
+    mixed = await call(hass, "preview_job", areas=[room, attic], vacuum_power="high")
+    assert mixed["unreachable_room_ids"] == [attic] and not mixed["startable_now"]
+    assert mixed["settings"]["vacuum_power"]["requested"] == "high"
+    await call(hass, "disable_room", room_id=attic)
     await call(hass, "disable_room", room_id=room)
     assert (await call(hass, "preview_job", areas="all"))["reason"] == (
-        "no_eligible_rooms"
+        "no_active_rooms"
     )
     connection = Connection()
     websocket_configuration_get(

@@ -116,7 +116,7 @@ class JobIntent:
     required_off: tuple[str, ...] = ()
     settings_policy: SettingsPolicy = SettingsPolicy.BEST_EFFORT
     vendor_extension: VendorExtension | None = None
-    # The areas were chosen as "all": a snapshot of the eligible rooms.
+    # The areas were chosen as "all": a snapshot of the active rooms.
     all_rooms: bool = False
 
     def __post_init__(self) -> None:

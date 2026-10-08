@@ -71,6 +71,14 @@ class RoomRegistry:
         """Validate replacement against all canonical and physical identities."""
         return replace(self, rooms={**self.rooms, room.room_id: room})
 
+    def active_room_ids(self) -> tuple[str, ...]:
+        """Return enabled rooms whose area still exists, whatever robots reach."""
+        return tuple(
+            room.room_id
+            for room in self.rooms.values()
+            if room.enabled and not room.area_missing
+        )
+
     def resolve(self, reference: str) -> Room:
         """Accept a stable VOI identifier or an unambiguous legacy HA area alias."""
         room = self.rooms.get(reference)

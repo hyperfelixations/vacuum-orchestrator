@@ -215,7 +215,7 @@ async def _async_preview(
     if ATTR_AREAS in data:
         try:
             intent = intent_from_data(
-                data, core.eligible_room_ids, defaults, core.entity_references
+                data, core.active_room_ids, defaults, core.entity_references
             )
         except ConflictError as err:
             area_reason = err.code
@@ -240,7 +240,7 @@ async def _async_preview(
         ).value,
         "settings": {
             name: {
-                "initial": choice.initial,
+                "requested": choice.requested,
                 "options": [
                     {"value": value, "supported_by_all": everywhere}
                     for value, everywhere in choice.options
@@ -258,6 +258,7 @@ async def _async_preview(
             }
             for item in preview.robots
         ],
+        "unreachable_room_ids": list(preview.unreachable_room_ids),
         "startable_now": reason is None,
         "reason": reason,
     }
@@ -464,7 +465,7 @@ async def _execute_configuration(
             data["name"],
             intent_from_data(
                 data["intent"],
-                core.eligible_room_ids,
+                core.active_room_ids,
                 core.state.job_defaults,
                 core.entity_references,
             ),

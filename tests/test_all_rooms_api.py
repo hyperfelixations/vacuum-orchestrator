@@ -1,4 +1,4 @@
-"""Actions accept "all" as a room selection for jobs and templates."""
+"""Actions accept "all" as every active room for jobs and templates."""
 
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ async def test_jobs_and_templates_can_target_all_rooms(
         "vacuum", "demo", "unit", suggested_object_id="test"
     )
     kitchen = ar.async_get(hass).async_create("Kitchen")
-    ar.async_get(hass).async_create("Cellar")
+    cellar = ar.async_get(hass).async_create("Cellar")
     registry.async_update_entity_options(
         vacuum.entity_id, "vacuum", {"area_mapping": {kitchen.id: ["16"]}}
     )
@@ -98,7 +98,7 @@ async def test_jobs_and_templates_can_target_all_rooms(
 
     job = await call(hass, "create_job", areas="all", mode="vacuum")
     detail = await call(hass, "get_job", job_id=job["job_id"])
-    assert (detail["areas"], detail["all_rooms"]) == ([kitchen.id], True)
+    assert (detail["areas"], detail["all_rooms"]) == ([kitchen.id, cellar.id], True)
     await call(hass, "update_job", job_id=job["job_id"], areas=[kitchen.id])
     assert not (await call(hass, "get_job", job_id=job["job_id"]))["all_rooms"]
     await call(hass, "update_job", job_id=job["job_id"], areas="all")
@@ -116,9 +116,10 @@ async def test_jobs_and_templates_can_target_all_rooms(
     assert templates[template["template_id"]]["intent"]["areas"] == "all"
     assert templates[from_job["template_id"]]["intent"]["areas"] == "all"
 
-    room = (await call(hass, "get_job", job_id=job["job_id"]))["room_ids"][0]
+    rooms = (await call(hass, "get_job", job_id=job["job_id"]))["room_ids"]
     await call(hass, "delete_job", job_id=job["job_id"])
-    await call(hass, "disable_room", room_id=room)
-    with raises_code("no_eligible_rooms"):
+    for room in rooms:
+        await call(hass, "disable_room", room_id=room)
+    with raises_code("no_active_rooms"):
         await call(hass, "create_job", areas=["all"], mode="vacuum")
     await async_unload_orchestrator(hass, entry)

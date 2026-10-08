@@ -1,4 +1,4 @@
-"""Job draft previews offer only robot-supported values and never commit."""
+"""Job draft previews offer robot-supported values, keep wishes, never commit."""
 
 from dataclasses import replace
 
@@ -76,12 +76,12 @@ async def test_draft_without_rooms_offers_the_union_and_marks_partial_support():
         "high": False,
         "maximum": False,
     }
-    assert choice.initial == "standard"
+    assert choice.requested == "standard"
     assert preview.reason == "job_requires_area" and preview.robots == ()
     assert core.state is before
 
 
-async def test_rooms_narrow_options_and_unsupported_requests_preselect_nearest():
+async def test_rooms_narrow_options_and_unsupported_wishes_stay_requested():
     core, first, _second = await _fleet()
     before = core.state.commit_id
     intent = JobIntent(
@@ -94,8 +94,8 @@ async def test_rooms_narrow_options_and_unsupported_requests_preselect_nearest()
 
     choice = preview.settings["vacuum_power"]
     assert _options(choice) == {"low": True, "standard": True, "high": True}
-    assert choice.initial == "high"
-    assert preview.reason is None
+    assert choice.requested == "maximum"
+    assert preview.reason is None and preview.unreachable_room_ids == ()
     hall = {item.robot_id: item for item in preview.robots}
     assert hall["a"].reason is None
     assert hall["a"].settings.settings[0].applied == "high"
@@ -113,7 +113,7 @@ async def test_two_phase_draft_lists_every_setting_and_robot_per_phase():
     assert list(preview.settings) == ["vacuum_power", "mop_intensity", "mop_route"]
     route = preview.settings["mop_route"]
     assert _options(route) == {"fast": False, "standard": False}
-    assert route.initial == "standard"
+    assert route.requested == "deep"
     assert _options(preview.settings["mop_intensity"]) == {
         "low": False,
         "medium": True,
@@ -138,7 +138,24 @@ async def test_no_capable_robot_offers_the_full_ladder_without_support():
         "medium": False,
         "high": False,
     }
-    assert preview.settings["mop_intensity"].initial == "medium"
+    assert preview.settings["mop_intensity"].requested == "medium"
+
+
+async def test_rooms_no_robot_reaches_are_named_and_do_not_narrow_options():
+    core, _first, _second = await _fleet()
+    attic = await core.rooms.async_create("Attic")
+    intent = JobIntent((TargetRef("kitchen"), TargetRef(attic)), CleaningMode.VACUUM)
+
+    preview = await preview_job(core, intent.mode, intent.preferences, intent)
+
+    assert preview.unreachable_room_ids == (attic,)
+    assert _options(preview.settings["vacuum_power"]) == {
+        "low": False,
+        "standard": True,
+        "high": False,
+        "maximum": False,
+    }
+    assert preview.reason is not None
 
 
 async def test_start_blockers_match_dispatch():

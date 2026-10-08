@@ -23,14 +23,14 @@ def subset(expected, actual):
         assert expected == actual
 
 
-async def test_v3_consumer_fixture_retains_existing_fields_and_values(hass):
+async def test_v4_consumer_fixture_retains_existing_fields_and_values(hass):
     core = StubOrchestrator()
     _install_runtime(hass, core)
     connection = Connection()
     ws.websocket_job_get(hass, connection, {"id": 1, "job_id": "job"})
     await hass.async_block_till_done()
     expected = json.loads(
-        (ROOT / "tests/fixtures/contracts/api_v3_job.json").read_text()
+        (ROOT / "tests/fixtures/contracts/api_v4_job.json").read_text()
     )
     subset(expected, connection.results[0][1])
 

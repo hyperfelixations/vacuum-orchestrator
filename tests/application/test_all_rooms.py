@@ -1,4 +1,4 @@
-"""All-rooms selections resolve to rooms that can currently be cleaned."""
+"""All-rooms selections resolve to every active room, independent of robots."""
 
 from dataclasses import replace
 
@@ -17,17 +17,23 @@ from tests.application.test_orchestrator import (
 from tests.application.test_templates import setup_due
 
 
-async def test_eligible_rooms_are_enabled_present_and_mapped() -> None:
+async def test_active_rooms_are_enabled_and_present_whatever_robots_reach() -> None:
     core = await setup_due(RecordingAdapter(RecordingBackend(), "robot"))
-    await core.rooms.async_create("Study")
-    assert core.eligible_room_ids() == ("kitchen", "hall")
+    study = await core.rooms.async_create("Study")
+    assert core.active_room_ids() == ("kitchen", "hall", study)
+
+    await core.async_replace_adapters({})
+    assert core.active_room_ids() == ("kitchen", "hall", study)
 
     await core.rooms.async_disable("hall")
-    assert core.eligible_room_ids() == ("kitchen",)
+    assert core.active_room_ids() == ("kitchen", study)
 
     await core.rooms.async_import_areas({})
-    with pytest.raises(ConflictError, match="no_eligible_rooms"):
-        core.eligible_room_ids()
+    assert core.active_room_ids() == (study,)
+
+    await core.rooms.async_disable(study)
+    with pytest.raises(ConflictError, match="no_active_rooms"):
+        core.active_room_ids()
 
 
 async def test_all_rooms_templates_resolve_on_every_generation() -> None:
@@ -59,5 +65,26 @@ async def test_all_rooms_templates_resolve_on_every_generation() -> None:
     )
 
     await core.rooms.async_import_areas({})
-    with pytest.raises(ConflictError, match="no_eligible_rooms"):
+    with pytest.raises(ConflictError, match="no_active_rooms"):
         await core.templates.async_create_job(key)
+
+
+async def test_all_rooms_include_rooms_no_robot_can_reach() -> None:
+    core = await setup_due(RecordingAdapter(RecordingBackend(), "robot"))
+    await core.async_replace_adapters({})
+    key = await core.templates.async_save(
+        "Everything", replace(_intent(), all_rooms=True), automatic=True
+    )
+
+    job = await core.templates.async_create_job(key)
+    assert [target.area_id for target in core.state.jobs[job].intent.areas] == [
+        "kitchen",
+        "hall",
+    ]
+    await core.async_delete_job(job)
+    await core.templates.async_generate_due()
+    assert {
+        target.area_id
+        for item in core.state.jobs.values()
+        for target in item.intent.areas
+    } == {"kitchen", "hall"}

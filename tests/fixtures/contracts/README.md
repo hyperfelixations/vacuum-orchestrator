@@ -1,6 +1,6 @@
-# API v3 consumer fixtures
+# API v4 consumer fixtures
 
-`api_v3_job.json` fixes the pre-existing job response fields for a queued vacuum
+`api_v4_job.json` fixes the pre-existing job response fields for a queued vacuum
 job with one area. `tests/test_public_contract.py` calls the real WebSocket
 handler and compares every fixture field. Additive fields are permitted; changed
 values, removed fields and new values for existing enums are not silently accepted.

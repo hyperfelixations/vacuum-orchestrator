@@ -31,10 +31,8 @@ class TemplateService:
         mutate: Commit,
         clock: Callable[[], datetime],
         id_factory: Callable[[], str],
-        eligible_rooms: Callable[[OrchestratorState], tuple[str, ...]],
     ) -> None:
         self._mutate, self._clock, self._id_factory = mutate, clock, id_factory
-        self._eligible_rooms = eligible_rooms
 
     async def async_save(
         self,
@@ -182,7 +180,10 @@ class TemplateService:
                 operations = requested_operations(template.intent.mode)
                 tokens = dict(template.demand_tokens)
                 targets = (
-                    tuple(TargetRef(room) for room in self._eligible_rooms(state))
+                    tuple(
+                        TargetRef(room)
+                        for room in state.room_registry.active_room_ids()
+                    )
                     if template.intent.all_rooms
                     else template.intent.areas
                 )
@@ -259,7 +260,7 @@ class TemplateService:
     ) -> tuple[TargetRef, ...]:
         if not template.intent.all_rooms:
             return template.intent.areas
-        rooms = self._eligible_rooms(state)
+        rooms = state.room_registry.active_room_ids()
         if not rooms:
-            raise ConflictError("no_eligible_rooms")
+            raise ConflictError("no_active_rooms")
         return tuple(TargetRef(room) for room in rooms)

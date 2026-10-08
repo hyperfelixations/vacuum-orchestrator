@@ -546,11 +546,11 @@
     "negative_storage_revision": {
       "message": "Gespeicherte Daten sind ungültig: Die Revision ist negativ"
     },
+    "no_active_rooms": {
+      "message": "Kein aktiver Raum: Alle Räume sind ausgeschlossen oder ihr Bereich wurde entfernt"
+    },
     "no_eligible_robot": {
       "message": "Kein Roboter kann diesen Auftrag jetzt ausführen"
-    },
-    "no_eligible_rooms": {
-      "message": "Kein Raum ist aktiviert, vorhanden und einem Roboter zugeordnet"
     },
     "no_robot_configured": {
       "message": "Es ist kein Roboter eingerichtet"

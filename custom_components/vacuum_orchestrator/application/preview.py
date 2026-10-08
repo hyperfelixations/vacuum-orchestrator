@@ -25,7 +25,6 @@ from ..domain.types import (
     JobState,
     OperationKind,
     SettingValue,
-    nearest_supported,
 )
 
 if TYPE_CHECKING:
@@ -46,9 +45,9 @@ _LADDERS: dict[
 
 @dataclass(frozen=True, slots=True)
 class SettingChoice:
-    """Selectable values of one setting and the value to preselect."""
+    """Offered values of one setting and the wish, which is never rewritten."""
 
-    initial: str
+    requested: str
     options: tuple[tuple[str, bool], ...]
 
 
@@ -70,6 +69,7 @@ class JobPreview:
     settings: Mapping[str, SettingChoice]
     robots: tuple[RobotPreview, ...]
     reason: str | None
+    unreachable_room_ids: tuple[str, ...] = ()
 
 
 async def preview_job(
@@ -82,8 +82,8 @@ async def preview_job(
     """Resolve a draft without committing; `intent` is None until rooms exist.
 
     Options are the union of the values offered by every robot that can carry
-    out an operation using the setting on the selected rooms; see dev doc
-    "Vorschau".
+    out an operation using the setting on the selected rooms a robot reaches;
+    see dev doc "Vorschau".
     """
     state = core.state
     defaults = state.job_defaults
@@ -92,6 +92,17 @@ async def preview_job(
         intent = defaults.complete(core._canonical_intent(state, intent))
         mode, preferences = intent.mode, intent.preferences
     targets = () if intent is None else tuple(t.area_id for t in intent.areas)
+    capable = tuple(
+        profile
+        for profile in profiles
+        if profile.effective_operations & set(operations_for_mode(mode))
+    )
+    unreachable = tuple(
+        target
+        for target in targets
+        if not any(target in item.capabilities.target_map for item in capable)
+    )
+    reachable = tuple(target for target in targets if target not in unreachable)
     settings: dict[str, SettingChoice] = {}
     for name in sorted(settings_for_mode(mode), key=list(_LADDERS).index):
         ladder, levels = _LADDERS[name]
@@ -104,18 +115,13 @@ async def preview_job(
             levels(profile.capabilities)
             for profile in profiles
             if profile.effective_operations & set(operations)
-            and all(target in profile.capabilities.target_map for target in targets)
+            and all(target in profile.capabilities.target_map for target in reachable)
         ]
         union = {value for values in offered for value in values}
         values = [value for value in ladder if value in union] or list(ladder)
         requested = getattr(preferences, name) or getattr(defaults, name)
-        initial = (
-            requested
-            if requested in values
-            else nearest_supported(requested, ladder, frozenset(values))
-        )
         settings[name] = SettingChoice(
-            requested.value if initial is None else initial.value,
+            requested.value,
             tuple(
                 (value.value, bool(offered) and all(value in item for item in offered))
                 for value in values
@@ -167,4 +173,4 @@ async def preview_job(
         startable: str | None = None
     except (ConflictError, PlanningError) as err:
         startable = err.code
-    return JobPreview(mode, settings, tuple(robots), startable)
+    return JobPreview(mode, settings, tuple(robots), startable, unreachable)
