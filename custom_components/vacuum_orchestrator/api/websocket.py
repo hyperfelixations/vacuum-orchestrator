@@ -131,7 +131,13 @@ async def websocket_queue_get(
         ]
         connection.send_result(
             msg["id"],
-            present_queue(state, jobs, offset=offset, limit=limit)
+            present_queue(
+                state,
+                jobs,
+                offset=offset,
+                limit=limit,
+                phase=orchestrator.run_phase(),
+            )
             | view_metadata(orchestrator),
         )
     except OrchestratorError as err:

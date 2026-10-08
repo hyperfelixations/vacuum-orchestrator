@@ -317,7 +317,13 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         ]
         return cast(
             ServiceResponse,
-            present_queue(state, jobs, offset=offset, limit=limit)
+            present_queue(
+                state,
+                jobs,
+                offset=offset,
+                limit=limit,
+                phase=runtime.orchestrator.run_phase(),
+            )
             | view_metadata(runtime.orchestrator),
         )
 

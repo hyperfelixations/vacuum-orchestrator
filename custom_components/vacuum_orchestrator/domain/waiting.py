@@ -28,6 +28,19 @@ PRIORITY = (
     "start_delayed",
 )
 
+# Blockers that pass by themselves or describe the queue, not the job: a job
+# with only these is pending work and keeps a queue run active.
+PENDING_CODES = frozenset(
+    {
+        "being_edited",
+        "pending_confirmation",
+        "queue_idle",
+        "queue_paused",
+        "queue_ending",
+        "start_delayed",
+    }
+)
+
 # Selector codes that describe one robot's state rather than the job's rooms.
 ROBOT_CODES = {
     "robot_needs_attention": "robot_needs_attention",
@@ -82,6 +95,13 @@ def rank(blockers: Iterable[Blocker]) -> Waiting | None:
     if not merged:
         return None
     return Waiting(tuple(sorted(merged.values(), key=lambda item: _order(item.code))))
+
+
+def pending(waiting: Waiting | None) -> bool:
+    """Return whether a job starts by itself once its hold and delay pass."""
+    return waiting is None or all(
+        blocker.code in PENDING_CODES for blocker in waiting.blockers
+    )
 
 
 def robot_blocker_code(selector_code: str) -> str:

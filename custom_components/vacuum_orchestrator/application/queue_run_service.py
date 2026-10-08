@@ -125,8 +125,10 @@ class QueueRunService:
 
         await self._mutate(end)
 
-    async def async_reconcile(self, ready: Callable[[OrchestratorState], bool]) -> None:
-        """Close only after rechecking current dispatchability under the writer lock."""
+    async def async_reconcile(
+        self, pending: Callable[[OrchestratorState], bool]
+    ) -> None:
+        """Close only after rechecking pending work under the writer lock."""
 
         def reconcile(state: OrchestratorState) -> OrchestratorState:
             run = state.queue_run
@@ -134,17 +136,7 @@ class QueueRunService:
                 return state if _running(state) else _closed(state, run, self._clock())
             if state.mode is not QueueMode.RUNNING or run is None or not run.active:
                 return state
-            unfinished = bool(state.robot_leases) or any(
-                job.state
-                in {
-                    JobState.DISPATCHING,
-                    JobState.RUNNING,
-                    JobState.CANCELING,
-                    JobState.NEEDS_ATTENTION,
-                }
-                for job in state.jobs.values()
-            )
-            if unfinished or ready(state):
+            if has_unfinished_work(state) or pending(state):
                 return (
                     state
                     if run.idle_since is None
@@ -169,6 +161,20 @@ class QueueRunService:
             )
 
         await self._mutate(reconcile)
+
+
+def has_unfinished_work(state: OrchestratorState) -> bool:
+    """Return whether started work or work with unresolved ownership remains."""
+    return bool(state.robot_leases) or any(
+        job.state
+        in {
+            JobState.DISPATCHING,
+            JobState.RUNNING,
+            JobState.CANCELING,
+            JobState.NEEDS_ATTENTION,
+        }
+        for job in state.jobs.values()
+    )
 
 
 def _running(state: OrchestratorState) -> bool:

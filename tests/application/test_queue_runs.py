@@ -6,7 +6,8 @@ from datetime import timedelta
 import pytest
 
 from custom_components.vacuum_orchestrator.domain.errors import ValidationError
-from custom_components.vacuum_orchestrator.domain.queue_runs import QueueRun
+from custom_components.vacuum_orchestrator.domain.holds import HoldPurpose
+from custom_components.vacuum_orchestrator.domain.queue_runs import QueueRun, RunPhase
 from custom_components.vacuum_orchestrator.domain.releases import ReleaseKind
 from custom_components.vacuum_orchestrator.domain.types import (
     CleaningMode,
@@ -28,6 +29,7 @@ from tests.application.test_orchestrator import (
     _orchestrator,
 )
 from tests.application.test_room_execution import finished_run
+from tests.application.test_start_delay import DELAY, setup_delay
 
 
 async def setup_run():
@@ -195,3 +197,33 @@ async def test_unavailable_robot_does_not_keep_unstarted_run_open():
     await core.async_reconcile_queue_run()
     assert core.state.jobs[job].state is JobState.QUEUED
     assert core.state.mode is QueueMode.IDLE
+
+
+async def test_the_run_phase_tells_pending_from_blocked_and_started_work():
+    core, _adapter, now = await setup_delay()
+    await core.async_process_robot_observation("robot")
+    assert core.run_phase() is RunPhase.OFF
+    await core.async_run_queue()
+    assert core.run_phase() is RunPhase.STANDBY
+
+    delayed = await core.async_create_job(_intent())
+    assert core.run_phase() is RunPhase.ACTIVE
+    hold = await core.async_hold_job(delayed, HoldPurpose.EDIT)
+    now[0] += DELAY
+    assert core.run_phase() is RunPhase.ACTIVE
+    await core.async_reconcile_queue_run()
+    assert core.state.queue_run.idle_since is None
+
+    await core.async_release_job_hold(hold.hold_id)
+    await core.rooms.async_revoke("kitchen")
+    assert core.run_phase() is RunPhase.STANDBY
+    await core.async_reconcile_queue_run()
+    assert core.state.queue_run.idle_since == now[0]
+
+    await core.rooms.async_grant("kitchen", ReleaseKind.PERMANENT)
+    await core.async_start_job(delayed)
+    assert core.run_phase() is RunPhase.ACTIVE
+    await core.async_set_queue_mode(QueueMode.PAUSED)
+    assert core.run_phase() is RunPhase.PAUSED
+    await core.async_end_queue()
+    assert core.run_phase() is RunPhase.ENDING

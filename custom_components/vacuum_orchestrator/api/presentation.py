@@ -11,6 +11,7 @@ from ..domain.holds import JobHold
 from ..domain.job_defaults import JobDefaults
 from ..domain.planning import SettingsResolution
 from ..domain.queue import Job, OrchestratorState
+from ..domain.queue_runs import RunPhase
 from ..domain.readiness import ReadinessReport
 from ..domain.rooms import Room
 from ..domain.types import JobState
@@ -179,6 +180,7 @@ def present_queue(
     *,
     offset: int,
     limit: int,
+    phase: RunPhase,
 ) -> dict[str, object]:
     """Serialize one stable page of the pending queue."""
     return {
@@ -215,6 +217,10 @@ def present_queue(
             if state.queue_run.deadline
             else None,
             "ending": state.queue_run.ending,
+            "phase": phase.value,
+            "ends_at": state.queue_run.deadline.isoformat()
+            if phase is RunPhase.STANDBY and state.queue_run.deadline
+            else None,
             "completed_at": state.queue_run.completed_at.isoformat()
             if state.queue_run.completed_at
             else None,

@@ -2,8 +2,10 @@
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from enum import StrEnum
 
 from .errors import ValidationError
+from .types import QueueMode
 from .validation import identifier, instant, seconds
 
 
@@ -51,3 +53,26 @@ class QueueRun:
         if not self.active or self.idle_since is None:
             return None
         return self.idle_since + timedelta(seconds=self.grace_seconds)
+
+
+class RunPhase(StrEnum):
+    """What the queue does now; see dev doc "Laufphase"."""
+
+    OFF = "off"
+    ACTIVE = "active"
+    STANDBY = "standby"
+    PAUSED = "paused"
+    ENDING = "ending"
+
+
+def run_phase(mode: QueueMode, run: QueueRun | None, *, has_work: bool) -> RunPhase:
+    """Classify the queue; work is started, unresolved or pending work."""
+    if run is None or not run.active:
+        return RunPhase.OFF
+    if run.ending:
+        return RunPhase.ENDING
+    if mode is QueueMode.PAUSED:
+        return RunPhase.PAUSED
+    if mode is QueueMode.RUNNING:
+        return RunPhase.ACTIVE if has_work else RunPhase.STANDBY
+    return RunPhase.OFF

@@ -20,6 +20,7 @@ from custom_components.vacuum_orchestrator.const import (
 )
 from custom_components.vacuum_orchestrator.domain.intents import JobIntent, TargetRef
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
+from custom_components.vacuum_orchestrator.domain.queue_runs import RunPhase
 from custom_components.vacuum_orchestrator.domain.types import CleaningMode, JobState
 from custom_components.vacuum_orchestrator.ports.entities import (
     LiteralEntityReferences,
@@ -58,6 +59,9 @@ class StubOrchestrator:
 
     def waiting(self, job_id: str) -> object:
         return None
+
+    def run_phase(self) -> RunPhase:
+        return RunPhase.OFF
 
     def subscribe_view(self, listener: Callable[[], None]) -> Callable[[], None]:
         self.listener = listener

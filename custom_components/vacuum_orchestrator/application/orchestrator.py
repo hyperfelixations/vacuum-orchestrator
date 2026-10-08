@@ -27,6 +27,7 @@ from ..domain.holds import HoldPurpose, JobHold, lease_end
 from ..domain.intents import UNSET, JobIntent, JobIntentPatch, TargetRef
 from ..domain.planning import DispatchAssignment, ExecutionPlan, Planner, WorkUnit
 from ..domain.queue import Job, OrchestratorState
+from ..domain.queue_runs import RunPhase, run_phase
 from ..domain.readiness import ReadinessEvaluator, ReadinessReport
 from ..domain.requests import CommandOrigin
 from ..domain.requirements import StateObservation
@@ -38,7 +39,7 @@ from ..domain.types import (
     QueueMode,
     RobotAvailabilityState,
 )
-from ..domain.waiting import Waiting
+from ..domain.waiting import Waiting, pending
 from ..ports.command_scope import check_command_authorization, command_origin
 from ..ports.entities import EntityReferences, LiteralEntityReferences
 from ..ports.repository import OrchestratorRepository
@@ -46,7 +47,7 @@ from ..ports.robot import RobotAdapter
 from ..ports.telemetry import adapter_reporter
 from .external_observations import apply_external_observation
 from .observation_handler import apply_observation
-from .queue_run_service import QueueRunService
+from .queue_run_service import QueueRunService, has_unfinished_work
 from .robot_session import RobotSession
 from .room_readiness import RequirementReader, evaluate_room_readiness
 from .room_service import RoomService
@@ -450,22 +451,26 @@ class VacuumOrchestrator:
         run = self.state.queue_run
         if self.state.mode is not QueueMode.RUNNING and not (run and run.ending):
             return
-        observations = await self._observe_robots()
+        await self._observe_robots()
+        await self.runs.async_reconcile(self.has_pending_work)
 
-        def ready(state: OrchestratorState) -> bool:
-            for job_id in state.queue:
-                job = state.jobs[job_id]
-                if self.job_readiness(state, job).state.value != "ready":
-                    continue
-                unit = self._planner.create_plan(job_id, job.intent).work_units[0]
-                try:
-                    self.select_robot(state, job, unit, observations)
-                except PlanningError:
-                    continue
-                return True
-            return False
+    def has_pending_work(self, state: OrchestratorState) -> bool:
+        """Return whether a waiting job starts once only its hold or delay pass."""
+        now = self._clock()
+        return any(
+            pending(explain_waiting(self, state, job, now))
+            for job in (state.jobs[job_id] for job_id in state.queue)
+            if job.state is JobState.QUEUED
+        )
 
-        await self.runs.async_reconcile(ready)
+    def run_phase(self) -> RunPhase:
+        """Classify the queue from committed state and the latest observations."""
+        state = self.state
+        return run_phase(
+            state.mode,
+            state.queue_run,
+            has_work=has_unfinished_work(state) or self.has_pending_work(state),
+        )
 
     async def async_end_queue(
         self, *, cancel_running: bool = False, return_to_dock: bool = False

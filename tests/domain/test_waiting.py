@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from custom_components.vacuum_orchestrator.domain.waiting import (
     PRIORITY,
     Blocker,
+    pending,
     rank,
     robot_blocker_code,
 )
@@ -47,3 +48,14 @@ def test_robot_refusals_map_to_waiting_codes() -> None:
     assert robot_blocker_code("battery_below_minimum") == "battery_low"
     assert robot_blocker_code("robot_needs_attention") == "robot_needs_attention"
     assert robot_blocker_code("unsupported_pass_count") == "robot_unsuitable"
+
+
+def test_only_holds_the_delay_and_the_queue_leave_a_job_pending() -> None:
+    assert pending(None)
+    assert pending(
+        rank((Blocker("being_edited", until=NOW), Blocker("start_delayed", until=NOW)))
+    )
+    assert pending(rank((Blocker("queue_paused"),)))
+    assert not pending(
+        rank((Blocker("start_delayed", until=NOW), Blocker("robot_busy")))
+    )
