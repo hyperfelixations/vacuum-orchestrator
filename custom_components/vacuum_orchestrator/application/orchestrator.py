@@ -285,6 +285,10 @@ class VacuumOrchestrator:
                     error=err,
                 )
 
+    def now(self) -> datetime:
+        """Return the clock every deadline and read model is based on."""
+        return self._clock()
+
     def active_room_ids(self) -> tuple[str, ...]:
         """Resolve an all-rooms selection; see dev doc "Alle Räume"."""
         rooms = self.state.room_registry.active_room_ids()

@@ -29,7 +29,13 @@ def view_metadata(core: VacuumOrchestrator) -> dict[str, object]:
         "commit_id": core.state.commit_id,
         "runtime_id": core.runtime_id,
         "runtime_sequence": core.runtime_sequence,
+        "server_time": server_time(core),
     }
+
+
+def server_time(core: VacuumOrchestrator) -> str:
+    """Anchor client countdowns; see dev doc "Serverzeit"."""
+    return core.now().isoformat(timespec="microseconds")
 
 
 def present_settings(resolution: SettingsResolution) -> list[dict[str, object]]:

@@ -29,7 +29,7 @@ from .configuration import (
     execute_configuration,
 )
 from .errors import send_websocket_error
-from .presentation import present_job, present_queue, view_metadata
+from .presentation import present_job, present_queue, server_time, view_metadata
 
 TYPE_QUEUE_GET = "vacuum_orchestrator/queue/get"
 TYPE_JOB_GET = "vacuum_orchestrator/job/get"
@@ -259,6 +259,7 @@ def _view_event(hass: HomeAssistant) -> dict[str, Any]:
         "commit_id": state.commit_id,
         "runtime_id": orchestrator.runtime_id,
         "runtime_sequence": orchestrator.runtime_sequence,
+        "server_time": server_time(orchestrator),
         "queue_revision": state.queue_revision,
         "mode": state.mode.value,
         "pending_jobs": len(state.queue),

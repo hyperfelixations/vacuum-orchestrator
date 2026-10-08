@@ -31,6 +31,8 @@ from custom_components.vacuum_orchestrator.runtime import (
 )
 
 NOW = datetime(2026, 9, 7, 12, tzinfo=UTC)
+# Always six fractional digits, even on a whole second.
+SERVER_TIME = "2026-09-07T12:00:00.000000+00:00"
 
 
 class StubOrchestrator:
@@ -65,6 +67,9 @@ class StubOrchestrator:
 
     def run_phase(self) -> RunPhase:
         return RunPhase.OFF
+
+    def now(self) -> datetime:
+        return NOW
 
     def subscribe_view(self, listener: Callable[[], None]) -> Callable[[], None]:
         self.listener = listener
@@ -162,13 +167,15 @@ async def test_websocket_queue_job_and_registry_queries(
         "commit_id": 1,
         "runtime_id": "runtime",
         "runtime_sequence": 1,
+        "server_time": SERVER_TIME,
     }
     for _message_id, result in connection.results:
         assert (
             result["commit_id"],
             result["runtime_id"],
             result["runtime_sequence"],
-        ) == (1, "runtime", 1)
+            result["server_time"],
+        ) == (1, "runtime", 1, SERVER_TIME)
     assert connection.errors == [(3, "unknown_job", "unknown_job")]
 
 
@@ -198,6 +205,7 @@ def test_websocket_subscription_emits_lightweight_commit_notification(
                 "commit_id": 1,
                 "runtime_id": "runtime",
                 "runtime_sequence": 1,
+                "server_time": SERVER_TIME,
                 "queue_revision": 1,
                 "mode": "idle",
                 "pending_jobs": 1,

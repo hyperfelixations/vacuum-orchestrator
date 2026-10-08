@@ -224,6 +224,8 @@ async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
         core.runtime_id,
         core.runtime_sequence,
     )
+    assert len(page["server_time"].split(".")[1]) == len("000000+00:00")
+    assert datetime.fromisoformat(page["server_time"]).tzinfo is not None
     with pytest.raises(vol.Invalid):
         await call(
             hass, "update_room", room_id=room, configuration={"last_cleaning": {}}
@@ -828,7 +830,8 @@ async def test_execution_query_explains_scoped_blockers_and_resolved_settings(
         },
     )
     await hass.async_block_till_done(wait_background_tasks=True)
-    assert connection.results[0][1] == result
+    # Both transports answer alike; only the time of the read differs.
+    assert connection.results[0][1] | {"server_time": result["server_time"]} == result
     with raises_code("unknown_job"):
         await call(hass, "get_job_execution", job_id="missing")
 
