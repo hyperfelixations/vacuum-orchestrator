@@ -103,7 +103,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 def _area_restriction(hass: HomeAssistant, data: Mapping[str, Any]) -> list[str] | None:
-    """Keep only area lists that leave out a mapped area; copies follow HA live.
+    """Follow HA live where a stored list restricts nothing; keep real restrictions.
 
     See internal dev doc "Raumerreichbarkeit".
     """
@@ -118,6 +118,5 @@ def _area_restriction(hass: HomeAssistant, data: Mapping[str, Any]) -> list[str]
     vacuum = er.async_get(hass).async_get(
         str(data.get(CONF_ROBOT_REGISTRY_ID) or data.get(CONF_ROBOT_ENTITY_ID, ""))
     )
-    if vacuum is not None and set(mapped_areas(vacuum)) <= set(targets):
-        return None
-    return list(targets)
+    mapped = set(mapped_areas(vacuum)) if vacuum is not None else set()
+    return None if mapped and mapped <= set(targets) else list(targets)

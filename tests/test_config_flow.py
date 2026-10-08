@@ -174,7 +174,7 @@ async def test_minor_one_migration_moves_option_mappings_onto_the_ladders(
     assert {item.unique_id: item.data for item in entry.subentries.values()} == migrated
 
 
-async def test_minor_two_migration_follows_the_ha_mapping_where_lists_copied_it(
+async def test_minor_two_migration_follows_the_ha_mapping_where_lists_restrict_nothing(
     hass: HomeAssistant,
 ) -> None:
     registry = er.async_get(hass)
@@ -184,6 +184,7 @@ async def test_minor_two_migration_follows_the_ha_mapping_where_lists_copied_it(
         "vacuum",
         {"area_mapping": {"kitchen": ["16"], "hall": ["17", "18"]}},
     )
+    unmapped = registry.async_get_or_create("vacuum", "demo", "unmapped")
     entry = MockConfigEntry(
         domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN}, version=2, minor_version=1
     )
@@ -210,17 +211,21 @@ async def test_minor_two_migration_follows_the_ha_mapping_where_lists_copied_it(
                 unique_id=unique_id,
             ),
         )
-    hass.config_entries.async_add_subentry(
-        entry,
-        ConfigSubentry(
-            data=MappingProxyType(
-                {CONF_ROBOT_ENTITY_ID: "vacuum.gone", CONF_TARGET_AREAS: ["kitchen"]}
+    for unique_id, entity_id in (
+        ("unregistered", "vacuum.gone"),
+        ("unmapped", unmapped.entity_id),
+    ):
+        hass.config_entries.async_add_subentry(
+            entry,
+            ConfigSubentry(
+                data=MappingProxyType(
+                    {CONF_ROBOT_ENTITY_ID: entity_id, CONF_TARGET_AREAS: ["kitchen"]}
+                ),
+                subentry_type=SUBENTRY_TYPE_ROBOT,
+                title=unique_id,
+                unique_id=unique_id,
             ),
-            subentry_type=SUBENTRY_TYPE_ROBOT,
-            title="unregistered",
-            unique_id="unregistered",
-        ),
-    )
+        )
 
     assert await async_migrate_entry(hass, entry)
 
@@ -234,6 +239,7 @@ async def test_minor_two_migration_follows_the_ha_mapping_where_lists_copied_it(
         "empty": None,
         "restriction": ["kitchen"],
         "unregistered": ["kitchen"],
+        "unmapped": ["kitchen"],
     }
     assert entry.minor_version == 2
 
