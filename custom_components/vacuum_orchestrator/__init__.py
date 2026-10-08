@@ -61,6 +61,8 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate older entries to the single-installation contract and ladders."""
+    from homeassistant.exceptions import ConfigEntryError
+
     from .configuration import migrate_setting_mappings
     from .const import (
         CONF_INSTALLATION_ID,
@@ -79,7 +81,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             minor_version=0,
         )
     if entry.version != CONFIG_ENTRY_VERSION:
-        return False
+        raise ConfigEntryError(
+            translation_domain=DOMAIN,
+            translation_key="config_entry_version_unsupported",
+        )
     if entry.minor_version < 1:
         for subentry in list(entry.subentries.values()):
             data = migrate_setting_mappings(subentry.data)

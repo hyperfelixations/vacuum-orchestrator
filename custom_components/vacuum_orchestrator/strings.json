@@ -70,9 +70,6 @@
         "timeout_out_of_range": "Timeouts cannot exceed 24 hours.",
         "invalid_identifier": "An identifier is empty or invalid.",
         "unknown_robot_configuration_field": "An advanced configuration field is unknown."
-      },
-      "abort": {
-        "reconfigure_successful": "Robot configuration updated."
       }
     }
   },
@@ -197,6 +194,9 @@
     },
     "completion_in_future": {
       "message": "A cleaning completion cannot lie in the future"
+    },
+    "config_entry_version_unsupported": {
+      "message": "This configuration version cannot be migrated; remove the integration and set it up again"
     },
     "consumed_release_requires_job": {
       "message": "A used one-time release must reference its job"

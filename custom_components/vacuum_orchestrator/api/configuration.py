@@ -4,7 +4,7 @@ from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
-import voluptuous as vol
+import probatio
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
@@ -72,125 +72,138 @@ if TYPE_CHECKING:
     from ..application.orchestrator import VacuumOrchestrator
 
 PAGE = {
-    vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
-    vol.Optional("limit", default=50): vol.All(
-        vol.Coerce(int), vol.Range(min=1, max=100)
+    probatio.Optional("offset", default=0): probatio.All(
+        probatio.Coerce(int), probatio.Range(min=0)
+    ),
+    probatio.Optional("limit", default=50): probatio.All(
+        probatio.Coerce(int), probatio.Range(min=1, max=100)
     ),
 }
-ROOM_ID: dict[Any, Any] = {vol.Required("room_id"): cv.string}
-ROBOT_ID: dict[Any, Any] = {vol.Required("robot_id"): cv.string}
-COMMANDS: dict[str, vol.Schema | vol.All] = {
-    "configure_queue": vol.All(
-        vol.Schema(
+ROOM_ID: dict[Any, Any] = {probatio.Required("room_id"): cv.string}
+ROBOT_ID: dict[Any, Any] = {probatio.Required("robot_id"): cv.string}
+COMMANDS: dict[str, probatio.Schema | probatio.All[dict[str, Any]]] = {
+    "configure_queue": probatio.All(
+        probatio.Schema(
             {
-                vol.Optional("grace_seconds"): vol.All(
-                    vol.Coerce(float), vol.Range(min=0, max=86400)
+                probatio.Optional("grace_seconds"): probatio.All(
+                    probatio.Coerce(float), probatio.Range(min=0, max=86400)
                 ),
-                vol.Optional("start_delay_seconds"): vol.All(
-                    vol.Coerce(float), vol.Range(min=0, max=MAX_START_DELAY_SECONDS)
+                probatio.Optional("start_delay_seconds"): probatio.All(
+                    probatio.Coerce(float),
+                    probatio.Range(min=0, max=MAX_START_DELAY_SECONDS),
                 ),
             }
         ),
         cv.has_at_least_one_key("grace_seconds", "start_delay_seconds"),
     ),
-    "configure_job_defaults": vol.Schema(
+    "configure_job_defaults": probatio.Schema(
         {
-            vol.Optional("mode"): _mode,
-            vol.Optional("vacuum_power"): vacuum_level,
-            vol.Optional("mop_intensity"): water_level,
-            vol.Optional("mop_route"): mop_route,
-            vol.Optional("passes"): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
-            vol.Optional("settings_policy"): vol.Coerce(SettingsPolicy),
+            probatio.Optional("mode"): _mode,
+            probatio.Optional("vacuum_power"): vacuum_level,
+            probatio.Optional("mop_intensity"): water_level,
+            probatio.Optional("mop_route"): mop_route,
+            probatio.Optional("passes"): probatio.All(
+                probatio.Coerce(int), probatio.Range(min=1, max=10)
+            ),
+            probatio.Optional("settings_policy"): probatio.Coerce(SettingsPolicy),
         }
     ),
-    "save_template": vol.Schema(
+    "save_template": probatio.Schema(
         {
-            vol.Optional("template_id"): cv.string,
-            vol.Required("name"): cv.string,
-            vol.Required("intent"): CREATE_SCHEMA,
-            vol.Optional("enabled", default=True): bool,
-            vol.Optional("automatic", default=False): bool,
+            probatio.Optional("template_id"): cv.string,
+            probatio.Required("name"): cv.string,
+            probatio.Required("intent"): CREATE_SCHEMA,
+            probatio.Optional("enabled", default=True): bool,
+            probatio.Optional("automatic", default=False): bool,
         }
     ),
-    "save_job_as_template": vol.Schema(
+    "save_job_as_template": probatio.Schema(
         {
-            vol.Required("job_id"): cv.string,
-            vol.Required("name"): cv.string,
-            vol.Optional("automatic", default=False): bool,
+            probatio.Required("job_id"): cv.string,
+            probatio.Required("name"): cv.string,
+            probatio.Optional("automatic", default=False): bool,
         }
     ),
-    "remove_template": vol.Schema({vol.Required("template_id"): cv.string}),
-    "create_job_from_template": vol.Schema({vol.Required("template_id"): cv.string}),
-    "reset_template_demand": vol.Schema({vol.Required("template_id"): cv.string}),
-    "create_room": vol.Schema(
-        {vol.Required("name"): cv.string, vol.Optional("area_id"): cv.string}
+    "remove_template": probatio.Schema({probatio.Required("template_id"): cv.string}),
+    "create_job_from_template": probatio.Schema(
+        {probatio.Required("template_id"): cv.string}
     ),
-    "update_room": vol.Schema(
-        {**ROOM_ID, vol.Required("configuration"): ROOM_PATCH_SCHEMA}
+    "reset_template_demand": probatio.Schema(
+        {probatio.Required("template_id"): cv.string}
     ),
-    "disable_room": vol.Schema(ROOM_ID),
-    "enable_room": vol.Schema(ROOM_ID),
-    "release_room": vol.Schema(
+    "create_room": probatio.Schema(
+        {probatio.Required("name"): cv.string, probatio.Optional("area_id"): cv.string}
+    ),
+    "update_room": probatio.Schema(
+        {**ROOM_ID, probatio.Required("configuration"): ROOM_PATCH_SCHEMA}
+    ),
+    "disable_room": probatio.Schema(ROOM_ID),
+    "enable_room": probatio.Schema(ROOM_ID),
+    "release_room": probatio.Schema(
         {
             **ROOM_ID,
-            vol.Required("kind"): vol.In([kind.value for kind in ReleaseKind]),
-            vol.Optional("duration_seconds"): vol.All(
-                vol.Coerce(float), vol.Range(min=0.001)
+            probatio.Required("kind"): probatio.In(
+                [kind.value for kind in ReleaseKind]
+            ),
+            probatio.Optional("duration_seconds"): probatio.All(
+                probatio.Coerce(float), probatio.Range(min=0.001)
             ),
         }
     ),
-    "revoke_room": vol.Schema(ROOM_ID),
-    "add_robot": vol.Schema({vol.Required("configuration"): dict}),
-    "configure_robot": vol.Schema({**ROBOT_ID, vol.Required("configuration"): dict}),
-    "remove_robot": vol.Schema(ROBOT_ID),
-    "resolve_recovery": vol.Schema(
-        {**ROBOT_ID, vol.Optional("confirm_stopped", default=False): bool}
+    "revoke_room": probatio.Schema(ROOM_ID),
+    "add_robot": probatio.Schema({probatio.Required("configuration"): dict}),
+    "configure_robot": probatio.Schema(
+        {**ROBOT_ID, probatio.Required("configuration"): dict}
+    ),
+    "remove_robot": probatio.Schema(ROBOT_ID),
+    "resolve_recovery": probatio.Schema(
+        {**ROBOT_ID, probatio.Optional("confirm_stopped", default=False): bool}
     ),
 }
 # WebSocket only, never actions; see dev doc "Kartenbefehle".
-CARD_COMMANDS: dict[str, vol.Schema] = {
-    "hold_job": vol.Schema(
+CARD_COMMANDS: dict[str, probatio.Schema] = {
+    "hold_job": probatio.Schema(
         {
-            vol.Required("job_id"): cv.string,
-            vol.Required("purpose"): vol.Coerce(HoldPurpose),
+            probatio.Required("job_id"): cv.string,
+            probatio.Required("purpose"): probatio.Coerce(HoldPurpose),
         }
     ),
-    "renew_job_hold": vol.Schema({vol.Required("hold_id"): cv.string}),
-    "release_job_hold": vol.Schema({vol.Required("hold_id"): cv.string}),
-    "release_rooms": vol.Schema(
+    "renew_job_hold": probatio.Schema({probatio.Required("hold_id"): cv.string}),
+    "release_job_hold": probatio.Schema({probatio.Required("hold_id"): cv.string}),
+    "release_rooms": probatio.Schema(
         {
-            vol.Required("grants"): [
-                vol.Schema(
+            probatio.Required("grants"): [
+                probatio.Schema(
                     {
-                        vol.Required("room"): cv.string,
-                        vol.Required("kind"): vol.Coerce(ReleaseKind),
-                        vol.Optional("duration_seconds"): vol.All(
-                            vol.Coerce(float), vol.Range(min=0.001)
+                        probatio.Required("room"): cv.string,
+                        probatio.Required("kind"): probatio.Coerce(ReleaseKind),
+                        probatio.Optional("duration_seconds"): probatio.All(
+                            probatio.Coerce(float), probatio.Range(min=0.001)
                         ),
                     }
                 )
             ]
         }
     ),
-    "revoke_rooms": vol.Schema({vol.Required("rooms"): [cv.string]}),
+    "revoke_rooms": probatio.Schema({probatio.Required("rooms"): [cv.string]}),
 }
-QUERIES: dict[str, vol.Schema] = {
-    "get_job_execution": vol.Schema({vol.Required("job_id"): cv.string}),
-    "preview_job": vol.Schema(
+QUERIES: dict[str, probatio.Schema] = {
+    "get_job_execution": probatio.Schema({probatio.Required("job_id"): cv.string}),
+    "preview_job": probatio.Schema(
         {
             **{key: value for key, value in INTENT_FIELDS.items() if key != ATTR_AREAS},
-            vol.Optional(ATTR_AREAS): areas,
-            vol.Optional(ATTR_ROBOT_ID): cv.string,
+            probatio.Optional(ATTR_AREAS): areas,
+            probatio.Optional(ATTR_ROBOT_ID): cv.string,
         }
     ),
-    "get_trace": vol.Schema({**PAGE, vol.Optional("job_id"): cv.string}),
-    "get_history": vol.Schema(PAGE),
-    "get_diagnostics": vol.Schema({}),
-    "get_templates": vol.Schema(PAGE),
-    "get_rooms": vol.Schema(PAGE),
-    "get_room": vol.Schema(ROOM_ID),
-    "get_robots": vol.Schema(PAGE),
-    "get_robot_candidates": vol.Schema(PAGE),
+    "get_trace": probatio.Schema({**PAGE, probatio.Optional("job_id"): cv.string}),
+    "get_history": probatio.Schema(PAGE),
+    "get_diagnostics": probatio.Schema({}),
+    "get_templates": probatio.Schema(PAGE),
+    "get_rooms": probatio.Schema(PAGE),
+    "get_room": probatio.Schema(ROOM_ID),
+    "get_robots": probatio.Schema(PAGE),
+    "get_robot_candidates": probatio.Schema(PAGE),
 }
 
 

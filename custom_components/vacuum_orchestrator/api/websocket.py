@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import voluptuous as vol
+import probatio
 from homeassistant.components.websocket_api import async_register_command
 from homeassistant.components.websocket_api.connection import ActiveConnection
 from homeassistant.components.websocket_api.decorators import (
@@ -42,9 +42,11 @@ TYPE_JOBS_LIST = "vacuum_orchestrator/jobs/list"
 TYPE_SUBSCRIBE = "vacuum_orchestrator/subscribe"
 
 PAGE_FIELDS: dict[Any, Any] = {
-    vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
-    vol.Optional("limit", default=50): vol.All(
-        vol.Coerce(int), vol.Range(min=1, max=100)
+    probatio.Optional("offset", default=0): probatio.All(
+        probatio.Coerce(int), probatio.Range(min=0)
+    ),
+    probatio.Optional("limit", default=50): probatio.All(
+        probatio.Coerce(int), probatio.Range(min=1, max=100)
     ),
 }
 
@@ -61,9 +63,9 @@ def async_setup_websocket(hass: HomeAssistant) -> None:
 
 @websocket_command(
     {
-        vol.Required("type"): "vacuum_orchestrator/configuration/get",
-        vol.Required("query"): vol.In(QUERIES),
-        vol.Optional("parameters", default={}): dict,
+        probatio.Required("type"): "vacuum_orchestrator/configuration/get",
+        probatio.Required("query"): probatio.In(QUERIES),
+        probatio.Optional("parameters", default={}): dict,
     }
 )
 @async_response
@@ -76,7 +78,7 @@ async def websocket_configuration_get(
         connection.send_result(
             msg["id"], await async_query_configuration(hass, msg["query"], data)
         )
-    except vol.Invalid as err:
+    except probatio.Invalid as err:
         send_websocket_error(
             connection,
             msg["id"],
@@ -88,9 +90,9 @@ async def websocket_configuration_get(
 
 @websocket_command(
     {
-        vol.Required("type"): "vacuum_orchestrator/configuration/command",
-        vol.Required("command"): vol.In({**COMMANDS, **CARD_COMMANDS}),
-        vol.Required("parameters"): dict,
+        probatio.Required("type"): "vacuum_orchestrator/configuration/command",
+        probatio.Required("command"): probatio.In({**COMMANDS, **CARD_COMMANDS}),
+        probatio.Required("parameters"): dict,
     }
 )
 @require_admin
@@ -105,7 +107,7 @@ async def websocket_configuration_command(
             connection.send_result(
                 msg["id"], await execute_configuration(hass, msg["command"], data)
             )
-    except vol.Invalid as err:
+    except probatio.Invalid as err:
         send_websocket_error(
             connection,
             msg["id"],
@@ -115,7 +117,7 @@ async def websocket_configuration_command(
         send_websocket_error(connection, msg["id"], err)
 
 
-@websocket_command({vol.Required("type"): TYPE_QUEUE_GET, **PAGE_FIELDS})
+@websocket_command({probatio.Required("type"): TYPE_QUEUE_GET, **PAGE_FIELDS})
 @async_response
 async def websocket_queue_get(
     hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
@@ -155,7 +157,7 @@ async def websocket_queue_get(
 
 
 @websocket_command(
-    {vol.Required("type"): TYPE_JOB_GET, vol.Required("job_id"): cv.string}
+    {probatio.Required("type"): TYPE_JOB_GET, probatio.Required("job_id"): cv.string}
 )
 @async_response
 async def websocket_job_get(
@@ -187,10 +189,10 @@ async def websocket_job_get(
 
 @websocket_command(
     {
-        vol.Required("type"): TYPE_JOBS_LIST,
+        probatio.Required("type"): TYPE_JOBS_LIST,
         **PAGE_FIELDS,
-        vol.Optional("states"): vol.All(
-            cv.ensure_list, [vol.Coerce(JobState)], vol.Length(min=1)
+        probatio.Optional("states"): probatio.All(
+            cv.ensure_list, [probatio.Coerce(JobState)], probatio.Length(min=1)
         ),
     }
 )
@@ -236,7 +238,7 @@ async def websocket_jobs_list(
         send_websocket_error(connection, msg["id"], err)
 
 
-@websocket_command({vol.Required("type"): TYPE_SUBSCRIBE})
+@websocket_command({probatio.Required("type"): TYPE_SUBSCRIBE})
 @callback
 def websocket_subscribe(
     hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
@@ -256,7 +258,7 @@ def websocket_subscribe(
         connection.send_event(msg["id"], event)
 
 
-def _field(err: vol.Invalid) -> FieldPath:
+def _field(err: probatio.Invalid) -> FieldPath:
     """Return the schema error's field as an orchestrator field path."""
     return tuple(item if isinstance(item, int) else str(item) for item in err.path)
 

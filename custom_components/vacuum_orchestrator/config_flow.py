@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, override
 
-import voluptuous as vol
+import probatio
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -57,7 +57,7 @@ class VacuumOrchestratorConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({}),
+            data_schema=probatio.Schema({}),
         )
 
     @classmethod
@@ -138,25 +138,25 @@ class RobotSubentryFlow(ConfigSubentryFlow):
         )
 
 
-def _robot_schema(suggested: dict[str, Any] | None) -> vol.Schema:
+def _robot_schema(suggested: dict[str, Any] | None) -> probatio.Schema:
     values = suggested or {}
-    return vol.Schema(
+    return probatio.Schema(
         {
-            vol.Required(
+            probatio.Required(
                 CONF_ROBOT_ENTITY_ID,
                 description={"suggested_value": values.get(CONF_ROBOT_ENTITY_ID)},
             ): EntitySelector(EntitySelectorConfig(domain="vacuum")),
-            vol.Optional(
+            probatio.Optional(
                 CONF_TARGET_AREAS,
                 description={"suggested_value": values.get(CONF_TARGET_AREAS)},
             ): AreaSelector(AreaSelectorConfig(multiple=True)),
-            vol.Optional(
+            probatio.Optional(
                 CONF_LAST_CLEAN_START_ENTITY_ID,
                 description={
                     "suggested_value": values.get(CONF_LAST_CLEAN_START_ENTITY_ID)
                 },
             ): EntitySelector(EntitySelectorConfig(domain="sensor")),
-            vol.Optional(
+            probatio.Optional(
                 "advanced",
                 description={
                     "suggested_value": {
@@ -175,7 +175,7 @@ def _robot_schema(suggested: dict[str, Any] | None) -> vol.Schema:
                     }
                 },
             ): ObjectSelector(),
-            vol.Optional(
+            probatio.Optional(
                 CONF_LAST_CLEAN_END_ENTITY_ID,
                 description={
                     "suggested_value": values.get(CONF_LAST_CLEAN_END_ENTITY_ID)

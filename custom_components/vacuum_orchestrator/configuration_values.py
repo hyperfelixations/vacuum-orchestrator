@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from typing import Any
 
-import voluptuous as vol
+import probatio
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
@@ -12,20 +12,20 @@ from .domain.errors import ValidationError
 from .domain.requirements import StateRequirement
 from .domain.types import OperationKind
 
-REQUIREMENT_SCHEMA = vol.Schema(
+REQUIREMENT_SCHEMA = probatio.Schema(
     {
-        vol.Required("entity_id"): cv.entity_id,
-        vol.Optional("accepted_states", default=["on"]): vol.All(
-            [cv.string], vol.Length(min=1, max=20)
+        probatio.Required("entity_id"): cv.entity_id,
+        probatio.Optional("accepted_states", default=["on"]): probatio.All(
+            [cv.string], probatio.Length(min=1, max=20)
         ),
-        vol.Optional("max_age_seconds"): vol.Any(
-            None, vol.All(vol.Coerce(float), vol.Range(min=0.001))
+        probatio.Optional("max_age_seconds"): probatio.Any(
+            None, probatio.All(probatio.Coerce(float), probatio.Range(min=0.001))
         ),
-        vol.Optional("robot_id"): vol.Any(None, cv.string),
-        vol.Optional("operation"): vol.Any(
-            None, vol.In([item.value for item in OperationKind])
+        probatio.Optional("robot_id"): probatio.Any(None, cv.string),
+        probatio.Optional("operation"): probatio.Any(
+            None, probatio.In([item.value for item in OperationKind])
         ),
-        vol.Optional("entity_registry_id"): vol.Any(None, cv.string),
+        probatio.Optional("entity_registry_id"): probatio.Any(None, cv.string),
     }
 )
 
@@ -33,8 +33,10 @@ REQUIREMENT_SCHEMA = vol.Schema(
 def normalize_requirements(hass: HomeAssistant, values: object) -> list[dict[str, Any]]:
     """Resolve stable identities once; explicit bindings never fall back on deletion."""
     try:
-        raw = vol.Schema(vol.All([REQUIREMENT_SCHEMA], vol.Length(max=100)))(values)
-    except vol.Invalid as err:
+        raw = probatio.Schema(
+            probatio.All([REQUIREMENT_SCHEMA], probatio.Length(max=100))
+        )(values)
+    except probatio.Invalid as err:
         raise ValidationError("invalid_requirements") from err
     result = []
     for value in raw:

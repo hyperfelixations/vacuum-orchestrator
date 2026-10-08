@@ -3,7 +3,7 @@
 from dataclasses import replace
 from typing import Any, cast
 
-import voluptuous as vol
+import probatio
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import config_validation as cv
@@ -18,39 +18,43 @@ from .domain.due import DueBasis
 from .domain.errors import ValidationError
 from .domain.rooms import Room, RoomBinding
 
-DUE_SCHEMA = vol.Schema(
+DUE_SCHEMA = probatio.Schema(
     {
-        vol.Optional("basis"): vol.In([item.value for item in DueBasis]),
-        vol.Optional("vacuum_seconds"): vol.Any(
-            None, vol.All(vol.Coerce(float), vol.Range(min=0.001))
+        probatio.Optional("basis"): probatio.In([item.value for item in DueBasis]),
+        probatio.Optional("vacuum_seconds"): probatio.Any(
+            None, probatio.All(probatio.Coerce(float), probatio.Range(min=0.001))
         ),
-        vol.Optional("mop_seconds"): vol.Any(
-            None, vol.All(vol.Coerce(float), vol.Range(min=0.001))
+        probatio.Optional("mop_seconds"): probatio.Any(
+            None, probatio.All(probatio.Coerce(float), probatio.Range(min=0.001))
         ),
-        vol.Optional("occupancy_entity_id"): vol.Any(None, cv.entity_id),
-        vol.Optional("occupied_state"): cv.string,
-        vol.Optional("unoccupied_state"): cv.string,
+        probatio.Optional("occupancy_entity_id"): probatio.Any(None, cv.entity_id),
+        probatio.Optional("occupied_state"): cv.string,
+        probatio.Optional("unoccupied_state"): cv.string,
     }
 )
-BINDING_SCHEMA = vol.Schema(
+BINDING_SCHEMA = probatio.Schema(
     {
-        vol.Required("robot_id"): cv.string,
-        vol.Required("target_ids"): vol.All([cv.string], vol.Length(min=1, max=100)),
-        vol.Optional("map_id"): vol.Any(None, cv.string),
+        probatio.Required("robot_id"): cv.string,
+        probatio.Required("target_ids"): probatio.All(
+            [cv.string], probatio.Length(min=1, max=100)
+        ),
+        probatio.Optional("map_id"): probatio.Any(None, cv.string),
     }
 )
-ROOM_PATCH_SCHEMA = vol.Schema(
+ROOM_PATCH_SCHEMA = probatio.Schema(
     {
-        vol.Optional("name"): cv.string,
-        vol.Optional("area_id"): vol.Any(None, cv.string),
-        vol.Optional("floor_id"): vol.Any(None, cv.string),
-        vol.Optional("enabled"): bool,
-        vol.Optional("follow_area_name"): bool,
-        vol.Optional("bindings"): vol.All([BINDING_SCHEMA], vol.Length(max=100)),
-        vol.Optional("requirements"): vol.All(
-            [REQUIREMENT_SCHEMA], vol.Length(max=100)
+        probatio.Optional("name"): cv.string,
+        probatio.Optional("area_id"): probatio.Any(None, cv.string),
+        probatio.Optional("floor_id"): probatio.Any(None, cv.string),
+        probatio.Optional("enabled"): bool,
+        probatio.Optional("follow_area_name"): bool,
+        probatio.Optional("bindings"): probatio.All(
+            [BINDING_SCHEMA], probatio.Length(max=100)
         ),
-        vol.Optional("due_policy"): DUE_SCHEMA,
+        probatio.Optional("requirements"): probatio.All(
+            [REQUIREMENT_SCHEMA], probatio.Length(max=100)
+        ),
+        probatio.Optional("due_policy"): DUE_SCHEMA,
     }
 )
 
@@ -59,7 +63,7 @@ def normalize_room_patch(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     """Validate writable fields and retain stable occupancy/condition identities."""
     try:
         values = ROOM_PATCH_SCHEMA(data)
-    except vol.Invalid as err:
+    except probatio.Invalid as err:
         raise ValidationError("invalid_room_configuration") from err
     if (
         values.get("area_id")

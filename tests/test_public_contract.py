@@ -59,7 +59,16 @@ def test_distribution_metadata_and_translations_are_consistent():
         "codeowners",
     } <= manifest.keys()
     assert manifest["version"] == "0.1.1"
-    assert json.loads((ROOT / "hacs.json").read_text())["homeassistant"] == "2026.9.0"
+    # The tested baseline is the pinned HA test stack; HACS and README name it.
+    (baseline,) = (
+        line.removeprefix("homeassistant==")
+        for line in (ROOT / "requirements-test.txt").read_text().splitlines()
+        if line.startswith("homeassistant==")
+    )
+    assert baseline == "2026.10.0"
+    assert json.loads((ROOT / "hacs.json").read_text())["homeassistant"] == baseline
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert f"**Home Assistant {baseline}** or newer" in readme
     strings = json.loads((integration / "strings.json").read_text(encoding="utf-8"))
     english = json.loads(
         (integration / "translations/en.json").read_text(encoding="utf-8")

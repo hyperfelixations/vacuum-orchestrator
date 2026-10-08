@@ -4,8 +4,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, cast
 
+import probatio
 import pytest
-import voluptuous as vol
 from homeassistant.components.websocket_api.connection import ActiveConnection
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -322,7 +322,7 @@ async def test_jobs_list_filters_by_state_and_validates_states(
         "states"
     ] == [JobState.QUEUED]
     for invalid in (["polished"], []):
-        with pytest.raises(vol.Invalid):
+        with pytest.raises(probatio.Invalid):
             schema({"id": 4, "type": websocket_api.TYPE_JOBS_LIST, "states": invalid})
 
 

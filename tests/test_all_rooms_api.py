@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from types import MappingProxyType
 
+import probatio
 import pytest
-import voluptuous as vol
 from homeassistant.components.vacuum.const import VacuumEntityFeature
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import HomeAssistant
@@ -36,7 +36,7 @@ def test_schema_accepts_all_as_string_or_single_item() -> None:
     assert CREATE_SCHEMA({"areas": ["all"], "mode": "vacuum"})["areas"] == "all"
     assert CREATE_SCHEMA({"areas": "kitchen", "mode": "vacuum"})["areas"] == ["kitchen"]
     assert CREATE_SCHEMA({"areas": [], "mode": "vacuum"})["areas"] == []
-    with pytest.raises(vol.Invalid):
+    with pytest.raises(probatio.Invalid):
         CREATE_SCHEMA({"areas": [{"id": "all"}], "mode": "vacuum"})
 
 

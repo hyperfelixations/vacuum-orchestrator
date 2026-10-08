@@ -3,8 +3,8 @@
 from copy import deepcopy
 from typing import Any
 
+import probatio
 import pytest
-import voluptuous as vol
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import area_registry as ar
@@ -382,7 +382,7 @@ async def test_action_validation_permissions_and_unloaded_runtime_are_clear(
             blocking=True,
             return_response=True,
         )
-    with pytest.raises(vol.Invalid, match="invalid_cleaning_mode"):
+    with pytest.raises(probatio.Invalid, match="invalid_cleaning_mode"):
         await hass.services.async_call(
             DOMAIN,
             SERVICE_CREATE_JOB,

@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import probatio
 import pytest
-import voluptuous as vol
 from homeassistant.components.vacuum.const import VacuumEntityFeature
 from homeassistant.core import Context, ServiceCall
 from homeassistant.exceptions import Unauthorized
@@ -226,7 +226,7 @@ async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
     )
     assert len(page["server_time"].split(".")[1]) == len("000000+00:00")
     assert datetime.fromisoformat(page["server_time"]).tzinfo is not None
-    with pytest.raises(vol.Invalid):
+    with pytest.raises(probatio.Invalid):
         await call(
             hass, "update_room", room_id=room, configuration={"last_cleaning": {}}
         )
@@ -547,7 +547,7 @@ async def test_job_defaults_are_copied_into_jobs_and_templates(hass, configured)
         intent["passes"],
     ) == ("standard", "high", "standard", 2)
     for invalid in ({"vacuum_power": "medium"}, {"mop_intensity": "standard"}):
-        with pytest.raises(vol.Invalid):
+        with pytest.raises(probatio.Invalid):
             await call(hass, "configure_job_defaults", **invalid)
 
 
@@ -655,9 +655,9 @@ async def test_cancel_and_return_actions_expose_the_return_choice(hass, configur
     )
     assert ended["mode"] == "idle"
     assert (await call(hass, "get_queue"))["queue_run"]["ending"] is False
-    with pytest.raises(vol.Invalid):
+    with pytest.raises(probatio.Invalid):
         await call(hass, "end_queue", running_jobs="abort")
-    with pytest.raises(vol.Invalid):
+    with pytest.raises(probatio.Invalid):
         await call(hass, "cancel_job", job_id=job, after_cancel="home")
 
 
@@ -848,7 +848,7 @@ async def test_queue_configuration_sets_grace_and_start_delay(hass, configured):
         configured_grace["start_delay_seconds"],
     ) == (60, 30)
     for invalid in ({}, {"start_delay_seconds": 601}, {"start_delay_seconds": -1}):
-        with pytest.raises(vol.Invalid):
+        with pytest.raises(probatio.Invalid):
             await call(hass, "configure_queue", **invalid)
 
     room = (await call(hass, "create_room", name="Office"))["room_id"]

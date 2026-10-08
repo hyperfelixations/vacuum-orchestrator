@@ -70,9 +70,6 @@
         "timeout_out_of_range": "Zeitlimits dürfen 24 Stunden nicht überschreiten.",
         "invalid_identifier": "Ein Bezeichner ist leer oder ungültig.",
         "unknown_robot_configuration_field": "Ein Feld der erweiterten Konfiguration ist unbekannt."
-      },
-      "abort": {
-        "reconfigure_successful": "Roboterkonfiguration aktualisiert."
       }
     }
   },
@@ -197,6 +194,9 @@
     },
     "completion_in_future": {
       "message": "Ein Reinigungsabschluss kann nicht in der Zukunft liegen"
+    },
+    "config_entry_version_unsupported": {
+      "message": "Diese Konfigurationsversion kann nicht migriert werden; entferne die Integration und richte sie neu ein"
     },
     "consumed_release_requires_job": {
       "message": "Eine verbrauchte Einmalfreigabe muss auf ihren Auftrag verweisen"

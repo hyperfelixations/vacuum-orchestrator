@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from typing import Any
 
-import voluptuous as vol
+import probatio
 from homeassistant.helpers import config_validation as cv
 
 from ..domain.errors import ValidationError
@@ -43,7 +43,7 @@ def _mode(value: object) -> object:
     try:
         return parse_cleaning_mode(value)
     except ValidationError as err:
-        raise vol.Invalid(str(err)) from err
+        raise probatio.Invalid(str(err)) from err
 
 
 def _rung(ladder: tuple[Any, ...]) -> Callable[[object], Any]:
@@ -53,7 +53,7 @@ def _rung(ladder: tuple[Any, ...]) -> Callable[[object], Any]:
     def validate(value: object) -> Any:
         if isinstance(value, str) and value in by_value:
             return by_value[value]
-        raise vol.Invalid(f"expected one of {', '.join(by_value)}")
+        raise probatio.Invalid(f"expected one of {', '.join(by_value)}")
 
     return validate
 
@@ -65,28 +65,32 @@ mop_route = _rung(ROUTE_LADDER)
 
 def areas(value: object) -> list[str] | str:
     """Accept room IDs or "all", alone or as the only list item."""
-    selected = vol.All(cv.ensure_list, [cv.string])(value)
+    selected = probatio.All(cv.ensure_list, [cv.string])(value)
     return ALL_ROOMS if selected == [ALL_ROOMS] else selected
 
 
 INTENT_FIELDS: dict[Any, Any] = {
-    vol.Required(ATTR_AREAS): areas,
-    vol.Optional(ATTR_MODE): _mode,
-    vol.Optional(ATTR_NAME): cv.string,
-    vol.Optional(ATTR_VACUUM_POWER): vacuum_level,
-    vol.Optional(ATTR_MOP_INTENSITY): water_level,
-    vol.Optional(ATTR_MOP_ROUTE): mop_route,
-    vol.Optional(ATTR_PASSES): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
-    vol.Optional(ATTR_REASON): cv.string,
-    vol.Optional(ATTR_NOTE): cv.string,
-    vol.Optional(ATTR_DEDUPE_KEY): cv.string,
-    vol.Optional(ATTR_REQUIRED_ON, default=[]): vol.All(cv.ensure_list, [cv.entity_id]),
-    vol.Optional(ATTR_REQUIRED_OFF, default=[]): vol.All(
+    probatio.Required(ATTR_AREAS): areas,
+    probatio.Optional(ATTR_MODE): _mode,
+    probatio.Optional(ATTR_NAME): cv.string,
+    probatio.Optional(ATTR_VACUUM_POWER): vacuum_level,
+    probatio.Optional(ATTR_MOP_INTENSITY): water_level,
+    probatio.Optional(ATTR_MOP_ROUTE): mop_route,
+    probatio.Optional(ATTR_PASSES): probatio.All(
+        probatio.Coerce(int), probatio.Range(min=1, max=10)
+    ),
+    probatio.Optional(ATTR_REASON): cv.string,
+    probatio.Optional(ATTR_NOTE): cv.string,
+    probatio.Optional(ATTR_DEDUPE_KEY): cv.string,
+    probatio.Optional(ATTR_REQUIRED_ON, default=[]): probatio.All(
         cv.ensure_list, [cv.entity_id]
     ),
-    vol.Optional(ATTR_SETTINGS_POLICY): vol.Coerce(SettingsPolicy),
+    probatio.Optional(ATTR_REQUIRED_OFF, default=[]): probatio.All(
+        cv.ensure_list, [cv.entity_id]
+    ),
+    probatio.Optional(ATTR_SETTINGS_POLICY): probatio.Coerce(SettingsPolicy),
 }
-CREATE_SCHEMA = vol.Schema(INTENT_FIELDS)
+CREATE_SCHEMA = probatio.Schema(INTENT_FIELDS)
 
 
 def selected_areas(

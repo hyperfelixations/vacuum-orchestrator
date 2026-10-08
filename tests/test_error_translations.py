@@ -87,6 +87,13 @@ def _source_codes() -> tuple[set[str], set[tuple[str, str]]]:
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if not isinstance(node, ast.Call):
                 continue
+            codes.update(
+                keyword.value.value
+                for keyword in node.keywords
+                if keyword.arg == "translation_key"
+                and isinstance(keyword.value, ast.Constant)
+                and isinstance(keyword.value.value, str)
+            )
             function = node.func
             name = (
                 function.id

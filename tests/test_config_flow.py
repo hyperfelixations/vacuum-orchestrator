@@ -7,9 +7,11 @@ import pytest
 from homeassistant.config_entries import (
     SOURCE_RECONFIGURE,
     SOURCE_USER,
+    ConfigEntryState,
     ConfigSubentry,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -129,8 +131,22 @@ async def test_pre_release_config_entry_migration_is_single_installation(
     assert legacy.title == "Vacuum Orchestrator"
     assert legacy.data == {CONF_INSTALLATION_ID: DOMAIN}
 
-    unsupported = MockConfigEntry(domain=DOMAIN, data={}, version=99)
-    assert not await async_migrate_entry(hass, unsupported)
+
+async def test_an_unknown_old_version_fails_migration_with_a_translated_reason(
+    hass: HomeAssistant, enable_custom_integrations: None
+) -> None:
+    unsupported = MockConfigEntry(domain=DOMAIN, data={}, version=0)
+    unsupported.add_to_hass(hass)
+    with pytest.raises(ConfigEntryError) as raised:
+        await async_migrate_entry(hass, unsupported)
+    assert raised.value.translation_key == "config_entry_version_unsupported"
+
+    assert not await hass.config_entries.async_setup(unsupported.entry_id)
+    assert unsupported.state is ConfigEntryState.MIGRATION_ERROR
+    assert unsupported.error_reason_translation_key == (
+        "config_entry_version_unsupported"
+    )
+    assert unsupported.error_reason_translation_domain == DOMAIN
 
 
 async def test_minor_one_migration_moves_option_mappings_onto_the_ladders(
@@ -284,6 +300,7 @@ async def test_reconfigure_tracks_renames_and_blocks_active_robot(
     )
     assert result["type"] == "abort"
     assert result["reason"] == "reconfigure_successful"
+    assert result["translation_domain"] == "homeassistant"
     assert (
         entry.subentries[subentry.subentry_id].data[CONF_ROBOT_REGISTRY_ID] == entity.id
     )

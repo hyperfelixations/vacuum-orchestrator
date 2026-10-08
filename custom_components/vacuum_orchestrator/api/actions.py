@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-import voluptuous as vol
+import probatio
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
@@ -79,78 +79,86 @@ ATTR_LIMIT = "limit"
 ATTR_HOLD_ID = "hold_id"
 
 
-UPDATE_SCHEMA = vol.Schema(
+UPDATE_SCHEMA = probatio.Schema(
     {
-        vol.Required(ATTR_JOB_ID): cv.string,
-        vol.Optional(ATTR_AREAS): areas,
-        vol.Optional(ATTR_MODE): _mode,
-        vol.Optional(ATTR_NAME): vol.Any(None, cv.string),
-        vol.Optional(ATTR_VACUUM_POWER): vol.Any(None, vacuum_level),
-        vol.Optional(ATTR_MOP_INTENSITY): vol.Any(None, water_level),
-        vol.Optional(ATTR_MOP_ROUTE): vol.Any(None, mop_route),
-        vol.Optional(ATTR_PASSES): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
-        vol.Optional(ATTR_REASON): vol.Any(None, cv.string),
-        vol.Optional(ATTR_NOTE): vol.Any(None, cv.string),
-        vol.Optional(ATTR_DEDUPE_KEY): vol.Any(None, cv.string),
-        vol.Optional(ATTR_REQUIRED_ON): vol.All(cv.ensure_list, [cv.entity_id]),
-        vol.Optional(ATTR_REQUIRED_OFF): vol.All(cv.ensure_list, [cv.entity_id]),
-        vol.Optional(ATTR_SETTINGS_POLICY): vol.Coerce(SettingsPolicy),
-        vol.Optional(ATTR_HOLD_ID): cv.string,
+        probatio.Required(ATTR_JOB_ID): cv.string,
+        probatio.Optional(ATTR_AREAS): areas,
+        probatio.Optional(ATTR_MODE): _mode,
+        probatio.Optional(ATTR_NAME): probatio.Any(None, cv.string),
+        probatio.Optional(ATTR_VACUUM_POWER): probatio.Any(None, vacuum_level),
+        probatio.Optional(ATTR_MOP_INTENSITY): probatio.Any(None, water_level),
+        probatio.Optional(ATTR_MOP_ROUTE): probatio.Any(None, mop_route),
+        probatio.Optional(ATTR_PASSES): probatio.All(
+            probatio.Coerce(int), probatio.Range(min=1, max=10)
+        ),
+        probatio.Optional(ATTR_REASON): probatio.Any(None, cv.string),
+        probatio.Optional(ATTR_NOTE): probatio.Any(None, cv.string),
+        probatio.Optional(ATTR_DEDUPE_KEY): probatio.Any(None, cv.string),
+        probatio.Optional(ATTR_REQUIRED_ON): probatio.All(
+            cv.ensure_list, [cv.entity_id]
+        ),
+        probatio.Optional(ATTR_REQUIRED_OFF): probatio.All(
+            cv.ensure_list, [cv.entity_id]
+        ),
+        probatio.Optional(ATTR_SETTINGS_POLICY): probatio.Coerce(SettingsPolicy),
+        probatio.Optional(ATTR_HOLD_ID): cv.string,
     }
 )
-JOB_SCHEMA = vol.Schema({vol.Required(ATTR_JOB_ID): cv.string})
-DELETE_SCHEMA = vol.Schema(
+JOB_SCHEMA = probatio.Schema({probatio.Required(ATTR_JOB_ID): cv.string})
+DELETE_SCHEMA = probatio.Schema(
     {
-        vol.Required(ATTR_JOB_ID): cv.string,
-        vol.Optional(ATTR_HOLD_ID): cv.string,
+        probatio.Required(ATTR_JOB_ID): cv.string,
+        probatio.Optional(ATTR_HOLD_ID): cv.string,
     }
 )
-START_SCHEMA = vol.Schema(
+START_SCHEMA = probatio.Schema(
     {
-        vol.Required(ATTR_JOB_ID): cv.string,
-        vol.Optional(ATTR_ROBOT_ID): cv.string,
+        probatio.Required(ATTR_JOB_ID): cv.string,
+        probatio.Optional(ATTR_ROBOT_ID): cv.string,
     }
 )
-MOVE_SCHEMA = vol.Schema(
+MOVE_SCHEMA = probatio.Schema(
     {
-        vol.Required(ATTR_JOB_ID): cv.string,
-        vol.Required(ATTR_DIRECTION): vol.Coerce(MoveDirection),
+        probatio.Required(ATTR_JOB_ID): cv.string,
+        probatio.Required(ATTR_DIRECTION): probatio.Coerce(MoveDirection),
     }
 )
 ATTR_AFTER_CANCEL = "after_cancel"
-CANCEL_SCHEMA = vol.Schema(
+CANCEL_SCHEMA = probatio.Schema(
     {
-        vol.Required(ATTR_JOB_ID): cv.string,
-        vol.Optional(ATTR_AFTER_CANCEL, default="stay"): vol.In(
+        probatio.Required(ATTR_JOB_ID): cv.string,
+        probatio.Optional(ATTR_AFTER_CANCEL, default="stay"): probatio.In(
             ("stay", "return_to_dock")
         ),
     }
 )
-ROBOT_SCHEMA = vol.Schema({vol.Required(ATTR_ROBOT_ID): cv.string})
+ROBOT_SCHEMA = probatio.Schema({probatio.Required(ATTR_ROBOT_ID): cv.string})
 ATTR_START = "start"
 CREATE_JOB_SCHEMA = CREATE_SCHEMA.extend(
     {
-        vol.Optional(ATTR_START, default=False): cv.boolean,
-        vol.Optional(ATTR_ROBOT_ID): cv.string,
+        probatio.Optional(ATTR_START, default=False): cv.boolean,
+        probatio.Optional(ATTR_ROBOT_ID): cv.string,
     }
 )
 ATTR_RUNNING_JOBS = "running_jobs"
-END_QUEUE_SCHEMA = vol.Schema(
+END_QUEUE_SCHEMA = probatio.Schema(
     {
-        vol.Optional(ATTR_RUNNING_JOBS, default="finish"): vol.In(("finish", "cancel")),
-        vol.Optional(ATTR_AFTER_CANCEL, default="stay"): vol.In(
+        probatio.Optional(ATTR_RUNNING_JOBS, default="finish"): probatio.In(
+            ("finish", "cancel")
+        ),
+        probatio.Optional(ATTR_AFTER_CANCEL, default="stay"): probatio.In(
             ("stay", "return_to_dock")
         ),
     }
 )
-EMPTY_SCHEMA = vol.Schema({})
-GET_QUEUE_SCHEMA = vol.Schema(
+EMPTY_SCHEMA = probatio.Schema({})
+GET_QUEUE_SCHEMA = probatio.Schema(
     {
-        vol.Optional(ATTR_OFFSET, default=0): vol.All(
-            vol.Coerce(int), vol.Range(min=0)
+        probatio.Optional(ATTR_OFFSET, default=0): probatio.All(
+            probatio.Coerce(int), probatio.Range(min=0)
         ),
-        vol.Optional(ATTR_LIMIT, default=50): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=100)
+        probatio.Optional(ATTR_LIMIT, default=50): probatio.All(
+            probatio.Coerce(int), probatio.Range(min=1, max=100)
         ),
     }
 )
@@ -365,7 +373,9 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
     _register_query(hass, SERVICE_GET_JOB, get_job, JOB_SCHEMA)
 
 
-def _register(hass: HomeAssistant, name: str, handler: Any, schema: vol.Schema) -> None:
+def _register(
+    hass: HomeAssistant, name: str, handler: Any, schema: probatio.Schema
+) -> None:
     async def contextual(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
         with (
@@ -387,7 +397,7 @@ def _register(hass: HomeAssistant, name: str, handler: Any, schema: vol.Schema) 
 
 
 def _register_query(
-    hass: HomeAssistant, name: str, handler: Any, schema: vol.Schema
+    hass: HomeAssistant, name: str, handler: Any, schema: probatio.Schema
 ) -> None:
     hass.services.async_register(
         DOMAIN,

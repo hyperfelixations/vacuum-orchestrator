@@ -1,7 +1,7 @@
 # Vacuum Orchestrator
 
 [![Status: Preview](https://img.shields.io/badge/Status-Preview-orange)](#before-you-start)
-[![Home Assistant 2026.9](https://img.shields.io/badge/Home%20Assistant-2026.9-41BDF5?logo=homeassistant&logoColor=white)](#what-you-need)
+[![Home Assistant 2026.10](https://img.shields.io/badge/Home%20Assistant-2026.10-41BDF5?logo=homeassistant&logoColor=white)](#what-you-need)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Questions](https://img.shields.io/badge/Questions%3F-Join%20the%20community-5865F2)](https://discord.gg/zfGKCVEvwe)
 
@@ -45,8 +45,7 @@ You can prepare rooms and jobs before connecting a robot.
 
 ## What you need
 
-- **Home Assistant 2026.9.0** is the tested baseline. Compatibility with the
-  upcoming 2026.10 release has not been validated yet.
+- **Home Assistant 2026.10.0** or newer. Older releases are not supported.
 - A robot already available in Home Assistant through its own integration,
   such as Roborock or Matter. VOI uses that existing connection.
 - Room targeting and stopping supported by that robot, plus a cleaning mode

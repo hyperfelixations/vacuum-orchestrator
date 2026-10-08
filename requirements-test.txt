@@ -1,7 +1,7 @@
 # Home Assistant test stack: pytest-homeassistant-custom-component pins the other four, and the
 # set moves only with the supported Home Assistant baseline (hacs.json, README).
-homeassistant==2026.9.0
-pytest-homeassistant-custom-component==0.13.363
+homeassistant==2026.10.0
+pytest-homeassistant-custom-component==0.13.371
 pytest==9.0.3
 pytest-asyncio==1.4.0
 pytest-cov==7.1.0
