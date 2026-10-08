@@ -138,17 +138,17 @@ async def test_new_work_joins_same_run_and_superseding_permanent_grant_survives(
 
 async def test_immediate_run_end_is_optional_and_grace_changes_apply_to_next_run():
     core, _, _ = await setup_run()
-    await core.runs.async_configure(0)
-    await core.runs.async_configure(0)
+    await core.runs.async_configure(grace_seconds=0)
+    await core.runs.async_configure(grace_seconds=0)
     await core.async_run_queue()
-    await core.runs.async_configure(30)
+    await core.runs.async_configure(grace_seconds=30)
     assert core.state.queue_run.grace_seconds == 0
     await core.async_reconcile_queue_run()
     assert core.state.mode is QueueMode.IDLE
     await core.async_run_queue()
     assert core.state.queue_run.grace_seconds == 30
     with pytest.raises(ValidationError):
-        await core.runs.async_configure(86401)
+        await core.runs.async_configure(grace_seconds=86401)
 
 
 @pytest.mark.parametrize(

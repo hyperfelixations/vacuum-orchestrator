@@ -491,9 +491,11 @@ class VacuumOrchestrator:
         dispatched: list[DispatchAssignment] = []
         for job_id in candidates:
             try:
-                assignment = await self._async_dispatch_job(job_id, None)
+                assignment = await self._async_dispatch_job(
+                    job_id, None, automatic=True
+                )
             except (PlanningError, ConflictError) as err:
-                if err.code not in {"job_blocked", "job_unknown"}:
+                if err.code not in {"job_blocked", "job_unknown", "start_delayed"}:
                     self.trace.record(
                         TraceEvent.BLOCKED,
                         self._clock(),
@@ -771,8 +773,12 @@ class VacuumOrchestrator:
         *,
         origin: CommandOrigin | None = None,
         intent: JobIntent | None = None,
+        automatic: bool = False,
     ) -> DispatchAssignment | None:
-        """Select, reserve and start; with `intent`, create the job in that commit."""
+        """Select, reserve and start; with `intent`, create the job in that commit.
+
+        Only `automatic` queue starts honor a job's start delay.
+        """
         observations = await self._observe_robots()
         async with self._lock:
             committed = self._verified_state()
@@ -792,6 +798,12 @@ class VacuumOrchestrator:
             if job.state not in {JobState.QUEUED, JobState.DISPATCHING}:
                 raise ConflictError("job_not_dispatchable")
             if job.state is JobState.QUEUED:
+                if (
+                    automatic
+                    and job.start_after is not None
+                    and self._clock() < job.start_after
+                ):
+                    raise PlanningError("start_delayed")
                 report = self.job_readiness(previous, job)
                 if report.state.value != "ready":
                     self.trace.record(

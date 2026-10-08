@@ -292,17 +292,28 @@ get_job:
   fields: *id003
 configure_queue:
   name: Configure queue
-  description: Set the idle grace period for future queue runs; blocked pending jobs
-    do not keep a run open.
+  description: Set the idle grace period for future queue runs and the start delay
+    of new and edited jobs; give at least one.
   fields:
     grace_seconds:
       name: Grace period (seconds)
-      required: true
-      default: 900
+      description: How long an idle run stays open; blocked pending jobs do not keep
+        a run open.
+      required: false
       selector:
         number:
           min: 0
           max: 86400
+          mode: box
+    start_delay_seconds:
+      name: Start delay (seconds)
+      description: How long the queue waits before automatically starting a job that
+        was just added or edited. Starting a job directly skips the delay.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 600
           mode: box
 configure_job_defaults:
   name: Configure job defaults

@@ -408,6 +408,12 @@ class RuntimeController:
         run = self.orchestrator.state.queue_run
         if run is not None and run.deadline is not None:
             deadlines.append(run.deadline)
+        deadlines.extend(
+            start
+            for job_id in self.orchestrator.state.queue
+            if (start := self.orchestrator.state.jobs[job_id].start_after) is not None
+            and start > now
+        )
         requirements = [
             requirement
             for adapter in self.orchestrator.adapters.values()

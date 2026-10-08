@@ -111,6 +111,7 @@ def present_job(
         "settings_policy": intent.settings_policy.value,
         "created_at": job.created_at.isoformat(),
         "updated_at": job.updated_at.isoformat(),
+        "start_after": job.start_after.isoformat() if job.start_after else None,
         "active_attempt_id": job.active_attempt_id,
         "origin": {
             "kind": job.provenance.kind.value,
@@ -174,6 +175,7 @@ def present_queue(
             for source_id, reason in state.blocked_robots.items()
         ],
         "queue_grace_seconds": state.queue_grace_seconds,
+        "start_delay_seconds": state.start_delay_seconds,
         "job_defaults": present_job_defaults(state.job_defaults),
         "queue_run": None
         if state.queue_run is None

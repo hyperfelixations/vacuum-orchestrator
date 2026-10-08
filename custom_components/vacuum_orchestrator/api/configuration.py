@@ -25,6 +25,7 @@ from ..domain.capabilities import CancelSemantics
 from ..domain.errors import ConflictError, OrchestratorError, ValidationError
 from ..domain.intents import CleaningPreferences
 from ..domain.maps import RobotMaps
+from ..domain.queue import MAX_START_DELAY_SECONDS
 from ..domain.releases import ReleaseKind
 from ..domain.templates import JobTemplate
 from ..domain.types import ROUTE_LADDER, VACUUM_LADDER, WATER_LADDER, SettingsPolicy
@@ -77,13 +78,19 @@ PAGE = {
 }
 ROOM_ID: dict[Any, Any] = {vol.Required("room_id"): cv.string}
 ROBOT_ID: dict[Any, Any] = {vol.Required("robot_id"): cv.string}
-COMMANDS: dict[str, vol.Schema] = {
-    "configure_queue": vol.Schema(
-        {
-            vol.Required("grace_seconds"): vol.All(
-                vol.Coerce(float), vol.Range(min=0, max=86400)
-            )
-        }
+COMMANDS: dict[str, vol.Schema | vol.All] = {
+    "configure_queue": vol.All(
+        vol.Schema(
+            {
+                vol.Optional("grace_seconds"): vol.All(
+                    vol.Coerce(float), vol.Range(min=0, max=86400)
+                ),
+                vol.Optional("start_delay_seconds"): vol.All(
+                    vol.Coerce(float), vol.Range(min=0, max=MAX_START_DELAY_SECONDS)
+                ),
+            }
+        ),
+        cv.has_at_least_one_key("grace_seconds", "start_delay_seconds"),
     ),
     "configure_job_defaults": vol.Schema(
         {
@@ -455,8 +462,12 @@ async def _execute_configuration(
     robot_id = data.get("robot_id")
     result: dict[str, Any] = {"api_version": API_VERSION}
     if name == "configure_queue":
-        await core.runs.async_configure(data["grace_seconds"])
+        await core.runs.async_configure(
+            grace_seconds=data.get("grace_seconds"),
+            start_delay_seconds=data.get("start_delay_seconds"),
+        )
         result["grace_seconds"] = core.state.queue_grace_seconds
+        result["start_delay_seconds"] = core.state.start_delay_seconds
     elif name == "configure_job_defaults":
         await core.async_configure_job_defaults(data)
         result["job_defaults"] = present_job_defaults(core.state.job_defaults)

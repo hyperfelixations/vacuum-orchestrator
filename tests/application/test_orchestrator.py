@@ -213,8 +213,9 @@ async def _orchestrator(
     *adapters: RecordingAdapter,
     states: dict[str, str | None] | None = None,
     seed_rooms: bool = True,
+    start_delay: float = 0,
 ) -> VacuumOrchestrator:
-    if seed_rooms and backend.data is None:
+    if backend.data is None:
         rooms = {
             name: Room(
                 name,
@@ -222,12 +223,13 @@ async def _orchestrator(
                 area_id=name,
                 release=RoomRelease(f"grant-{name}", ReleaseKind.PERMANENT, NOW),
             )
-            for name in ("kitchen", "hall")
+            for name in (("kitchen", "hall") if seed_rooms else ())
         }
         await CriticalOrchestratorRepository(backend).async_commit(
             replace(
                 OrchestratorState.empty("installation"),
                 room_registry=RoomRegistry(rooms),
+                start_delay_seconds=start_delay,
             ),
             expected_previous_commit_id=-1,
         )

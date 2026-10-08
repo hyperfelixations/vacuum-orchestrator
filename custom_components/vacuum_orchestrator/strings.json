@@ -747,6 +747,12 @@
     "stale_robot_generation": {
       "message": "The command was superseded by a newer robot command"
     },
+    "start_delay_out_of_range": {
+      "message": "The start delay must be between 0 and 600 seconds"
+    },
+    "start_delayed": {
+      "message": "The job waits for its start delay"
+    },
     "start_rejected": {
       "message": "The cleaning start was rejected before the command was sent"
     },

@@ -1,6 +1,7 @@
 """Contract tests for room, robot and recovery configuration boundaries."""
 
 from dataclasses import replace
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -11,7 +12,10 @@ from homeassistant.core import Context, ServiceCall
 from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from custom_components.vacuum_orchestrator.api.actions import async_setup_actions
 from custom_components.vacuum_orchestrator.api.configuration import present_maps
@@ -682,7 +686,7 @@ async def test_create_job_can_start_atomically(hass, configured):
 
 
 async def test_job_request_origin_survives_queueing_and_reaches_physical_calls(
-    hass, configured
+    hass, configured, freezer
 ):
     area = ar.async_get(hass).async_create("Room")
     registry = er.async_get(hass)
@@ -725,6 +729,10 @@ async def test_job_request_origin_survives_queueing_and_reaches_physical_calls(
         return_response=True,
     )
     await call(hass, "run_queue")
+    await hass.async_block_till_done()
+    assert not observed
+    freezer.tick(timedelta(seconds=5))
+    async_fire_time_changed(hass)
     await hass.async_block_till_done()
     assert observed, configured.runtime_data.orchestrator.trace.snapshot()
     assert observed[0].id == "origin" and observed[0].parent_id == "parent"
@@ -823,3 +831,28 @@ async def test_execution_query_explains_scoped_blockers_and_resolved_settings(
     assert connection.results[0][1] == result
     with raises_code("unknown_job"):
         await call(hass, "get_job_execution", job_id="missing")
+
+
+async def test_queue_configuration_sets_grace_and_start_delay(hass, configured):
+    configured_delay = await call(hass, "configure_queue", start_delay_seconds=30)
+    assert (
+        configured_delay["grace_seconds"],
+        configured_delay["start_delay_seconds"],
+    ) == (900, 30)
+    configured_grace = await call(hass, "configure_queue", grace_seconds=60)
+    assert (
+        configured_grace["grace_seconds"],
+        configured_grace["start_delay_seconds"],
+    ) == (60, 30)
+    for invalid in ({}, {"start_delay_seconds": 601}, {"start_delay_seconds": -1}):
+        with pytest.raises(vol.Invalid):
+            await call(hass, "configure_queue", **invalid)
+
+    room = (await call(hass, "create_room", name="Office"))["room_id"]
+    job = (await call(hass, "create_job", areas=[room]))["job_id"]
+    detail = await call(hass, "get_job", job_id=job)
+    created = datetime.fromisoformat(detail["created_at"])
+    assert detail["start_after"] == (created + timedelta(seconds=30)).isoformat()
+    queue = await call(hass, "get_queue")
+    assert queue["start_delay_seconds"] == 30
+    assert queue["jobs"][0]["start_after"] == detail["start_after"]

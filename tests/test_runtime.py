@@ -2,10 +2,12 @@
 
 from copy import deepcopy
 from dataclasses import replace
+from datetime import timedelta
 from types import MappingProxyType
 from typing import cast
 
 import pytest
+from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.vacuum.const import VacuumEntityFeature
 from homeassistant.components.websocket_api.connection import ActiveConnection
 from homeassistant.config_entries import ConfigSubentry
@@ -15,7 +17,10 @@ from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from custom_components.vacuum_orchestrator.api.websocket import (
     TYPE_SUBSCRIBE,
@@ -204,7 +209,7 @@ async def test_setup_never_moves_foreign_entities_or_devices_into_areas(
 
 
 async def test_room_state_change_wakes_queue_and_unload_fences_active_job(
-    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch, freezer: FrozenDateTimeFactory
 ) -> None:
     MemoryBackend.data = None
     monkeypatch.setattr(
@@ -268,6 +273,8 @@ async def test_room_state_change_wakes_queue_and_unload_fences_active_job(
         JobIntent((TargetRef(area.id),), CleaningMode.VACUUM)
     )
     await orchestrator.async_run_queue()
+    freezer.tick(timedelta(seconds=5))
+    async_fire_time_changed(hass)
     await hass.async_block_till_done()
     assert not calls
     hass.states.async_set("binary_sensor.door", "on")

@@ -747,6 +747,12 @@
     "stale_robot_generation": {
       "message": "Der Befehl wurde durch einen neueren Roboterbefehl ersetzt"
     },
+    "start_delay_out_of_range": {
+      "message": "Die Startverzögerung muss zwischen 0 und 600 Sekunden liegen"
+    },
+    "start_delayed": {
+      "message": "Der Auftrag wartet auf seine Startverzögerung"
+    },
     "start_rejected": {
       "message": "Der Reinigungsstart wurde abgelehnt, bevor der Befehl gesendet wurde"
     },

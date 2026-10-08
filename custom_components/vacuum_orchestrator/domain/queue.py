@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from types import MappingProxyType
 
 from .completion import CleaningReceipt, CleaningSource, CompletionQuality
@@ -32,6 +32,8 @@ from .types import (
 )
 from .validation import seconds
 
+START_DELAY_SECONDS = 5.0
+MAX_START_DELAY_SECONDS = 600
 _TERMINAL = frozenset({JobState.COMPLETED, JobState.FAILED, JobState.CANCELLED})
 _ACTIVE = frozenset({JobState.DISPATCHING, JobState.RUNNING, JobState.CANCELING})
 _TARGET_RESERVED = _ACTIVE | {JobState.NEEDS_ATTENTION}
@@ -67,6 +69,8 @@ class Job:
     failure_code: str | None = None
     origin: CommandOrigin | None = None
     provenance: JobProvenance = JobProvenance()
+    # Automatic queue starts wait until then; see dev doc "Startverzögerung".
+    start_after: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,11 +97,13 @@ class OrchestratorState:
     queue_run: QueueRun | None = None
     queue_grace_seconds: float = 900
     job_defaults: JobDefaults = field(default_factory=JobDefaults)
+    start_delay_seconds: float = START_DELAY_SECONDS
 
     def __post_init__(self) -> None:
         seconds(self.queue_grace_seconds)
         if self.queue_grace_seconds > 86400:
             raise ValidationError("queue_grace_out_of_range")
+        validate_start_delay(self.start_delay_seconds)
         for field_name in (
             "jobs",
             "robot_generations",
@@ -193,6 +199,7 @@ class OrchestratorState:
             now,
             origin=origin,
             provenance=provenance,
+            start_after=self.delayed_start(now),
         )
         return self._replace(
             jobs=jobs,
@@ -219,7 +226,11 @@ class OrchestratorState:
             raise ConflictError("dedupe_key_already_queued")
         jobs = dict(self.jobs)
         jobs[job_id] = replace(
-            job, intent=intent, revision=job.revision + 1, updated_at=now
+            job,
+            intent=intent,
+            revision=job.revision + 1,
+            updated_at=now,
+            start_after=self.delayed_start(now),
         )
         return self._replace(jobs=jobs)
 
@@ -368,6 +379,7 @@ class OrchestratorState:
             plan_id=plan.plan_id,
             active_attempt_id=attempt.attempt_id,
             updated_at=now,
+            start_after=None,
         )
         plans = dict(self.plans)
         plans.setdefault(plan.plan_id, plan)
@@ -780,6 +792,7 @@ class OrchestratorState:
             retries_job_id=job_id,
             origin=origin,
             provenance=JobProvenance(ProvenanceKind.RETRY),
+            start_after=self.delayed_start(now),
         )
         return self._replace(
             jobs=jobs,
@@ -933,6 +946,12 @@ class OrchestratorState:
             raise ConflictError("job_plan_missing")
         return self.plans[job.plan_id]
 
+    def delayed_start(self, now: datetime) -> datetime | None:
+        """Return when a job queued or edited now may start automatically."""
+        if not self.start_delay_seconds:
+            return None
+        return now + timedelta(seconds=self.start_delay_seconds)
+
     def _replace(self, **changes: object) -> OrchestratorState:
         return replace(
             self,
@@ -951,3 +970,13 @@ class OrchestratorState:
             return self.attempts[attempt_id]
         except KeyError as err:
             raise ValidationError("unknown_attempt", attempt_id) from err
+
+
+def validate_start_delay(value: float) -> None:
+    """Accept a start delay between zero and ten minutes."""
+    try:
+        seconds(value)
+    except ValidationError as err:
+        raise ValidationError("start_delay_out_of_range", str(value)) from err
+    if value > MAX_START_DELAY_SECONDS:
+        raise ValidationError("start_delay_out_of_range", str(value))

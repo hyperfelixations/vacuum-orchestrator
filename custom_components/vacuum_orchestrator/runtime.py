@@ -20,7 +20,11 @@ from .application.tracing import TraceEvent, TraceRecorder
 from .const import CONF_INSTALLATION_ID, DOMAIN, SIGNAL_VIEW_CHANGED, STORE_VERSION
 from .domain.errors import ConflictError
 from .domain.requirements import StateObservation, StateRequirement
-from .infrastructure.codec import migrate_schema_three, migrate_schema_two
+from .infrastructure.codec import (
+    migrate_schema_four,
+    migrate_schema_three,
+    migrate_schema_two,
+)
 from .infrastructure.critical_repository import (
     CriticalOrchestratorRepository,
     MigratingOrchestratorRepository,
@@ -95,6 +99,12 @@ async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> b
             ),
             installation_id,
             previous_stores=(
+                (
+                    HomeAssistantSnapshotBackend(
+                        hass, f"{DOMAIN}.4", store_version=4, store_minor_version=0
+                    ),
+                    migrate_schema_four,
+                ),
                 (
                     HomeAssistantSnapshotBackend(
                         hass, f"{DOMAIN}.3", store_version=3, store_minor_version=0

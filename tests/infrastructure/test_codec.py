@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -47,6 +47,7 @@ from custom_components.vacuum_orchestrator.domain.types import (
 from custom_components.vacuum_orchestrator.infrastructure.codec import (
     decode_orchestrator_state,
     encode_orchestrator_state,
+    migrate_schema_four,
     migrate_schema_one,
     migrate_schema_three,
 )
@@ -246,8 +247,60 @@ def test_stop_boundary_round_trips_and_is_optional_in_older_snapshots() -> None:
     assert decode_orchestrator_state(data).attempts["attempt"].stop_sent_at is None
 
 
-def _schema_three(state: OrchestratorState) -> dict:
+def _schema_four(state: OrchestratorState) -> dict:
     data = encode_orchestrator_state(state)
+    data["schema_version"] = 4
+    del data["start_delay_seconds"]
+    for job in data["jobs"].values():
+        del job["start_after"]
+    return data
+
+
+def test_schema_four_jobs_get_no_start_delay_and_installs_the_default() -> None:
+    state = replace(_state(), start_delay_seconds=30).add_job(
+        "queued", JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM), NOW
+    )
+    assert state.jobs["queued"].start_after == NOW + timedelta(seconds=30)
+    data = _schema_four(state)
+
+    migrated = migrate_schema_four(deepcopy(data))
+
+    assert migrated.start_delay_seconds == 5
+    assert all(job.start_after is None for job in migrated.jobs.values())
+    assert migrated == replace(
+        state,
+        start_delay_seconds=5,
+        jobs={key: replace(job, start_after=None) for key, job in state.jobs.items()},
+    )
+    with pytest.raises(StorageIntegrityError, match="unsupported_previous"):
+        migrate_schema_four({**data, "schema_version": 5})
+    del data["jobs"]
+    with pytest.raises(StorageIntegrityError, match="invalid_storage_payload"):
+        migrate_schema_four(data)
+
+
+def test_start_delay_and_start_after_round_trip_and_are_required() -> None:
+    state = replace(_state(), start_delay_seconds=0.5).add_job(
+        "queued", JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM), NOW
+    )
+    data = encode_orchestrator_state(state)
+    assert (
+        data["jobs"]["queued"]["start_after"]
+        == (NOW + timedelta(seconds=0.5)).isoformat()
+    )
+    assert decode_orchestrator_state(deepcopy(data)) == state
+    for remove in (
+        lambda value: value.pop("start_delay_seconds"),
+        lambda value: value["jobs"]["queued"].pop("start_after"),
+    ):
+        broken = deepcopy(data)
+        remove(broken)
+        with pytest.raises(StorageIntegrityError, match="invalid_storage_payload"):
+            decode_orchestrator_state(broken)
+
+
+def _schema_three(state: OrchestratorState) -> dict:
+    data = _schema_four(state)
     data["schema_version"] = 3
     del data["job_defaults"]
     for job in data["jobs"].values():

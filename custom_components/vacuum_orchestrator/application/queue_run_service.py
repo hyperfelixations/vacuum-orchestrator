@@ -5,7 +5,7 @@ from dataclasses import replace
 from datetime import datetime
 
 from ..domain.errors import ValidationError
-from ..domain.queue import OrchestratorState
+from ..domain.queue import OrchestratorState, validate_start_delay
 from ..domain.queue_runs import QueueRun
 from ..domain.releases import ReleaseKind
 from ..domain.types import JobState, QueueMode
@@ -24,21 +24,34 @@ class QueueRunService:
     ) -> None:
         self._mutate, self._clock, self._id_factory = mutate, clock, id_factory
 
-    async def async_configure(self, grace_seconds: float) -> None:
-        """Set the default grace window for future runs."""
-        seconds(grace_seconds)
-        if grace_seconds > 86400:
-            raise ValidationError("queue_grace_out_of_range")
+    async def async_configure(
+        self,
+        *,
+        grace_seconds: float | None = None,
+        start_delay_seconds: float | None = None,
+    ) -> None:
+        """Set the grace window for future runs and the start delay of new jobs."""
+        if grace_seconds is not None:
+            seconds(grace_seconds)
+            if grace_seconds > 86400:
+                raise ValidationError("queue_grace_out_of_range")
+        if start_delay_seconds is not None:
+            validate_start_delay(start_delay_seconds)
 
         def configure(state: OrchestratorState) -> OrchestratorState:
+            configured = replace(
+                state,
+                queue_grace_seconds=state.queue_grace_seconds
+                if grace_seconds is None
+                else grace_seconds,
+                start_delay_seconds=state.start_delay_seconds
+                if start_delay_seconds is None
+                else start_delay_seconds,
+            )
             return (
                 state
-                if state.queue_grace_seconds == grace_seconds
-                else replace(
-                    state,
-                    commit_id=state.commit_id + 1,
-                    queue_grace_seconds=grace_seconds,
-                )
+                if configured == state
+                else replace(configured, commit_id=state.commit_id + 1)
             )
 
         await self._mutate(configure)

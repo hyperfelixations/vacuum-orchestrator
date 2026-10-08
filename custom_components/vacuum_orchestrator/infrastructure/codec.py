@@ -30,7 +30,7 @@ from ..domain.planning import (
     WorkUnit,
     plan_matches_intent,
 )
-from ..domain.queue import Job, JobProvenance, OrchestratorState
+from ..domain.queue import START_DELAY_SECONDS, Job, JobProvenance, OrchestratorState
 from ..domain.queue_runs import QueueRun
 from ..domain.requests import CommandOrigin
 from ..domain.room_registry import RoomRegistry
@@ -74,7 +74,7 @@ from .codec_values import (
 from .integrity import JsonObject
 from .room_codec import _number, decode_room_registry, encode_room_registry
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 # Schema-3 vocabulary mapped to the ordered ladders; `None` leaves the value to
 # the job defaults (see internal dev doc "Persistenz und Testbelege").
@@ -144,6 +144,7 @@ def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
         "blocked_robots": dict(state.blocked_robots),
         "room_registry": encode_room_registry(state.room_registry),
         "queue_grace_seconds": state.queue_grace_seconds,
+        "start_delay_seconds": state.start_delay_seconds,
         "job_defaults": _encode_job_defaults(state.job_defaults),
         "queue_run": None
         if state.queue_run is None
@@ -225,6 +226,7 @@ def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
             },
             room_registry=decode_room_registry(_object(data["room_registry"])),
             queue_grace_seconds=_number(data.get("queue_grace_seconds", 900)),
+            start_delay_seconds=_number(data["start_delay_seconds"]),
             job_defaults=_decode_job_defaults(data.get("job_defaults")),
             queue_run=_decode_queue_run(data.get("queue_run")),
             templates={
@@ -272,12 +274,35 @@ def _decode_queue_run(value: object) -> QueueRun | None:
     )
 
 
+def migrate_schema_four(data: JsonObject) -> OrchestratorState:
+    """Install the default start delay; stored jobs start without one."""
+    if data.get("schema_version") != 4:
+        raise StorageIntegrityError("unsupported_previous_storage_schema")
+    try:
+        upgraded = _upgrade_schema_four(data)
+    except (KeyError, TypeError, ValueError) as err:
+        raise StorageIntegrityError("invalid_storage_payload") from err
+    return decode_orchestrator_state(upgraded)
+
+
+def _upgrade_schema_four(data: JsonObject) -> JsonObject:
+    return {
+        **data,
+        "schema_version": SCHEMA_VERSION,
+        "start_delay_seconds": START_DELAY_SECONDS,
+        "jobs": {
+            key: {**_object(job), "start_after": None}
+            for key, job in _string_mapping(data["jobs"]).items()
+        },
+    }
+
+
 def migrate_schema_three(data: JsonObject) -> OrchestratorState:
     """Map the schema-3 vocabulary and give unstarted jobs concrete settings."""
     if data.get("schema_version") != 3:
         raise StorageIntegrityError("unsupported_previous_storage_schema")
     try:
-        upgraded = _upgrade_schema_three(data)
+        upgraded = _upgrade_schema_four(_upgrade_schema_three(data))
     except (KeyError, TypeError, ValueError) as err:
         raise StorageIntegrityError("invalid_storage_payload") from err
     return _with_default_settings(decode_orchestrator_state(upgraded))
@@ -334,7 +359,7 @@ def _upgrade_schema_three(data: JsonObject) -> JsonObject:
 
     return {
         **data,
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": 4,
         "jobs": {
             key: {**_object(job), "intent": intent(_object(job)["intent"])}
             for key, job in _string_mapping(data["jobs"]).items()
@@ -374,12 +399,14 @@ def migrate_schema_two(data: JsonObject) -> OrchestratorState:
     """Import legacy area identities without inventing grants or device mappings."""
     if data.get("schema_version") != 2:
         raise StorageIntegrityError("unsupported_previous_storage_schema")
-    candidate = _upgrade_schema_three(
-        {
-            **data,
-            "schema_version": 3,
-            "room_registry": encode_room_registry(RoomRegistry()),
-        }
+    candidate = _upgrade_schema_four(
+        _upgrade_schema_three(
+            {
+                **data,
+                "schema_version": 3,
+                "room_registry": encode_room_registry(RoomRegistry()),
+            }
+        )
     )
     state = _with_default_settings(decode_orchestrator_state(candidate))
     rooms = {
@@ -802,6 +829,7 @@ def _encode_job(job: Job) -> JsonObject:
             "kind": job.provenance.kind.value,
             "template_id": job.provenance.template_id,
         },
+        "start_after": _encode_optional_datetime(job.start_after),
     }
 
 
@@ -828,6 +856,7 @@ def _decode_job(data: JsonObject) -> Job:
         failure_code=_optional_str(data["failure_code"]),
         origin=_decode_origin(data.get("origin")),
         provenance=provenance,
+        start_after=_decode_optional_datetime(data["start_after"]),
     )
 
 

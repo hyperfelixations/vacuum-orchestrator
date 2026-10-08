@@ -25,6 +25,7 @@ from custom_components.vacuum_orchestrator.domain.types import OperationKind
 from custom_components.vacuum_orchestrator.infrastructure.codec import (
     decode_orchestrator_state,
     encode_orchestrator_state,
+    migrate_schema_four,
     migrate_schema_three,
     migrate_schema_two,
 )
@@ -140,9 +141,13 @@ def test_evidence_upgrade_preserves_occupied_time_baseline() -> None:
 
 
 async def test_v2_import_preserves_source_and_does_not_grant_rooms() -> None:
-    old_state = OrchestratorState.empty("installation").add_job("job", INTENT, NOW)
+    old_state = replace(
+        OrchestratorState.empty("installation"), start_delay_seconds=0
+    ).add_job("job", INTENT, NOW)
     payload = encode_orchestrator_state(old_state)
     del payload["room_registry"]
+    del payload["start_delay_seconds"]
+    del payload["jobs"]["job"]["start_after"]
     payload["schema_version"] = 2
     old = Backend()
     old.data = seal_snapshot(payload)
@@ -185,7 +190,11 @@ async def test_newest_previous_store_is_imported_first() -> None:
             OrchestratorState.empty("installation").add_job(job_id, INTENT, NOW)
         )
         payload["schema_version"] = schema
-        del payload["job_defaults"]
+        del payload["start_delay_seconds"]
+        for job in payload["jobs"].values():
+            del job["start_after"]
+        if schema < 4:
+            del payload["job_defaults"]
         if schema == 2:
             del payload["room_registry"]
         backend = Backend()
@@ -198,6 +207,7 @@ async def test_newest_previous_store_is_imported_first() -> None:
         Backend(),
         "installation",
         previous_stores=(
+            (sealed("four", 4), migrate_schema_four),
             (sealed("three", 3), migrate_schema_three),
             (sealed("two", 2), migrate_schema_two),
         ),
@@ -205,5 +215,5 @@ async def test_newest_previous_store_is_imported_first() -> None:
 
     imported = await repository.async_load()
 
-    assert set(imported.jobs) == {"three"}
+    assert set(imported.jobs) == {"four"}
     assert await current.async_load() == imported
