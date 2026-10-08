@@ -34,6 +34,7 @@ from .const import (
 from .domain.due import DueBasis, DueState
 from .domain.errors import ConflictError, OrchestratorError
 from .domain.monitoring import next_deadline
+from .domain.progress import STARTED_STATES
 from .domain.types import OperationKind
 from .repairs import RepairReporter
 from .runtime_adapters import build_adapters
@@ -224,9 +225,16 @@ class RuntimeController:
         core = self.orchestrator
         now = datetime.now(UTC)
         fingerprint: dict[str, object] = {
-            "jobs": tuple(
-                (core.readiness_for_job(job_id), core.waiting(job_id))
-                for job_id in core.state.queue
+            "jobs": (
+                tuple(
+                    (core.readiness_for_job(job_id), core.waiting(job_id))
+                    for job_id in core.state.queue
+                ),
+                tuple(
+                    (job_id, core.progress(job_id))
+                    for job_id, job in core.state.jobs.items()
+                    if job.state in STARTED_STATES
+                ),
             ),
             "robots": tuple(
                 (robot_id, adapter.profile)

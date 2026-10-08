@@ -348,6 +348,9 @@
     "invalid_battery_percentage": {
       "message": "Der Roboter hat einen ungültigen Akkustand gemeldet"
     },
+    "invalid_clean_percent": {
+      "message": "Der Roboter hat einen ungültigen Reinigungsfortschritt gemeldet"
+    },
     "invalid_cleaning_mode": {
       "message": "Der Reinigungsmodus ist ungültig"
     },

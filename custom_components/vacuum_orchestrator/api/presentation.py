@@ -10,6 +10,7 @@ from ..domain.execution import ExecutionAttempt
 from ..domain.holds import JobHold
 from ..domain.job_defaults import JobDefaults
 from ..domain.planning import SettingsResolution
+from ..domain.progress import Progress
 from ..domain.queue import Job, OrchestratorState
 from ..domain.queue_runs import RunPhase
 from ..domain.readiness import ReadinessReport
@@ -79,6 +80,7 @@ def present_job(
     *,
     hold: JobHold | None = None,
     waiting: Waiting | None = None,
+    progress: Progress | None = None,
 ) -> dict[str, object]:
     """Serialize one bounded job record; a hold never reveals its token."""
     intent = job.intent
@@ -137,6 +139,19 @@ def present_job(
         else {
             **present_blocker(waiting.primary, entities),
             "blockers": [present_blocker(item, entities) for item in waiting.blockers],
+        },
+        "progress": None
+        if progress is None
+        else {
+            "operation": progress.operation.value,
+            "phase": progress.phase,
+            "phases": progress.phases,
+            "started_at": progress.started_at.isoformat()
+            if progress.started_at
+            else None,
+            "robot_id": progress.robot_id,
+            "phase_percent": progress.phase_percent,
+            "percent": progress.percent,
         },
         "active_attempt_id": job.active_attempt_id,
         "origin": {

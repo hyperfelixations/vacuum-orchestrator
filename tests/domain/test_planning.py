@@ -474,6 +474,10 @@ def test_selector_applies_supported_preferences_and_validates_observation() -> N
     assert result.settings.applied == ("vacuum_power", "mop_route")
     with pytest.raises(PlanningError, match="invalid_battery_percentage"):
         RobotObservation("robot", "source", RobotAvailabilityState.AVAILABLE, 101)
+    with pytest.raises(PlanningError, match="invalid_clean_percent"):
+        RobotObservation(
+            "robot", "source", RobotAvailabilityState.BUSY, clean_percent=-1
+        )
 
 
 @pytest.mark.parametrize(

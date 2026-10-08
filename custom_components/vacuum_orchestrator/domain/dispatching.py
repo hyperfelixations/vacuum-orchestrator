@@ -55,6 +55,9 @@ class RobotObservation:
     completed_targets: tuple[str, ...] = ()
     completion_confirmed: bool = False
     at_dock: bool | None = None
+    # Progress of the robot's current run and when the robot last changed it.
+    clean_percent: int | None = None
+    clean_percent_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -62,6 +65,8 @@ class RobotObservation:
             and not 0 <= self.battery_percentage <= 100
         ):
             raise PlanningError("invalid_battery_percentage")
+        if self.clean_percent is not None and not 0 <= self.clean_percent <= 100:
+            raise PlanningError("invalid_clean_percent")
 
 
 class RobotSelector:

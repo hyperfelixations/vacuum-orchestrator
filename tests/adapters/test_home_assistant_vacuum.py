@@ -617,3 +617,40 @@ async def test_a_single_own_map_image_is_the_current_map(hass: HomeAssistant) ->
 
 async def test_a_vacuum_without_device_has_no_map_image(hass: HomeAssistant) -> None:
     assert _adapter(hass).maps().current_image_ref is None
+
+
+@pytest.mark.parametrize(
+    ("value", "percent"),
+    [
+        ("42", 42),
+        ("42.6", 43),
+        ("101", None),
+        ("bad", None),
+        ("inf", None),
+        ("unknown", None),
+    ],
+)
+async def test_clean_percent_is_read_with_the_time_it_last_changed(
+    hass: HomeAssistant, value: str, percent: int | None
+) -> None:
+    _adapter(hass)
+    sensor = er.async_get(hass).async_get_or_create(
+        "sensor", "demo", "progress", suggested_object_id="progress"
+    )
+    hass.states.async_set("vacuum.test", "cleaning")
+    hass.states.async_set(sensor.entity_id, value)
+    adapter = HomeAssistantVacuumAdapter(
+        hass,
+        robot_id="robot",
+        source_robot_id="source",
+        entity_id="vacuum.test",
+        adapter_name="roborock",
+        target_areas=("kitchen",),
+        configuration={"roles": {"clean_percent": sensor.id}},
+    )
+    observation = await adapter.async_observe()
+    assert observation.clean_percent == percent
+    state = hass.states.get(sensor.entity_id)
+    assert observation.clean_percent_at == (
+        None if percent is None else state.last_changed
+    )

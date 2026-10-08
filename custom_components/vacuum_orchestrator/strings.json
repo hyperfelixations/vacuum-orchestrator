@@ -348,6 +348,9 @@
     "invalid_battery_percentage": {
       "message": "The robot reported an invalid battery level"
     },
+    "invalid_clean_percent": {
+      "message": "The robot reported an invalid cleaning progress"
+    },
     "invalid_cleaning_mode": {
       "message": "The cleaning mode is invalid"
     },

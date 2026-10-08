@@ -26,6 +26,7 @@ from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun
 from ..domain.holds import HoldPurpose, JobHold, lease_end
 from ..domain.intents import UNSET, JobIntent, JobIntentPatch, TargetRef
 from ..domain.planning import DispatchAssignment, ExecutionPlan, Planner, WorkUnit
+from ..domain.progress import Progress, job_progress
 from ..domain.queue import Job, OrchestratorState
 from ..domain.queue_runs import RunPhase, run_phase
 from ..domain.readiness import ReadinessEvaluator, ReadinessReport
@@ -336,6 +337,24 @@ class VacuumOrchestrator:
         if job is None:
             raise ConflictError("unknown_job", job_id)
         return explain_waiting(self, self.state, job, self._clock())
+
+    def progress(self, job_id: str) -> Progress | None:
+        """Describe a started job from its attempt and the latest observation."""
+        state = self.state
+        job = state.jobs.get(job_id)
+        if job is None:
+            raise ConflictError("unknown_job", job_id)
+        attempt = (
+            state.attempts.get(job.active_attempt_id)
+            if job.active_attempt_id is not None
+            else None
+        )
+        return job_progress(
+            job,
+            state.plans.get(job.plan_id) if job.plan_id is not None else None,
+            attempt,
+            self._observations.get(attempt.robot_id) if attempt is not None else None,
+        )
 
     def jobs_awaiting_release(self) -> dict[str, tuple[str, ...]]:
         """Map each room to the waiting jobs that need its release, queue first."""

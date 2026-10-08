@@ -491,6 +491,7 @@ async def _execute_configuration(
                 core.state.room_registry.rooms,
                 hold=hold,
                 waiting=core.waiting(hold.job_id),
+                progress=core.progress(hold.job_id),
             ),
         )
     elif name == "renew_job_hold":

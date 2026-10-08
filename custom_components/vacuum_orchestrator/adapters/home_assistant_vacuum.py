@@ -412,7 +412,22 @@ class HomeAssistantVacuumAdapter:
             error_code=error,
             observed_operation=self.observed_operation(),
             at_dock=state.state == "docked" if usable and state is not None else None,
+            **self._clean_percent(),
         )
+
+    def _clean_percent(self) -> dict[str, Any]:
+        """Return the run progress with the time its value last changed."""
+        entity_id = self.role_entity("clean_percent")
+        state = self._hass.states.get(entity_id) if entity_id else None
+        if state is None:
+            return {}
+        try:
+            percent = round(float(state.state))
+        except ValueError, OverflowError:
+            return {}
+        if not 0 <= percent <= 100:
+            return {}
+        return {"clean_percent": percent, "clean_percent_at": state.last_changed}
 
     def _history_value(self, role: str) -> datetime | None:
         value = self.role_value(role)

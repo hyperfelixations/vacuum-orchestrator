@@ -60,6 +60,9 @@ class StubOrchestrator:
     def waiting(self, job_id: str) -> object:
         return None
 
+    def progress(self, job_id: str) -> object:
+        return None
+
     def run_phase(self) -> RunPhase:
         return RunPhase.OFF
 
