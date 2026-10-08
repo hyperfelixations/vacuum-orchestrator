@@ -231,7 +231,12 @@ class RuntimeController:
                     for job_id in core.state.queue
                 ),
                 tuple(
-                    (job_id, core.progress(job_id))
+                    (
+                        job_id,
+                        core.progress(job_id),
+                        core.readiness_before_start(job_id),
+                        core.waiting(job_id),
+                    )
                     for job_id, job in core.state.jobs.items()
                     if job.state in STARTED_STATES
                 ),
