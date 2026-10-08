@@ -7,7 +7,9 @@ from datetime import UTC, datetime
 import pytest
 from homeassistant.components.vacuum.const import VacuumEntityFeature
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.vacuum_orchestrator.adapters.home_assistant_vacuum import (
     HomeAssistantVacuumAdapter,
@@ -20,6 +22,7 @@ from custom_components.vacuum_orchestrator.domain.errors import (
     StaleCommandError,
 )
 from custom_components.vacuum_orchestrator.domain.intents import CleaningPreferences
+from custom_components.vacuum_orchestrator.domain.maps import MapsUnavailable
 from custom_components.vacuum_orchestrator.domain.planning import (
     DispatchAssignment,
     ResolvedSetting,
@@ -583,3 +586,34 @@ async def test_dock_state_and_return_use_public_vacuum_semantics(
     assert calls[0].data == {"entity_id": "vacuum.test"}
     hass.states.async_set("vacuum.test", "unavailable")
     assert (await adapter.async_observe()).at_dock is None
+
+
+async def test_a_single_own_map_image_is_the_current_map(hass: HomeAssistant) -> None:
+    adapter = _adapter(hass)
+    entry = MockConfigEntry(domain="demo")
+    entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("demo", "unit")}
+    )
+    registry = er.async_get(hass)
+    registry.async_update_entity("vacuum.test", device_id=device.id)
+    assert adapter.maps().current_image_ref is None
+    registry.async_get_or_create("image", "other", "foreign", device_id=device.id)
+    registry.async_get_or_create(
+        "image",
+        "demo",
+        "disabled",
+        device_id=device.id,
+        disabled_by=er.RegistryEntryDisabler.USER,
+    )
+    first = registry.async_get_or_create("image", "demo", "first", device_id=device.id)
+    maps = adapter.maps()
+    assert maps.current_image_ref == first.entity_id
+    assert maps.maps == ()
+    assert maps.unavailable_reason is MapsUnavailable.NOT_SUPPORTED
+    registry.async_get_or_create("image", "demo", "second", device_id=device.id)
+    assert adapter.maps().current_image_ref is None
+
+
+async def test_a_vacuum_without_device_has_no_map_image(hass: HomeAssistant) -> None:
+    assert _adapter(hass).maps().current_image_ref is None

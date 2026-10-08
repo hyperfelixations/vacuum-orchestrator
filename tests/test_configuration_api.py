@@ -14,6 +14,7 @@ from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.vacuum_orchestrator.api.actions import async_setup_actions
+from custom_components.vacuum_orchestrator.api.configuration import present_maps
 from custom_components.vacuum_orchestrator.api.websocket import (
     websocket_configuration_command,
     websocket_configuration_get,
@@ -23,6 +24,11 @@ from custom_components.vacuum_orchestrator.configuration_values import (
 )
 from custom_components.vacuum_orchestrator.const import CONF_INSTALLATION_ID, DOMAIN
 from custom_components.vacuum_orchestrator.domain.errors import ValidationError
+from custom_components.vacuum_orchestrator.domain.maps import (
+    MapSegment,
+    RobotMap,
+    RobotMaps,
+)
 from custom_components.vacuum_orchestrator.domain.releases import ReleaseKind
 from custom_components.vacuum_orchestrator.domain.requirements import StateRequirement
 from custom_components.vacuum_orchestrator.domain.types import (
@@ -107,6 +113,45 @@ async def test_robots_report_room_reach_from_the_live_ha_mapping(hass, configure
             "targets": [],
             "ignored": [],
         },
+    }
+
+
+async def test_robots_name_why_they_offer_no_maps(hass, configured):
+    vacuum = er.async_get(hass).async_get_or_create("vacuum", "demo", "plain")
+    hass.states.async_set(
+        vacuum.entity_id,
+        "docked",
+        {"supported_features": int(VacuumEntityFeature.CLEAN_AREA)},
+    )
+    await call(
+        hass,
+        "add_robot",
+        configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
+    )
+    await hass.async_block_till_done()
+
+    projection = (await call(hass, "get_robots"))["robots"][0]
+    assert projection["map_image_entity_id"] is None
+    assert projection["maps"] == []
+    assert projection["maps_unavailable_reason"] == "inventory_not_supported"
+
+
+def test_robot_maps_are_projected_with_vendor_segment_ids():
+    ground = RobotMap(
+        "0", "Ground", True, "image.ground", (MapSegment("16", "Kitchen"),)
+    )
+    assert present_maps(RobotMaps((ground,), "image.ground")) == {
+        "map_image_entity_id": "image.ground",
+        "maps": [
+            {
+                "map_id": "0",
+                "name": "Ground",
+                "current": True,
+                "image_entity_id": "image.ground",
+                "segments": [{"id": "16", "name": "Kitchen"}],
+            }
+        ],
+        "maps_unavailable_reason": None,
     }
 
 

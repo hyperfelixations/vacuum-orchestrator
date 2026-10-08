@@ -5,7 +5,9 @@ from dataclasses import replace
 import pytest
 from homeassistant.components.vacuum.const import VacuumEntityFeature
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.vacuum_orchestrator.adapters.roborock import RoborockAdapter
 from custom_components.vacuum_orchestrator.domain.dispatching import RobotSelector
@@ -15,6 +17,11 @@ from custom_components.vacuum_orchestrator.domain.errors import (
     PlanningError,
 )
 from custom_components.vacuum_orchestrator.domain.intents import CleaningPreferences
+from custom_components.vacuum_orchestrator.domain.maps import (
+    MapSegment,
+    MapsUnavailable,
+    RobotMap,
+)
 from custom_components.vacuum_orchestrator.domain.planning import WorkUnit
 from custom_components.vacuum_orchestrator.domain.reach import ReachStatus
 from custom_components.vacuum_orchestrator.domain.rooms import Room, RoomBinding
@@ -744,3 +751,73 @@ async def test_a_restriction_excludes_the_other_mapped_areas(
         "kitchen": ReachStatus.AREA_EXCLUDED,
         "upstairs": ReachStatus.NOT_ON_CURRENT_MAP,
     }
+
+
+def _map_images(hass: HomeAssistant, *images: tuple[str, str | None]) -> list[str]:
+    """Put the vacuum and one image per (unique ID, translation key) on a device."""
+    entry = MockConfigEntry(domain="roborock")
+    entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "duid")}
+    )
+    registry = er.async_get(hass)
+    registry.async_update_entity("vacuum.test", device_id=device.id)
+    return [
+        registry.async_get_or_create(
+            "image",
+            "roborock",
+            unique_id,
+            device_id=device.id,
+            translation_key=translation_key,
+        ).entity_id
+        for unique_id, translation_key in images
+    ]
+
+
+async def test_v1_maps_name_their_segments_and_images(hass: HomeAssistant) -> None:
+    adapter, _, _ = setup_robot(hass)
+    ground, upper = _map_images(
+        hass, ("duid_slug_map_Ground", None), ("duid_slug_map_Upper", None)
+    )
+    await adapter.async_refresh_maps()
+    maps = adapter.maps()
+    assert maps.maps == (
+        RobotMap(
+            "0",
+            "Ground",
+            True,
+            ground,
+            (MapSegment("16", "Kitchen"), MapSegment("17", "Dining")),
+        ),
+        RobotMap("1", "Upper", False, upper, (MapSegment("16", "Bedroom"),)),
+    )
+    assert maps.current_image_ref == ground
+    assert maps.unavailable_reason is None
+    hass.states.async_set(
+        "select.selected_map", "Upper", {"options": ["Ground", "Upper"]}
+    )
+    assert adapter.maps().current_image_ref == upper
+
+
+async def test_v1_without_inventory_still_shows_the_selected_map(
+    hass: HomeAssistant,
+) -> None:
+    adapter, _, _ = setup_robot(hass)
+    ground, _ = _map_images(
+        hass, ("duid_slug_map_Ground", None), ("duid_slug_map_Upper", None)
+    )
+    maps = adapter.maps()
+    assert maps.maps == ()
+    assert maps.current_image_ref == ground
+    assert maps.unavailable_reason is MapsUnavailable.UNAVAILABLE
+
+
+async def test_b01_shows_its_one_map_image_without_an_inventory(
+    hass: HomeAssistant,
+) -> None:
+    adapter, _, _ = setup_robot(hass, config={"protocol": None})
+    (image,) = _map_images(hass, ("duid_map", "map"))
+    maps = adapter.maps()
+    assert maps.maps == ()
+    assert maps.current_image_ref == image
+    assert maps.unavailable_reason is MapsUnavailable.NOT_SUPPORTED

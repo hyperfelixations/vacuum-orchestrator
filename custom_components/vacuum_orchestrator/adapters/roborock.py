@@ -11,6 +11,7 @@ from homeassistant.components.vacuum.const import VacuumEntityFeature
 from ..domain.capabilities import AreaAddressing, PassCapability, RobotProfile
 from ..domain.dispatching import RobotObservation
 from ..domain.errors import ConflictError, DispatchNotStartedError, OrchestratorError
+from ..domain.maps import MapSegment, MapsUnavailable, RobotMap, RobotMaps
 from ..domain.planning import DispatchAssignment, WorkUnit
 from ..domain.reach import ReachStatus, RoomReach
 from ..domain.rooms import RoomBinding
@@ -162,6 +163,51 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
                 "rooms": {str(key): value for key, value in rooms.items()},
             }
         self._maps = parsed
+
+    def maps(self) -> RobotMaps:
+        """Read V1 maps from the public inventory; B01 renders only the current map.
+
+        Core names a V1 map image `<duid>_map_<map name>`, a B01 image has the
+        translation key `map`.
+        """
+        images = self.map_images()
+        if not self.native_segments:
+            rendered = [item for item in images if item.translation_key == "map"]
+            return RobotMaps(
+                current_image_ref=rendered[0].entity_id if len(rendered) == 1 else None,
+                unavailable_reason=MapsUnavailable.NOT_SUPPORTED,
+            )
+
+        def image(name: str | None) -> str | None:
+            found = [
+                item
+                for item in images
+                if name and item.unique_id.endswith(f"_map_{name}")
+            ]
+            return found[0].entity_id if len(found) == 1 else None
+
+        if self._maps is None:
+            return RobotMaps(
+                current_image_ref=image(self.role_value("selected_map")),
+                unavailable_reason=MapsUnavailable.UNAVAILABLE,
+            )
+        current = self.current_map_id
+        maps = tuple(
+            RobotMap(
+                map_id,
+                item["name"],
+                map_id == current,
+                image(item["name"]),
+                tuple(
+                    MapSegment(segment, name if isinstance(name, str) else None)
+                    for segment, name in item["rooms"].items()
+                ),
+            )
+            for map_id, item in self._maps.items()
+        )
+        return RobotMaps(
+            maps, next((item.image_ref for item in maps if item.current), None)
+        )
 
     async def async_prepare(
         self, unit: WorkUnit, assignment: DispatchAssignment

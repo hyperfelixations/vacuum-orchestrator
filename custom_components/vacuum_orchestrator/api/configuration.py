@@ -24,6 +24,7 @@ from ..diagnostics import build_diagnostics
 from ..domain.capabilities import CancelSemantics
 from ..domain.errors import ConflictError, OrchestratorError, ValidationError
 from ..domain.intents import CleaningPreferences
+from ..domain.maps import RobotMaps
 from ..domain.releases import ReleaseKind
 from ..domain.templates import JobTemplate
 from ..domain.types import ROUTE_LADDER, VACUUM_LADDER, WATER_LADDER, SettingsPolicy
@@ -379,6 +380,7 @@ def query_configuration(
                     }
                     for item in adapter.room_reach()
                 ],
+                **present_maps(adapter.maps() if adapter else RobotMaps()),
                 "active": any(
                     lease.robot_id == robot_id
                     for lease in core.state.robot_leases.values()
@@ -527,6 +529,29 @@ async def _execute_configuration(
         result["robot_id"] = robot_id
     result["commit_id"] = core.state.commit_id
     return result
+
+
+def present_maps(maps: RobotMaps) -> dict[str, Any]:
+    """Project a robot's maps; segment IDs are the vendor's own per map."""
+    return {
+        "map_image_entity_id": maps.current_image_ref,
+        "maps": [
+            {
+                "map_id": item.map_id,
+                "name": item.name,
+                "current": item.current,
+                "image_entity_id": item.image_ref,
+                "segments": [
+                    {"id": segment.segment_id, "name": segment.name}
+                    for segment in item.segments
+                ],
+            }
+            for item in maps.maps
+        ],
+        "maps_unavailable_reason": maps.unavailable_reason.value
+        if maps.unavailable_reason
+        else None,
+    }
 
 
 def present_template(

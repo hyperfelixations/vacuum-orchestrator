@@ -6,6 +6,7 @@ from typing import Protocol
 
 from ..domain.capabilities import RobotProfile
 from ..domain.dispatching import RobotObservation
+from ..domain.maps import RobotMaps
 from ..domain.planning import DispatchAssignment, WorkUnit
 from ..domain.reach import RoomReach
 
@@ -19,6 +20,9 @@ class RobotAdapter(Protocol):
 
     def room_reach(self) -> tuple[RoomReach, ...]:
         """Explain per canonical room whether this robot can clean it."""
+
+    def maps(self) -> RobotMaps:
+        """Return the robot's maps and current map image for display."""
 
     async def async_observe(self) -> RobotObservation:
         """Return one normalized point-in-time availability observation."""

@@ -37,6 +37,7 @@ from ..domain.errors import (
 )
 from ..domain.execution import ExecutionPolicy
 from ..domain.intents import settings_for_operation
+from ..domain.maps import MapsUnavailable, RobotMaps
 from ..domain.planning import DispatchAssignment, WorkUnit
 from ..domain.reach import ReachStatus, RoomReach, reachable_targets, without_overlaps
 from ..domain.rooms import Room, RoomBinding
@@ -165,6 +166,26 @@ class HomeAssistantVacuumAdapter:
             self._registry_id or self.entity_id or ""
         )
         return {} if entry is None else mapped_areas(entry)
+
+    def maps(self) -> RobotMaps:
+        """Offer no inventory; treat a single map image as the current map."""
+        images = self.map_images()
+        return RobotMaps(
+            current_image_ref=images[0].entity_id if len(images) == 1 else None,
+            unavailable_reason=MapsUnavailable.NOT_SUPPORTED,
+        )
+
+    def map_images(self) -> tuple[er.RegistryEntry, ...]:
+        """Return enabled images the vacuum's own integration puts on its device."""
+        registry = er.async_get(self._hass)
+        vacuum = registry.async_get(self._registry_id or self.entity_id or "")
+        if vacuum is None or vacuum.device_id is None:
+            return ()
+        return tuple(
+            entry
+            for entry in er.async_entries_for_device(registry, vacuum.device_id)
+            if entry.domain == "image" and entry.platform == vacuum.platform
+        )
 
     def rooms(self) -> tuple[Room, ...]:
         """Canonical rooms; without a room registry, one per mapped area."""
