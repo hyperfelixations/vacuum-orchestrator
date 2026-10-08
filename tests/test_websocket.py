@@ -56,6 +56,9 @@ class StubOrchestrator:
     def job_hold(self, job_id: str) -> object:
         return self.state.job_holds.get(job_id)
 
+    def waiting(self, job_id: str) -> object:
+        return None
+
     def subscribe_view(self, listener: Callable[[], None]) -> Callable[[], None]:
         self.listener = listener
 

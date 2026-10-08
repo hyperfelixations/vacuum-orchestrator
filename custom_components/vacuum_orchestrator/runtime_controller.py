@@ -225,7 +225,8 @@ class RuntimeController:
         now = datetime.now(UTC)
         fingerprint: dict[str, object] = {
             "jobs": tuple(
-                core.readiness_for_job(job_id) for job_id in core.state.queue
+                (core.readiness_for_job(job_id), core.waiting(job_id))
+                for job_id in core.state.queue
             ),
             "robots": tuple(
                 (robot_id, adapter.profile)

@@ -311,6 +311,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
                 runtime.orchestrator.readiness_for_job(job_id),
                 state.room_registry.rooms,
                 hold=runtime.orchestrator.job_hold(job_id),
+                waiting=runtime.orchestrator.waiting(job_id),
             )
             for job_id in selected
         ]
@@ -335,6 +336,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
                 state.room_registry.rooms,
                 state.attempts,
                 hold=runtime.orchestrator.job_hold(job.job_id),
+                waiting=runtime.orchestrator.waiting(job.job_id),
             )
             | view_metadata(runtime.orchestrator),
         )

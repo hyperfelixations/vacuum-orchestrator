@@ -351,13 +351,19 @@ def query_configuration(
             "templates",
         )
     if name == "get_room":
+        room = core.rooms.registry.resolve(data["room_id"])
+        waiting = core.jobs_awaiting_release()
         return {
             "api_version": API_VERSION,
-            **present_room(core.rooms.registry.resolve(data["room_id"]), now),
+            **present_room(room, now, waiting.get(room.room_id, ())),
         }
     if name == "get_rooms":
+        waiting = core.jobs_awaiting_release()
         return page(
-            [present_room(room, now) for room in core.rooms.registry.rooms.values()],
+            [
+                present_room(room, now, waiting.get(room.room_id, ()))
+                for room in core.rooms.registry.rooms.values()
+            ],
             data,
             "rooms",
         )
@@ -484,6 +490,7 @@ async def _execute_configuration(
                 core.readiness_for_job(hold.job_id),
                 core.state.room_registry.rooms,
                 hold=hold,
+                waiting=core.waiting(hold.job_id),
             ),
         )
     elif name == "renew_job_hold":

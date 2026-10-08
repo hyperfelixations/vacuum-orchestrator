@@ -9,10 +9,13 @@ from ..domain.types import OperationKind
 from ..infrastructure.room_codec import encode_room
 
 
-def present_room(room: Room, now: datetime) -> dict[str, Any]:
-    """Expose policy, provenance, effective grant and derived due state."""
+def present_room(
+    room: Room, now: datetime, waiting_job_ids: tuple[str, ...] = ()
+) -> dict[str, Any]:
+    """Expose policy, grant, due state and the jobs waiting for its release."""
     result = dict(encode_room(room))
     result["released"] = room.released(now)
+    result["waiting_job_ids"] = list(waiting_job_ids)
     result["due"] = {
         operation.value: {
             **asdict(report),

@@ -14,6 +14,7 @@ from ..domain.queue import Job, OrchestratorState
 from ..domain.readiness import ReadinessReport
 from ..domain.rooms import Room
 from ..domain.types import JobState
+from ..domain.waiting import Blocker, Waiting
 from ..ports.entities import EntityReferences
 
 if TYPE_CHECKING:
@@ -57,6 +58,17 @@ def present_references(
     return [entities.entity_id(reference) or reference for reference in references]
 
 
+def present_blocker(blocker: Blocker, entities: EntityReferences) -> dict[str, object]:
+    """Name one waiting reason with current entity IDs."""
+    return {
+        "code": blocker.code,
+        "until": blocker.until.isoformat() if blocker.until else None,
+        "room_ids": list(blocker.room_ids),
+        "entity_ids": present_references(blocker.entity_ids, entities),
+        "robot_ids": list(blocker.robot_ids),
+    }
+
+
 def present_job(
     job: Job,
     entities: EntityReferences,
@@ -65,6 +77,7 @@ def present_job(
     attempts: Mapping[str, ExecutionAttempt] | None = None,
     *,
     hold: JobHold | None = None,
+    waiting: Waiting | None = None,
 ) -> dict[str, object]:
     """Serialize one bounded job record; a hold never reveals its token."""
     intent = job.intent
@@ -118,6 +131,12 @@ def present_job(
         "hold": None
         if hold is None
         else {"purpose": hold.purpose.value, "expires_at": hold.expires_at.isoformat()},
+        "waiting": None
+        if waiting is None
+        else {
+            **present_blocker(waiting.primary, entities),
+            "blockers": [present_blocker(item, entities) for item in waiting.blockers],
+        },
         "active_attempt_id": job.active_attempt_id,
         "origin": {
             "kind": job.provenance.kind.value,

@@ -38,6 +38,7 @@ from ..domain.types import (
     QueueMode,
     RobotAvailabilityState,
 )
+from ..domain.waiting import Waiting
 from ..ports.command_scope import check_command_authorization, command_origin
 from ..ports.entities import EntityReferences, LiteralEntityReferences
 from ..ports.repository import OrchestratorRepository
@@ -51,6 +52,7 @@ from .room_readiness import RequirementReader, evaluate_room_readiness
 from .room_service import RoomService
 from .template_service import TemplateService
 from .tracing import TraceEvent, TraceRecorder
+from .waiting import explain_waiting
 
 Clock = Callable[[], datetime]
 IdFactory = Callable[[], str]
@@ -162,6 +164,7 @@ class VacuumOrchestrator:
         self.runtime_sequence = 0
         self.changed_scopes: frozenset[str] = VIEW_SCOPES
         self._availability: dict[str, bool] = {}
+        self._observations: dict[str, RobotObservation] = {}
         self.rooms = RoomService(self._mutate, lambda: self.state, clock, id_factory)
         self.templates = TemplateService(self._mutate, clock, id_factory)
         self.runs = QueueRunService(self._mutate, clock, id_factory)
@@ -172,6 +175,15 @@ class VacuumOrchestrator:
         if self._state is None:
             raise ConflictError("orchestrator_not_initialized")
         return self._state
+
+    @property
+    def latest_observations(self) -> Mapping[str, RobotObservation]:
+        """Return the last observation of each configured robot, read without I/O."""
+        return {
+            key: value
+            for key, value in self._observations.items()
+            if key in self._adapters
+        }
 
     @property
     def adapters(self) -> Mapping[str, RobotAdapter]:
@@ -316,6 +328,23 @@ class VacuumOrchestrator:
             if robot_id in self._adapters
             else (),
         )
+
+    def waiting(self, job_id: str) -> Waiting | None:
+        """Explain why a waiting job has not started; None once nothing blocks."""
+        job = self.state.jobs.get(job_id)
+        if job is None:
+            raise ConflictError("unknown_job", job_id)
+        return explain_waiting(self, self.state, job, self._clock())
+
+    def jobs_awaiting_release(self) -> dict[str, tuple[str, ...]]:
+        """Map each room to the waiting jobs that need its release, queue first."""
+        state = self.state
+        waiting: dict[str, list[str]] = {}
+        for job_id in state.queue:
+            report = self.job_readiness(state, state.jobs[job_id])
+            for room_id in report.blocked_room_ids:
+                waiting.setdefault(room_id, []).append(job_id)
+        return {key: tuple(value) for key, value in waiting.items()}
 
     def readiness_before_start(self, job_id: str) -> ReadinessReport | None:
         """Explain the next start; running attempts are never re-evaluated."""
@@ -1055,6 +1084,7 @@ class VacuumOrchestrator:
         return result
 
     def _record_availability(self, observation: RobotObservation) -> None:
+        self._observations[observation.robot_id] = observation
         online = observation.state not in {
             RobotAvailabilityState.UNKNOWN,
             RobotAvailabilityState.UNAVAILABLE,

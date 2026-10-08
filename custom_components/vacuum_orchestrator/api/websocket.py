@@ -125,6 +125,7 @@ async def websocket_queue_get(
                 orchestrator.readiness_for_job(job_id),
                 state.room_registry.rooms,
                 hold=orchestrator.job_hold(job_id),
+                waiting=orchestrator.waiting(job_id),
             )
             for job_id in selected
         ]
@@ -159,6 +160,7 @@ async def websocket_job_get(
                 orchestrator.state.room_registry.rooms,
                 orchestrator.state.attempts,
                 hold=orchestrator.job_hold(job.job_id),
+                waiting=orchestrator.waiting(job.job_id),
             )
             | view_metadata(orchestrator),
         )
@@ -205,6 +207,7 @@ async def websocket_jobs_list(
                         rooms=state.room_registry.rooms,
                         attempts=state.attempts,
                         hold=orchestrator.job_hold(job.job_id),
+                        waiting=orchestrator.waiting(job.job_id),
                     )
                     for job in ordered[offset : offset + limit]
                 ],
