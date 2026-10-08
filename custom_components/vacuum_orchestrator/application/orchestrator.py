@@ -24,7 +24,7 @@ from ..domain.errors import (
 )
 from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun
 from ..domain.holds import HoldPurpose, JobHold, lease_end
-from ..domain.intents import JobIntent, JobIntentPatch, TargetRef
+from ..domain.intents import UNSET, JobIntent, JobIntentPatch, TargetRef
 from ..domain.planning import DispatchAssignment, ExecutionPlan, Planner, WorkUnit
 from ..domain.queue import Job, OrchestratorState
 from ..domain.readiness import ReadinessEvaluator, ReadinessReport
@@ -351,9 +351,9 @@ class VacuumOrchestrator:
             if job_id not in state.jobs:
                 raise ConflictError("unknown_job")
             canonical = patch
-            if not patch.empty:
+            if patch.areas is not UNSET:
                 intent = self._canonical_intent(
-                    state, patch.apply(state.jobs[job_id].intent)
+                    state, replace(state.jobs[job_id].intent, areas=patch.areas)
                 )
                 canonical = replace(patch, areas=intent.areas)
             return state.update_job(job_id, canonical, self._clock(), hold_id=hold_id)

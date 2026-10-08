@@ -5,6 +5,10 @@ from dataclasses import replace
 import pytest
 
 from custom_components.vacuum_orchestrator.domain.errors import ConflictError
+from custom_components.vacuum_orchestrator.domain.intents import (
+    JobIntentPatch,
+    TargetRef,
+)
 from custom_components.vacuum_orchestrator.infrastructure.codec import (
     decode_orchestrator_state,
     encode_orchestrator_state,
@@ -88,3 +92,21 @@ async def test_all_rooms_include_rooms_no_robot_can_reach() -> None:
         for item in core.state.jobs.values()
         for target in item.intent.areas
     } == {"kitchen", "hall"}
+
+
+async def test_editing_other_fields_keeps_an_all_rooms_selection() -> None:
+    core = await setup_due(RecordingAdapter(RecordingBackend(), "robot"))
+    job = await core.async_create_job(
+        replace(
+            _intent(),
+            areas=tuple(TargetRef(room) for room in core.active_room_ids()),
+            all_rooms=True,
+        )
+    )
+
+    await core.async_update_job(job, JobIntentPatch(note="Before guests"))
+    assert core.state.jobs[job].intent.all_rooms
+    assert core.state.jobs[job].intent.note == "Before guests"
+
+    await core.async_update_job(job, JobIntentPatch(areas=(TargetRef("kitchen"),)))
+    assert not core.state.jobs[job].intent.all_rooms
