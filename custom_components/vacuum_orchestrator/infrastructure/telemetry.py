@@ -96,6 +96,8 @@ _VALUES = frozenset(
         "job_held",
         "job_not_waiting",
         "hold_expired",
+        "duplicate_room",
+        "no_rooms",
         "job_not_startable",
         "job_not_dispatchable",
         "job_conditions_not_satisfied",
@@ -185,6 +187,8 @@ _COMMANDS = frozenset(
         "hold_job",
         "renew_job_hold",
         "release_job_hold",
+        "release_rooms",
+        "revoke_rooms",
     ]
 )
 _ERROR_TYPES = frozenset(

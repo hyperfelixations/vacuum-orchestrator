@@ -14,7 +14,11 @@ def service_error(err: OrchestratorError) -> ServiceValidationError:
     return ServiceValidationError(
         translation_domain=DOMAIN,
         translation_key=err.code,
-        translation_placeholders={"code": err.code, "detail": err.detail or ""},
+        translation_placeholders={
+            "code": err.code,
+            "detail": err.detail or "",
+            "field": ".".join(map(str, err.path)),
+        },
     )
 
 

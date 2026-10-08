@@ -27,7 +27,7 @@ from ..domain.holds import HoldPurpose
 from ..domain.intents import CleaningPreferences
 from ..domain.maps import RobotMaps
 from ..domain.queue import MAX_START_DELAY_SECONDS
-from ..domain.releases import ReleaseKind
+from ..domain.releases import GrantRequest, ReleaseKind
 from ..domain.templates import JobTemplate
 from ..domain.types import ROUTE_LADDER, VACUUM_LADDER, WATER_LADDER, SettingsPolicy
 from ..ha_context import request_context
@@ -147,8 +147,8 @@ COMMANDS: dict[str, vol.Schema | vol.All] = {
         {**ROBOT_ID, vol.Optional("confirm_stopped", default=False): bool}
     ),
 }
-# Card sessions only, never actions; see dev doc "Bearbeitungsschutz".
-SESSION_COMMANDS: dict[str, vol.Schema] = {
+# WebSocket only, never actions; see dev doc "Kartenbefehle".
+CARD_COMMANDS: dict[str, vol.Schema] = {
     "hold_job": vol.Schema(
         {
             vol.Required("job_id"): cv.string,
@@ -157,6 +157,22 @@ SESSION_COMMANDS: dict[str, vol.Schema] = {
     ),
     "renew_job_hold": vol.Schema({vol.Required("hold_id"): cv.string}),
     "release_job_hold": vol.Schema({vol.Required("hold_id"): cv.string}),
+    "release_rooms": vol.Schema(
+        {
+            vol.Required("grants"): [
+                vol.Schema(
+                    {
+                        vol.Required("room"): cv.string,
+                        vol.Required("kind"): vol.Coerce(ReleaseKind),
+                        vol.Optional("duration_seconds"): vol.All(
+                            vol.Coerce(float), vol.Range(min=0.001)
+                        ),
+                    }
+                )
+            ]
+        }
+    ),
+    "revoke_rooms": vol.Schema({vol.Required("rooms"): [cv.string]}),
 }
 QUERIES: dict[str, vol.Schema] = {
     "get_job_execution": vol.Schema({vol.Required("job_id"): cv.string}),
@@ -558,6 +574,17 @@ async def _execute_configuration(
         )
     elif name == "revoke_room":
         await core.rooms.async_revoke(data["room_id"])
+    elif name == "release_rooms":
+        requests = tuple(
+            GrantRequest(item["room"], item["kind"], item.get("duration_seconds"))
+            for item in data["grants"]
+        )
+        result["grant_ids"] = list(await core.rooms.async_grant_many(requests))
+        result["room_ids"] = [
+            core.rooms.registry.resolve(item.room).room_id for item in requests
+        ]
+    elif name == "revoke_rooms":
+        result["room_ids"] = list(await core.rooms.async_revoke_many(data["rooms"]))
     elif name == "resolve_recovery":
         await core.async_resolve_recovery(
             data["robot_id"], confirm_stopped=data["confirm_stopped"]

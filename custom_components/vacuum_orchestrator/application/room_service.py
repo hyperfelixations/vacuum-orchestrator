@@ -1,14 +1,19 @@
 """Validated room commands using the orchestrator's single commit path."""
 
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 from ..domain.completion import CleaningReceipt
 from ..domain.due import DuePolicy, OccupancyCounter
-from ..domain.errors import ConflictError, ValidationError
+from ..domain.errors import (
+    ConflictError,
+    OrchestratorError,
+    ValidationError,
+    located,
+)
 from ..domain.queue import OrchestratorState
-from ..domain.releases import ReleaseKind, RoomRelease
+from ..domain.releases import GrantRequest, ReleaseKind, RoomRelease
 from ..domain.room_registry import RoomRegistry
 from ..domain.rooms import Room
 from ..domain.types import JobState
@@ -115,40 +120,62 @@ class RoomService:
         self, room_id: str, kind: ReleaseKind, duration_seconds: float | None = None
     ) -> str:
         """Issue a distinct grant without altering permissions of admitted jobs."""
-        if (kind is ReleaseKind.TIMED) != (duration_seconds is not None):
-            raise ValidationError("release_duration_mismatch")
-        if duration_seconds is not None:
-            seconds(duration_seconds, positive=True)
-        grant_id = self._id_factory()
+        try:
+            (grant_id,) = await self.async_grant_many(
+                (GrantRequest(room_id, kind, duration_seconds),)
+            )
+        except OrchestratorError as err:
+            # One room is the whole input; there is no row to point at.
+            raise type(err)(err.code, err.detail) from err
+        return grant_id
+
+    async def async_grant_many(
+        self, requests: Sequence[GrantRequest]
+    ) -> tuple[str, ...]:
+        """Release every room in one commit or none; see dev doc "Freigaben"."""
+        if not requests:
+            raise ValidationError("no_rooms", path=("grants",))
+        for index, request in enumerate(requests):
+            with located("grants", index, "duration_seconds"):
+                if (request.kind is ReleaseKind.TIMED) != (
+                    request.duration_seconds is not None
+                ):
+                    raise ValidationError("release_duration_mismatch")
+                if request.duration_seconds is not None:
+                    seconds(request.duration_seconds, positive=True)
+        grant_ids = tuple(self._id_factory() for _ in requests)
 
         def grant(state: OrchestratorState) -> OrchestratorState:
-            room = state.room_registry.resolve(room_id)
-            if not room.enabled or room.area_missing:
-                raise ConflictError("room_unavailable")
             now = self._clock()
-            release = RoomRelease(
-                grant_id,
-                kind,
-                now,
-                None
-                if duration_seconds is None
-                else now + timedelta(seconds=duration_seconds),
-                queue_run_id=state.queue_run.run_id
-                if kind is ReleaseKind.QUEUE_RUN
-                and state.queue_run
-                and state.queue_run.active
-                else None,
-            )
-            return replace(
-                state,
-                commit_id=state.commit_id + 1,
-                room_registry=state.room_registry.put_room(
-                    replace(room, release=release)
-                ),
-            )
+            run = state.queue_run
+            registry = state.room_registry
+            granted: set[str] = set()
+            for index, (request, grant_id) in enumerate(
+                zip(requests, grant_ids, strict=True)
+            ):
+                with located("grants", index, "room"):
+                    room = registry.resolve(request.room)
+                    if room.room_id in granted:
+                        raise ValidationError("duplicate_room", request.room)
+                    if not room.enabled or room.area_missing:
+                        raise ConflictError("room_unavailable", request.room)
+                granted.add(room.room_id)
+                release = RoomRelease(
+                    grant_id,
+                    request.kind,
+                    now,
+                    None
+                    if request.duration_seconds is None
+                    else now + timedelta(seconds=request.duration_seconds),
+                    queue_run_id=run.run_id
+                    if request.kind is ReleaseKind.QUEUE_RUN and run and run.active
+                    else None,
+                )
+                registry = registry.put_room(replace(room, release=release))
+            return replace(state, commit_id=state.commit_id + 1, room_registry=registry)
 
         await self._mutate(grant)
-        return grant_id
+        return grant_ids
 
     async def async_revoke(self, room_id: str) -> None:
         """Revoke future admissions; cancellation remains a separate command."""
@@ -164,6 +191,30 @@ class RoomService:
             )
 
         await self._mutate(revoke)
+
+    async def async_revoke_many(self, room_ids: Sequence[str]) -> tuple[str, ...]:
+        """Revoke several rooms in one commit; unknown or repeated rooms fail all."""
+        if not room_ids:
+            raise ValidationError("no_rooms", path=("rooms",))
+        resolved: list[str] = []
+
+        def revoke(state: OrchestratorState) -> OrchestratorState:
+            resolved.clear()
+            registry = state.room_registry
+            for index, reference in enumerate(room_ids):
+                with located("rooms", index):
+                    room = registry.resolve(reference)
+                    if room.room_id in resolved:
+                        raise ValidationError("duplicate_room", reference)
+                resolved.append(room.room_id)
+                if room.release is not None:
+                    registry = registry.put_room(replace(room, release=None))
+            if registry is state.room_registry:
+                return state
+            return replace(state, commit_id=state.commit_id + 1, room_registry=registry)
+
+        await self._mutate(revoke)
+        return tuple(resolved)
 
     async def async_record_receipt(self, receipt: CleaningReceipt) -> None:
         """Record adapter-validated success through the global transaction."""

@@ -246,6 +246,9 @@
     "duplicate_queue_job": {
       "message": "A job appears more than once in the queue"
     },
+    "duplicate_room": {
+      "message": "The same room appears more than once"
+    },
     "duplicate_room_binding": {
       "message": "The room has more than one binding for the same robot and map"
     },
@@ -569,6 +572,9 @@
     },
     "no_robot_configured": {
       "message": "No robot is configured"
+    },
+    "no_rooms": {
+      "message": "No room was specified"
     },
     "non_monotonic_commit": {
       "message": "The state changed concurrently; retry the action"

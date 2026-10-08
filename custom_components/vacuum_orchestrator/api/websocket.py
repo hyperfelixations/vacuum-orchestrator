@@ -17,14 +17,19 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from ..const import API_VERSION, SIGNAL_VIEW_CHANGED
-from ..domain.errors import ConflictError, OrchestratorError, ValidationError
+from ..domain.errors import (
+    ConflictError,
+    FieldPath,
+    OrchestratorError,
+    ValidationError,
+)
 from ..domain.types import JobState
 from ..ha_context import request_context
 from ..runtime import async_get_runtime
 from .configuration import (
+    CARD_COMMANDS,
     COMMANDS,
     QUERIES,
-    SESSION_COMMANDS,
     async_query_configuration,
     execute_configuration,
 )
@@ -73,7 +78,9 @@ async def websocket_configuration_get(
         )
     except vol.Invalid as err:
         send_websocket_error(
-            connection, msg["id"], ValidationError("invalid_parameters", str(err))
+            connection,
+            msg["id"],
+            ValidationError("invalid_parameters", str(err), path=_field(err)),
         )
     except OrchestratorError as err:
         send_websocket_error(connection, msg["id"], err)
@@ -82,7 +89,7 @@ async def websocket_configuration_get(
 @websocket_command(
     {
         vol.Required("type"): "vacuum_orchestrator/configuration/command",
-        vol.Required("command"): vol.In({**COMMANDS, **SESSION_COMMANDS}),
+        vol.Required("command"): vol.In({**COMMANDS, **CARD_COMMANDS}),
         vol.Required("parameters"): dict,
     }
 )
@@ -93,14 +100,16 @@ async def websocket_configuration_command(
 ) -> None:
     """Use the same validated commands for HA and optional clients."""
     try:
-        data = {**COMMANDS, **SESSION_COMMANDS}[msg["command"]](msg["parameters"])
+        data = {**COMMANDS, **CARD_COMMANDS}[msg["command"]](msg["parameters"])
         with request_context(connection.context(msg)):
             connection.send_result(
                 msg["id"], await execute_configuration(hass, msg["command"], data)
             )
     except vol.Invalid as err:
         send_websocket_error(
-            connection, msg["id"], ValidationError("invalid_parameters", str(err))
+            connection,
+            msg["id"],
+            ValidationError("invalid_parameters", str(err), path=_field(err)),
         )
     except OrchestratorError as err:
         send_websocket_error(connection, msg["id"], err)
@@ -245,6 +254,11 @@ def websocket_subscribe(
     event = _view_event(hass)
     if not event["loaded"]:
         connection.send_event(msg["id"], event)
+
+
+def _field(err: vol.Invalid) -> FieldPath:
+    """Return the schema error's field as an orchestrator field path."""
+    return tuple(item if isinstance(item, int) else str(item) for item in err.path)
 
 
 def _view_event(hass: HomeAssistant) -> dict[str, Any]:

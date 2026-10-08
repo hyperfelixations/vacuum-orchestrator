@@ -246,6 +246,9 @@
     "duplicate_queue_job": {
       "message": "Ein Auftrag kommt mehrfach in der Warteschlange vor"
     },
+    "duplicate_room": {
+      "message": "Derselbe Raum ist mehrfach angegeben"
+    },
     "duplicate_room_binding": {
       "message": "Der Raum hat mehrere Zuordnungen für denselben Roboter und dieselbe Karte"
     },
@@ -569,6 +572,9 @@
     },
     "no_robot_configured": {
       "message": "Es ist kein Roboter eingerichtet"
+    },
+    "no_rooms": {
+      "message": "Es wurde kein Raum angegeben"
     },
     "non_monotonic_commit": {
       "message": "Der Zustand wurde gleichzeitig geändert; wiederhole die Aktion"

@@ -18,6 +18,15 @@ class ReleaseKind(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class GrantRequest:
+    """One room to release with its own lifetime."""
+
+    room: str
+    kind: ReleaseKind
+    duration_seconds: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RoomRelease:
     """A grant generation; admitted jobs retain separate execution rights."""
 

@@ -18,7 +18,10 @@ from custom_components.vacuum_orchestrator.api.errors import (
     service_error,
 )
 from custom_components.vacuum_orchestrator.const import DOMAIN, SERVICE_GET_JOB
-from custom_components.vacuum_orchestrator.domain.errors import ConflictError
+from custom_components.vacuum_orchestrator.domain.errors import (
+    ConflictError,
+    ValidationError,
+)
 from custom_components.vacuum_orchestrator.runtime import RUNTIME_KEY
 from tests.test_websocket import Connection
 
@@ -142,6 +145,7 @@ async def test_actions_raise_translated_errors_with_structured_detail(
     assert error.translation_placeholders == {
         "code": "orchestrator_not_loaded",
         "detail": "",
+        "field": "",
     }
     assert str(error) == "Vacuum Orchestrator is not loaded"
 
@@ -156,10 +160,23 @@ async def test_websocket_errors_use_the_same_translation_fields(
     )
     assert connection.errors == [(3, "unknown_job", "The job does not exist")]
     assert connection.translations == [
-        (3, "unknown_job", DOMAIN, {"code": "unknown_job", "detail": "job-1"})
+        (
+            3,
+            "unknown_job",
+            DOMAIN,
+            {"code": "unknown_job", "detail": "job-1", "field": ""},
+        )
     ]
     error = service_error(ConflictError("unknown_job", "job-1"))
-    assert error.translation_placeholders == {"code": "unknown_job", "detail": "job-1"}
+    assert error.translation_placeholders == {
+        "code": "unknown_job",
+        "detail": "job-1",
+        "field": "",
+    }
+    located = service_error(
+        ValidationError("duplicate_room", "bath").within("grants", 1, "room")
+    )
+    assert located.translation_placeholders["field"] == "grants.1.room"
 
     websocket_api.websocket_configuration_get(
         hass,
