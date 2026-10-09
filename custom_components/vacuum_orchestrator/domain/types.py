@@ -193,6 +193,21 @@ class RobotAvailabilityState(StrEnum):
     UNKNOWN = "unknown"
 
 
+class RobotPhase(StrEnum):
+    """Vendor-neutral activity of a robot; see dev doc "Gerätezustand"."""
+
+    CLEANING = "cleaning"
+    RETURNING = "returning"
+    STATION = "station"
+    DOCKED = "docked"
+    IDLE = "idle"
+    PAUSED = "paused"
+    ERROR = "error"
+    OFFLINE = "offline"
+    OTHER = "other"
+    UNKNOWN = "unknown"
+
+
 class AttemptState(StrEnum):
     """Execution-attempt lifecycle state."""
 

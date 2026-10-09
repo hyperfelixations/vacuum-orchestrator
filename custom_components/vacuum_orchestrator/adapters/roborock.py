@@ -16,46 +16,15 @@ from ..domain.maps import MapSegment, MapsUnavailable, RobotMap, RobotMaps
 from ..domain.planning import DispatchAssignment, WorkUnit
 from ..domain.reach import ReachStatus, RoomReach
 from ..domain.rooms import RoomBinding
-from ..domain.types import PassScope, RobotAvailabilityState
+from ..domain.types import PassScope, RobotAvailabilityState, RobotPhase
 from ..ha_context import physical_context
 from ..ports.telemetry import TelemetryEvent, report_adapter
 from .home_assistant_vacuum import HomeAssistantVacuumAdapter
 from .roborock_faults import DOCK_FAULTS, ROBOT_FAULTS, STATUS_FAULTS
+from .roborock_status import AT_DOCK, STATUS_PHASES
 from .settings import available_options, supported_mapping
 
 _MODE_OPTIONS = {"vacuum": "vacuum", "mop": "mop", "vacuum_and_mop": "vac_and_mop"}
-_CLEANING_STATES = frozenset(
-    {
-        "cleaning",
-        "spot_cleaning",
-        "zoned_cleaning",
-        "segment_cleaning",
-        "robot_status_mopping",
-        "clean_mop_cleaning",
-        "clean_mop_mopping",
-        "segment_mopping",
-        "segment_clean_mop_cleaning",
-        "segment_clean_mop_mopping",
-        "zoned_mopping",
-        "zoned_clean_mop_cleaning",
-        "zoned_clean_mop_mopping",
-    }
-)
-# `charger_disconnected` is how a resting robot off the dock reports after a
-# while; see dev doc "Gerätezustand".
-_IDLE_STATES = frozenset(
-    {"idle", "charging", "charging_complete", "charger_disconnected"}
-)
-_DOCK_STATES = frozenset(
-    {
-        "charging",
-        "charging_complete",
-        "charging_problem",
-        "washing_the_mop",
-        "emptying_the_bin",
-        "air_drying_stopping",
-    }
-)
 
 
 class RoborockAdapter(HomeAssistantVacuumAdapter):
@@ -369,6 +338,7 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
                     cleaning_active=None,
                     normal_end=False,
                     reason="status_unusable",
+                    phase=RobotPhase.UNKNOWN,
                 )
             if not continuing:
                 return observation
@@ -393,7 +363,12 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
                 ),
             )
         general = any(fault.scope is FaultScope.GENERAL for fault in faults)
-        idle = status in _IDLE_STATES and not continuing and not general
+        phase = STATUS_PHASES.get(status, RobotPhase.UNKNOWN)
+        idle = (
+            phase in {RobotPhase.DOCKED, RobotPhase.IDLE}
+            and not continuing
+            and not general
+        )
         return replace(
             observation,
             state=RobotAvailabilityState.UNAVAILABLE
@@ -401,9 +376,10 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
             else RobotAvailabilityState.AVAILABLE
             if idle
             else RobotAvailabilityState.BUSY,
-            cleaning_active=status in _CLEANING_STATES,
+            cleaning_active=phase is RobotPhase.CLEANING,
             normal_end=idle,
             faults=faults,
             reason=status,
-            at_dock=status in _DOCK_STATES,
+            at_dock=status in AT_DOCK,
+            phase=phase,
         )

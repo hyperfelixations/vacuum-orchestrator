@@ -24,6 +24,7 @@ from .types import (
     WATER_LADDER,
     OperationKind,
     RobotAvailabilityState,
+    RobotPhase,
     SettingsPolicy,
     SettingValue,
     nearest_supported,
@@ -84,6 +85,7 @@ class RobotObservation:
     completed_targets: tuple[str, ...] = ()
     completion_confirmed: bool = False
     at_dock: bool | None = None
+    phase: RobotPhase = RobotPhase.UNKNOWN
     # Progress of the robot's current run and when the robot last changed it.
     clean_percent: int | None = None
     clean_percent_at: datetime | None = None

@@ -47,6 +47,7 @@ from ..domain.types import (
     OperationKind,
     PassScope,
     RobotAvailabilityState,
+    RobotPhase,
     VacuumLevel,
     WaterLevel,
 )
@@ -64,6 +65,16 @@ _SETTINGS = (
     ("mop_intensity", "water_levels", "mop_intensity"),
     ("mop_route", "mop_routes", "mop_route"),
 )
+
+# HA vacuum activities; see dev doc "Gerätezustand".
+_PHASES = {
+    "cleaning": RobotPhase.CLEANING,
+    "returning": RobotPhase.RETURNING,
+    "docked": RobotPhase.DOCKED,
+    "idle": RobotPhase.IDLE,
+    "paused": RobotPhase.PAUSED,
+    "error": RobotPhase.ERROR,
+}
 
 
 class HomeAssistantVacuumAdapter:
@@ -413,6 +424,9 @@ class HomeAssistantVacuumAdapter:
             faults=faults,
             observed_operation=self.observed_operation(),
             at_dock=state.state == "docked" if usable and state is not None else None,
+            phase=_PHASES.get(state.state, RobotPhase.OTHER)
+            if usable and state is not None
+            else RobotPhase.UNKNOWN,
             **self._clean_percent(),
         )
 

@@ -40,6 +40,7 @@ from custom_components.vacuum_orchestrator.domain.types import (
     OperationKind,
     PassScope,
     RobotAvailabilityState,
+    RobotPhase,
     SettingsPolicy,
     VacuumLevel,
 )
@@ -662,3 +663,24 @@ async def test_clean_percent_is_read_with_the_time_it_last_changed(
     assert observation.clean_percent_at == (
         None if percent is None else state.last_changed
     )
+
+
+@pytest.mark.parametrize(
+    ("state", "phase"),
+    [
+        ("cleaning", RobotPhase.CLEANING),
+        ("returning", RobotPhase.RETURNING),
+        ("docked", RobotPhase.DOCKED),
+        ("idle", RobotPhase.IDLE),
+        ("paused", RobotPhase.PAUSED),
+        ("error", RobotPhase.ERROR),
+        ("vendor_state", RobotPhase.OTHER),
+        ("unavailable", RobotPhase.UNKNOWN),
+    ],
+)
+async def test_the_vacuum_activity_sets_the_phase(
+    hass: HomeAssistant, state: str, phase: RobotPhase
+) -> None:
+    hass.states.async_set("vacuum.test", state)
+
+    assert (await _adapter(hass).async_observe()).phase is phase
