@@ -595,6 +595,7 @@ class VacuumOrchestrator:
                     "job_unknown",
                     "start_delayed",
                     "job_held",
+                    "queue_not_running",
                 }:
                     self.trace.record(
                         TraceEvent.BLOCKED,
@@ -898,6 +899,10 @@ class VacuumOrchestrator:
             if job.state not in {JobState.QUEUED, JobState.DISPATCHING}:
                 raise ConflictError("job_not_dispatchable")
             if job.state is JobState.QUEUED:
+                # The candidate list predates the observation await; a pause or
+                # end saved meanwhile wins. Next phases continue while paused.
+                if automatic and previous.mode is not QueueMode.RUNNING:
+                    raise PlanningError("queue_not_running")
                 hold = previous.job_holds.get(job_id)
                 if hold is not None and (automatic or hold.active(self._clock())):
                     raise ConflictError("job_held", hold.purpose.value)

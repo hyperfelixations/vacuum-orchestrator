@@ -609,6 +609,9 @@
     "queue_grace_out_of_range": {
       "message": "The queue grace time must be between 0 and 86400 seconds"
     },
+    "queue_not_running": {
+      "message": "The queue is not running"
+    },
     "queue_references_unknown_job": {
       "message": "The queue references an unknown job"
     },

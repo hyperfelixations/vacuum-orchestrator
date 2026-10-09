@@ -609,6 +609,9 @@
     "queue_grace_out_of_range": {
       "message": "Die Nachlaufzeit der Warteschlange muss zwischen 0 und 86400 Sekunden liegen"
     },
+    "queue_not_running": {
+      "message": "Die Warteschlange läuft nicht"
+    },
     "queue_references_unknown_job": {
       "message": "Die Warteschlange verweist auf einen unbekannten Auftrag"
     },
