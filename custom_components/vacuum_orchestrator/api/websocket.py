@@ -16,10 +16,10 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
+from ..configuration_values import schema_path
 from ..const import API_VERSION, SIGNAL_VIEW_CHANGED
 from ..domain.errors import (
     ConflictError,
-    FieldPath,
     OrchestratorError,
     ValidationError,
 )
@@ -82,7 +82,7 @@ async def websocket_configuration_get(
         send_websocket_error(
             connection,
             msg["id"],
-            ValidationError("invalid_parameters", str(err), path=_field(err)),
+            ValidationError("invalid_parameters", str(err), path=schema_path(err)),
         )
     except OrchestratorError as err:
         send_websocket_error(connection, msg["id"], err)
@@ -111,7 +111,7 @@ async def websocket_configuration_command(
         send_websocket_error(
             connection,
             msg["id"],
-            ValidationError("invalid_parameters", str(err), path=_field(err)),
+            ValidationError("invalid_parameters", str(err), path=schema_path(err)),
         )
     except OrchestratorError as err:
         send_websocket_error(connection, msg["id"], err)
@@ -256,11 +256,6 @@ def websocket_subscribe(
     event = _view_event(hass)
     if not event["loaded"]:
         connection.send_event(msg["id"], event)
-
-
-def _field(err: probatio.Invalid) -> FieldPath:
-    """Return the schema error's field as an orchestrator field path."""
-    return tuple(item if isinstance(item, int) else str(item) for item in err.path)
 
 
 def _view_event(hass: HomeAssistant) -> dict[str, Any]:

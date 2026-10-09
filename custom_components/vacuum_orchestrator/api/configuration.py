@@ -22,7 +22,12 @@ from ..configuration import configure_robot, require_idle_robot, robot_name
 from ..const import API_VERSION, DOMAIN
 from ..diagnostics import build_diagnostics
 from ..domain.capabilities import CancelSemantics
-from ..domain.errors import ConflictError, OrchestratorError, ValidationError
+from ..domain.errors import (
+    ConflictError,
+    OrchestratorError,
+    ValidationError,
+    located,
+)
 from ..domain.holds import HoldPurpose
 from ..domain.intents import CleaningPreferences
 from ..domain.maps import RobotMaps
@@ -551,14 +556,16 @@ async def _execute_configuration(
         await core.async_configure_job_defaults(data)
         result["job_defaults"] = present_job_defaults(core.state.job_defaults)
     elif name == "save_template":
-        result["template_id"] = await core.templates.async_save(
-            data["name"],
-            intent_from_data(
+        with located("intent"):
+            intent = intent_from_data(
                 data["intent"],
                 core.active_room_ids,
                 core.state.job_defaults,
                 core.entity_references,
-            ),
+            )
+        result["template_id"] = await core.templates.async_save(
+            data["name"],
+            intent,
             template_id=data.get("template_id"),
             enabled=data["enabled"],
             automatic=data["automatic"],
@@ -580,12 +587,13 @@ async def _execute_configuration(
             data.get("area_id")
             and ar.async_get(hass).async_get_area(data["area_id"]) is None
         ):
-            raise ValidationError("unknown_area")
+            raise ValidationError("unknown_area", path=("area_id",))
         room_id = await core.rooms.async_create(
             data["name"], area_id=data.get("area_id")
         )
     elif name == "update_room":
-        values = normalize_room_patch(hass, data["configuration"])
+        with located("configuration"):
+            values = normalize_room_patch(hass, data["configuration"])
         await core.rooms.async_update(
             data["room_id"], lambda room: apply_room_patch(room, values)
         )
@@ -624,9 +632,10 @@ async def _execute_configuration(
         elif name == "rename_robot":
             controller.rename_robot(data["robot_id"], data.get("name"))
         else:
-            robot_id = configure_robot(
-                hass, entry, data["configuration"], robot_id=robot_id
-            )
+            with located("configuration"):
+                robot_id = configure_robot(
+                    hass, entry, data["configuration"], robot_id=robot_id
+                )
     if room_id is not None:
         result["room_id"] = core.rooms.registry.resolve(room_id).room_id
     if robot_id is not None:

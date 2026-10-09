@@ -188,7 +188,7 @@ class OrchestratorState:
             job.state is JobState.QUEUED and job.intent.dedupe_key == intent.dedupe_key
             for job in self.jobs.values()
         ):
-            raise ConflictError("dedupe_key_already_queued")
+            raise ConflictError("dedupe_key_already_queued", path=("dedupe_key",))
         jobs = dict(self.jobs)
         if provenance is None:
             provenance = JobProvenance(
@@ -239,7 +239,7 @@ class OrchestratorState:
             and other.intent.dedupe_key == intent.dedupe_key
             for other in self.jobs.values()
         ):
-            raise ConflictError("dedupe_key_already_queued")
+            raise ConflictError("dedupe_key_already_queued", path=("dedupe_key",))
         jobs = dict(self.jobs)
         jobs[job_id] = replace(
             job,

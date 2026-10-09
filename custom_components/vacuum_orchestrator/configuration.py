@@ -20,7 +20,7 @@ from .const import (
     CONF_TARGET_AREAS,
     SUBENTRY_TYPE_ROBOT,
 )
-from .domain.errors import ConflictError, ValidationError
+from .domain.errors import ConflictError, ValidationError, located
 from .domain.types import MopRoute, OperationKind, VacuumLevel, WaterLevel
 from .domain.validation import identifier, seconds
 
@@ -63,30 +63,34 @@ def validate_robot_configuration(
         "return_timeout_seconds",
         "physical_robot_id",
     }
-    if set(data) - allowed_fields:
-        raise ValidationError("unknown_robot_configuration_field")
+    if unknown := sorted(set(data) - allowed_fields):
+        raise ValidationError("unknown_robot_configuration_field", path=(unknown[0],))
     if robot_id is None and len(entry.subentries) >= 20:
         raise ValidationError("robot_limit_reached")
     if robot_id is not None:
         require_idle_robot(entry, robot_id)
-    candidate = candidate_for(
-        hass,
-        str(data.get(CONF_ROBOT_REGISTRY_ID) or data.get(CONF_ROBOT_ENTITY_ID, "")),
-    )
-    if robot_id is not None and (
-        entry.subentries[robot_id].data[CONF_ROBOT_REGISTRY_ID] != candidate.registry_id
-    ):
-        raise ValidationError("robot_identity_change")
-    for subentry_id, subentry in entry.subentries.items():
-        if subentry_id == robot_id:
-            continue
-        if (
-            subentry.data.get(CONF_ROBOT_REGISTRY_ID) == candidate.registry_id
-            or subentry.data.get("source_robot_id") == candidate.source_robot_id
+    with located(CONF_ROBOT_ENTITY_ID):
+        candidate = candidate_for(
+            hass,
+            str(data.get(CONF_ROBOT_REGISTRY_ID) or data.get(CONF_ROBOT_ENTITY_ID, "")),
+        )
+        if robot_id is not None and (
+            entry.subentries[robot_id].data[CONF_ROBOT_REGISTRY_ID]
+            != candidate.registry_id
         ):
-            raise ConflictError("already_configured")
+            raise ValidationError("robot_identity_change")
+        for subentry_id, subentry in entry.subentries.items():
+            if subentry_id == robot_id:
+                continue
+            if (
+                subentry.data.get(CONF_ROBOT_REGISTRY_ID) == candidate.registry_id
+                or subentry.data.get("source_robot_id") == candidate.source_robot_id
+            ):
+                raise ConflictError("already_configured")
     result = dict(data)
-    if (name := robot_name_override(result.pop(CONF_ROBOT_NAME, None))) is not None:
+    with located(CONF_ROBOT_NAME):
+        name = robot_name_override(result.pop(CONF_ROBOT_NAME, None))
+    if name is not None:
         result[CONF_ROBOT_NAME] = name
     result.update(
         {
@@ -98,7 +102,7 @@ def validate_robot_configuration(
     )
     raw_roles = data.get("roles", {})
     if not isinstance(raw_roles, dict):
-        raise ValidationError("invalid_role_mapping")
+        raise ValidationError("invalid_role_mapping", path=("roles",))
     manual_roles = dict(raw_roles)
     for old_key, role in (
         (CONF_LAST_CLEAN_START_ENTITY_ID, "last_clean_start"),
@@ -130,45 +134,51 @@ def validate_robot_configuration(
     roles: dict[str, str | None] = {}
     for role, reference in manual_roles.items():
         if role not in allowed_domains:
-            raise ValidationError("unknown_entity_role", role)
+            raise ValidationError("unknown_entity_role", role, path=("roles", role))
         if reference is None:
             roles[role] = None
             continue
         entity = er.async_get(hass).async_get(str(reference))
         if entity is None or entity.domain != allowed_domains[role]:
-            raise ValidationError("invalid_role_entity", role)
+            raise ValidationError("invalid_role_entity", role, path=("roles", role))
         roles[role] = entity.id
     result["roles"] = roles
-    result["requirements"] = normalize_requirements(hass, data.get("requirements", []))
+    with located("requirements"):
+        result["requirements"] = normalize_requirements(
+            hass, data.get("requirements", [])
+        )
     # No restriction (None or empty) follows the HA area mapping live.
     targets = data.get(CONF_TARGET_AREAS) or None
     if targets is not None and not isinstance(targets, list):
-        raise ValidationError("invalid_target_areas")
-    for target in targets or ():
-        identifier(target, "invalid_target_areas")
+        raise ValidationError("invalid_target_areas", path=(CONF_TARGET_AREAS,))
+    for index, target in enumerate(targets or ()):
+        with located(CONF_TARGET_AREAS, index):
+            identifier(target, "invalid_target_areas")
     result[CONF_TARGET_AREAS] = (
         None if targets is None else list(dict.fromkeys(targets))
     )
     operations = data.get("allowed_operations", [item.value for item in OperationKind])
     if not isinstance(operations, list):
-        raise ValidationError("invalid_operation")
+        raise ValidationError("invalid_operation", path=("allowed_operations",))
     if not operations:
-        raise ValidationError("empty_allowed_operations")
+        raise ValidationError("empty_allowed_operations", path=("allowed_operations",))
     try:
         result["allowed_operations"] = [
             OperationKind(value).value for value in operations
         ]
     except ValueError as err:
-        raise ValidationError("invalid_operation") from err
+        raise ValidationError(
+            "invalid_operation", path=("allowed_operations",)
+        ) from err
     enabled = data.get("enabled", True)
     if not isinstance(enabled, bool):
-        raise ValidationError("invalid_robot_enabled")
+        raise ValidationError("invalid_robot_enabled", path=("enabled",))
     result["enabled"] = enabled
     protocol = data.get("protocol", candidate.protocol)
     if protocol not in (None, "roborock_v1") or (
         protocol is not None and candidate.adapter != "roborock"
     ):
-        raise ValidationError("unsupported_robot_protocol")
+        raise ValidationError("unsupported_robot_protocol", path=("protocol",))
     result["protocol"] = protocol
     fixed_mode = data.get("fixed_mode")
     try:
@@ -176,14 +186,14 @@ def validate_robot_configuration(
             None if fixed_mode is None else OperationKind(fixed_mode).value
         )
     except ValueError as err:
-        raise ValidationError("invalid_operation") from err
+        raise ValidationError("invalid_operation", path=("fixed_mode",)) from err
     preference = data.get("preference", 0)
     if (
         isinstance(preference, bool)
         or not isinstance(preference, int)
         or not -100 <= preference <= 100
     ):
-        raise ValidationError("invalid_robot_preference")
+        raise ValidationError("invalid_robot_preference", path=("preference",))
     result["preference"] = preference
     minimum = data.get("minimum_battery")
     if minimum is not None and (
@@ -191,7 +201,7 @@ def validate_robot_configuration(
         or not isinstance(minimum, int)
         or not 0 <= minimum <= 100
     ):
-        raise ValidationError("invalid_minimum_battery")
+        raise ValidationError("invalid_minimum_battery", path=("minimum_battery",))
     result["minimum_battery"] = minimum
     for name in (
         "mode_options",
@@ -205,7 +215,7 @@ def validate_robot_configuration(
             not isinstance(key, str) or not isinstance(value, str) or not value
             for key, value in options.items()
         ):
-            raise ValidationError("invalid_option_mapping", name)
+            raise ValidationError("invalid_option_mapping", name, path=(name,))
         result[name] = dict(options)
         valid_keys = {
             "mode_options": {item.value for item in OperationKind},
@@ -214,9 +224,9 @@ def validate_robot_configuration(
             "mop_routes": {item.value for item in MopRoute},
         }.get(name)
         if valid_keys is not None and not set(options) <= valid_keys:
-            raise ValidationError("invalid_option_mapping", name)
+            raise ValidationError("invalid_option_mapping", name, path=(name,))
         if name == "mode_options" and len(set(options.values())) != len(options):
-            raise ValidationError("ambiguous_mode_mapping")
+            raise ValidationError("ambiguous_mode_mapping", path=(name,))
     for field_name, default in {
         "start_timeout_seconds": 180,
         "run_timeout_seconds": 14400,
@@ -226,22 +236,26 @@ def validate_robot_configuration(
         "return_timeout_seconds": 900,
     }.items():
         value = data.get(field_name, default)
-        if not isinstance(value, (int, float)):
-            raise ValidationError("invalid_duration")
-        seconds(value, positive=True)
-        if value > 86400:
-            raise ValidationError("timeout_out_of_range")
+        with located(field_name):
+            if not isinstance(value, (int, float)):
+                raise ValidationError("invalid_duration")
+            seconds(value, positive=True)
+            if value > 86400:
+                raise ValidationError("timeout_out_of_range")
         result[field_name] = float(value)
     physical_id = data.get("physical_robot_id")
-    if physical_id is not None:
-        identifier(physical_id)
-        result["source_robot_id"] = f"configured:{physical_id}"
-    for subentry_id, subentry in entry.subentries.items():
-        if (
-            subentry_id != robot_id
-            and subentry.data.get("source_robot_id") == result["source_robot_id"]
-        ):
-            raise ConflictError("already_configured")
+    with located(
+        "physical_robot_id" if physical_id is not None else CONF_ROBOT_ENTITY_ID
+    ):
+        if physical_id is not None:
+            identifier(physical_id)
+            result["source_robot_id"] = f"configured:{physical_id}"
+        for subentry_id, subentry in entry.subentries.items():
+            if (
+                subentry_id != robot_id
+                and subentry.data.get("source_robot_id") == result["source_robot_id"]
+            ):
+                raise ConflictError("already_configured")
     return result
 
 

@@ -13,9 +13,10 @@ from .configuration_values import (
     REQUIREMENT_SCHEMA,
     normalize_requirements,
     requirement_from_data,
+    schema_path,
 )
 from .domain.due import DueBasis
-from .domain.errors import ValidationError
+from .domain.errors import ValidationError, located
 from .domain.rooms import Room, RoomBinding
 
 DUE_SCHEMA = probatio.Schema(
@@ -64,17 +65,20 @@ def normalize_room_patch(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     try:
         values = ROOM_PATCH_SCHEMA(data)
     except probatio.Invalid as err:
-        raise ValidationError("invalid_room_configuration") from err
+        raise ValidationError(
+            "invalid_room_configuration", path=schema_path(err)
+        ) from err
     if (
         values.get("area_id")
         and ar.async_get(hass).async_get_area(values["area_id"]) is None
     ):
-        raise ValidationError("unknown_area")
+        raise ValidationError("unknown_area", path=("area_id",))
     if "requirements" in values:
-        values["requirements"] = tuple(
-            requirement_from_data(item)
-            for item in normalize_requirements(hass, values["requirements"])
-        )
+        with located("requirements"):
+            values["requirements"] = tuple(
+                requirement_from_data(item)
+                for item in normalize_requirements(hass, values["requirements"])
+            )
     if "bindings" in values:
         values["bindings"] = tuple(
             RoomBinding(item["robot_id"], tuple(item["target_ids"]), item.get("map_id"))

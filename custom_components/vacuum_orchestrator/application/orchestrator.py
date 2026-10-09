@@ -23,6 +23,7 @@ from ..domain.errors import (
     PlanningError,
     StaleCommandError,
     StorageIntegrityError,
+    located,
 )
 from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun
 from ..domain.holds import HoldPurpose, JobHold, lease_end
@@ -1337,16 +1338,12 @@ class VacuumOrchestrator:
 
     @staticmethod
     def _canonical_intent(state: OrchestratorState, intent: JobIntent) -> JobIntent:
-        return replace(
-            intent,
-            areas=tuple(
-                TargetRef(
-                    state.room_registry.resolve(target.area_id).room_id,
-                    target.map_context,
-                )
-                for target in intent.areas
-            ),
-        )
+        areas = []
+        for index, target in enumerate(intent.areas):
+            with located("areas", index):
+                room = state.room_registry.resolve(target.area_id)
+            areas.append(TargetRef(room.room_id, target.map_context))
+        return replace(intent, areas=tuple(areas))
 
     @staticmethod
     def _existing_plan(state: OrchestratorState, job: Job) -> ExecutionPlan:

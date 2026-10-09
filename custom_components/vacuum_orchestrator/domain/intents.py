@@ -91,12 +91,12 @@ class VendorExtension:
             raise ValidationError("invalid_vendor_extension_parameters")
 
 
-def _normalized_references(values: tuple[str, ...], code: str) -> tuple[str, ...]:
+def _normalized_references(values: tuple[str, ...], field: str) -> tuple[str, ...]:
     normalized = tuple(value.strip() for value in values)
     if any(not value for value in normalized) or len(normalized) != len(
         set(normalized)
     ):
-        raise ValidationError(code)
+        raise ValidationError(f"invalid_{field}", path=(field,))
     return normalized
 
 
@@ -121,25 +121,29 @@ class JobIntent:
 
     def __post_init__(self) -> None:
         if not self.areas:
-            raise ValidationError("job_requires_area")
+            raise ValidationError("job_requires_area", path=("areas",))
         object.__setattr__(
             self, "preferences", self.preferences.only(settings_for_mode(self.mode))
         )
         area_ids = [target.area_id for target in self.areas]
         if len(area_ids) != len(set(area_ids)):
-            raise ValidationError("duplicate_area")
+            raise ValidationError("duplicate_area", path=("areas",))
         if len({target.map_context for target in self.areas}) > 1:
-            raise ValidationError("mixed_map_contexts")
+            raise ValidationError("mixed_map_contexts", path=("areas",))
         if not 1 <= self.passes <= 10:
-            raise ValidationError("invalid_pass_count", str(self.passes))
+            raise ValidationError(
+                "invalid_pass_count", str(self.passes), path=("passes",)
+            )
         for field_name in ("name", "reason", "note", "dedupe_key"):
             value = getattr(self, field_name)
             if value is not None and not value.strip():
-                raise ValidationError(f"empty_{field_name}")
-        required_on = _normalized_references(self.required_on, "invalid_required_on")
-        required_off = _normalized_references(self.required_off, "invalid_required_off")
+                raise ValidationError(f"empty_{field_name}", path=(field_name,))
+        required_on = _normalized_references(self.required_on, "required_on")
+        required_off = _normalized_references(self.required_off, "required_off")
         if set(required_on) & set(required_off):
-            raise ValidationError("contradictory_state_requirement")
+            raise ValidationError(
+                "contradictory_state_requirement", path=("required_off",)
+            )
         object.__setattr__(self, "required_on", required_on)
         object.__setattr__(self, "required_off", required_off)
 

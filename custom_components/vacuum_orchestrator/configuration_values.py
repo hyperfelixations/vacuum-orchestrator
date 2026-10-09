@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 
-from .domain.errors import ValidationError
+from .domain.errors import FieldPath, ValidationError, located
 from .domain.requirements import StateRequirement
 from .domain.types import OperationKind
 
@@ -30,6 +30,11 @@ REQUIREMENT_SCHEMA = probatio.Schema(
 )
 
 
+def schema_path(err: probatio.Invalid) -> FieldPath:
+    """Return a schema error's field as an orchestrator field path."""
+    return tuple(item if isinstance(item, int) else str(item) for item in err.path)
+
+
 def normalize_requirements(hass: HomeAssistant, values: object) -> list[dict[str, Any]]:
     """Resolve stable identities once; explicit bindings never fall back on deletion."""
     try:
@@ -37,16 +42,17 @@ def normalize_requirements(hass: HomeAssistant, values: object) -> list[dict[str
             probatio.All([REQUIREMENT_SCHEMA], probatio.Length(max=100))
         )(values)
     except probatio.Invalid as err:
-        raise ValidationError("invalid_requirements") from err
+        raise ValidationError("invalid_requirements", path=schema_path(err)) from err
     result = []
-    for value in raw:
-        reference = value.get("entity_registry_id") or value["entity_id"]
-        entity = er.async_get(hass).async_get(reference)
-        if value.get("entity_registry_id") and entity is None:
-            raise ValidationError("requirement_binding_missing")
-        normalized = dict(value)
-        normalized["entity_registry_id"] = entity.id if entity else None
-        requirement_from_data(normalized)
+    for index, value in enumerate(raw):
+        with located(index):
+            reference = value.get("entity_registry_id") or value["entity_id"]
+            entity = er.async_get(hass).async_get(reference)
+            if value.get("entity_registry_id") and entity is None:
+                raise ValidationError("requirement_binding_missing")
+            normalized = dict(value)
+            normalized["entity_registry_id"] = entity.id if entity else None
+            requirement_from_data(normalized)
         result.append(normalized)
     return result
 
