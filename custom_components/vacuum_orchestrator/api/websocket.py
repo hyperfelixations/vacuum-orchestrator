@@ -143,6 +143,7 @@ async def websocket_queue_get(
                 offset=offset,
                 limit=limit,
                 phase=orchestrator.run_phase(),
+                attention=orchestrator.attention(),
             )
             | view_metadata(orchestrator),
         )
@@ -243,6 +244,7 @@ def _view_event(hass: HomeAssistant) -> dict[str, Any]:
     except OrchestratorError:
         return {"api_version": API_VERSION, "loaded": False}
     state = orchestrator.state
+    attention = orchestrator.attention()
     return {
         "api_version": API_VERSION,
         "loaded": True,
@@ -253,8 +255,8 @@ def _view_event(hass: HomeAssistant) -> dict[str, Any]:
         "queue_revision": state.queue_revision,
         "mode": state.mode.value,
         "pending_jobs": len(state.queue),
-        "needs_attention": state.needs_attention,
+        "needs_attention": bool(attention),
         "active_count": state.active_job_count,
-        "attention_count": state.attention_job_count,
+        "attention_count": len(attention),
         "changed": sorted(orchestrator.changed_scopes),
     }

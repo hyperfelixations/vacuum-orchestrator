@@ -65,6 +65,9 @@ class StubOrchestrator:
     def progress(self, job_id: str) -> object:
         return None
 
+    def attention(self) -> tuple[object, ...]:
+        return ()
+
     def run_phase(self) -> RunPhase:
         return RunPhase.OFF
 

@@ -26,7 +26,7 @@ async def async_setup_entry(
 
 
 class OrchestratorAttentionSensor(BinarySensorEntity):
-    """Expose whether any job or physical robot needs recovery."""
+    """Expose whether a person has to act; see dev doc "Aufmerksamkeit"."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_has_entity_name = True
@@ -39,13 +39,16 @@ class OrchestratorAttentionSensor(BinarySensorEntity):
 
     @property
     def is_on(self) -> bool:
-        """Return whether persisted recovery is required."""
-        return self._runtime.orchestrator.state.needs_attention
+        """Return whether a device fault or a recovery needs a person."""
+        return bool(self._runtime.orchestrator.attention())
 
     async def async_added_to_hass(self) -> None:
         """Subscribe after entity registration."""
         await super().async_added_to_hass()
-        self._unsubscribe = self._runtime.orchestrator.subscribe(self._state_changed)
+        # Device faults change without a commit.
+        self._unsubscribe = self._runtime.orchestrator.subscribe_view(
+            self._state_changed
+        )
 
     async def async_will_remove_from_hass(self) -> None:
         """Release the state listener."""

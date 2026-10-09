@@ -11,6 +11,7 @@ from types import MappingProxyType
 from typing import Any, cast
 from uuid import uuid4
 
+from ..domain.attention import Attention, AttentionKind
 from ..domain.correlation import correlate_run
 from ..domain.dispatching import (
     RobotObservation,
@@ -27,6 +28,7 @@ from ..domain.errors import (
     located,
 )
 from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun
+from ..domain.faults import blocking
 from ..domain.holds import HoldPurpose, JobHold, lease_end
 from ..domain.intents import UNSET, JobIntent, JobIntentPatch, TargetRef
 from ..domain.permissions import require, returnable
@@ -209,6 +211,8 @@ class VacuumOrchestrator:
         self.changed_scopes: frozenset[str] = VIEW_SCOPES
         self._availability: dict[str, bool] = {}
         self._observations: dict[str, RobotObservation] = {}
+        # When each robot's current device faults were first observed.
+        self._fault_since: dict[str, datetime] = {}
         self.rooms = RoomService(self._mutate, lambda: self.state, clock, id_factory)
         self.templates = TemplateService(self._mutate, clock, id_factory)
         self.runs = QueueRunService(self._mutate, clock, id_factory)
@@ -246,6 +250,9 @@ class VacuumOrchestrator:
                 if current is not None:
                     updated[lease.robot_id] = current
             self._adapters = updated
+            for robot_id in self._observations.keys() - updated.keys():
+                del self._observations[robot_id]
+                self._fault_since.pop(robot_id, None)
 
     async def async_shutdown(self) -> None:
         """Fence future commands and persist unresolved ownership before unloading."""
@@ -326,6 +333,61 @@ class VacuumOrchestrator:
                     reason="view_listener_failed",
                     error=err,
                 )
+
+    def attention(self) -> tuple[Attention, ...]:
+        """List what a person has to act on now; see dev doc "Aufmerksamkeit"."""
+        state = self.state
+        entries: list[Attention] = []
+        for robot_id, adapter in self._adapters.items():
+            observation = self._observations.get(robot_id)
+            operations = adapter.profile.effective_operations
+            faults = [
+                fault
+                for fault in (observation.faults if observation else ())
+                if fault.operations & operations
+            ]
+            if faults:
+                entries.append(
+                    Attention(
+                        AttentionKind.DEVICE_FAULT,
+                        robot_id,
+                        None,
+                        tuple(fault.code for fault in faults),
+                        frozenset().union(*(fault.operations for fault in faults))
+                        & operations,
+                        self._fault_since.get(robot_id),
+                    )
+                )
+        robots = {
+            adapter.profile.source_robot_id: robot_id
+            for robot_id, adapter in self._adapters.items()
+        }
+        entries.extend(
+            Attention(
+                AttentionKind.ROBOT_RECOVERY,
+                robots.get(source_id, source_id),
+                None,
+                (reason,),
+            )
+            for source_id, reason in state.blocked_robots.items()
+        )
+        for job in state.jobs.values():
+            if job.state is not JobState.NEEDS_ATTENTION:
+                continue
+            attempt = (
+                state.attempts.get(job.active_attempt_id)
+                if job.active_attempt_id
+                else None
+            )
+            entries.append(
+                Attention(
+                    AttentionKind.JOB_RECOVERY,
+                    attempt.robot_id if attempt else None,
+                    job.job_id,
+                    (job.failure_code,) if job.failure_code else (),
+                )
+            )
+        return tuple(entries)
 
     def now(self) -> datetime:
         """Return the clock every deadline and read model is based on."""
@@ -1280,6 +1342,12 @@ class VacuumOrchestrator:
 
     def _record_availability(self, observation: RobotObservation) -> None:
         self._observations[observation.robot_id] = observation
+        if blocking(observation.faults, None):
+            self._fault_since.setdefault(
+                observation.robot_id, observation.observed_at or self._clock()
+            )
+        else:
+            self._fault_since.pop(observation.robot_id, None)
         online = observation.state not in {
             RobotAvailabilityState.UNKNOWN,
             RobotAvailabilityState.UNAVAILABLE,

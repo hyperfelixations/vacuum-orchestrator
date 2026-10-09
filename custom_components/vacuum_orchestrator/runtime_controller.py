@@ -343,9 +343,10 @@ class RuntimeController:
         "Änderungssignale".
         """
         core = self.orchestrator
-        now = datetime.now(UTC)
+        now = core.now()
         projection = core.view_projection(core.state)
         fingerprint: dict[str, object] = {
+            "queue": core.attention(),
             "jobs": (
                 projection["jobs"],
                 tuple(

@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from ..const import API_VERSION, INTEGRATION_VERSION
+from ..domain.attention import Attention
 from ..domain.execution import ExecutionAttempt
 from ..domain.holds import JobHold
 from ..domain.job_defaults import JobDefaults
@@ -252,6 +253,21 @@ def present_job(
     return result
 
 
+def present_attention(entries: tuple[Attention, ...]) -> list[dict[str, object]]:
+    """Serialize what a person has to act on now."""
+    return [
+        {
+            "kind": entry.kind.value,
+            "robot_id": entry.robot_id,
+            "job_id": entry.job_id,
+            "codes": list(entry.codes),
+            "operations": sorted(item.value for item in entry.operations),
+            "since": entry.since.isoformat() if entry.since else None,
+        }
+        for entry in entries
+    ]
+
+
 def present_queue(
     state: OrchestratorState,
     jobs: list[dict[str, object]],
@@ -259,6 +275,7 @@ def present_queue(
     offset: int,
     limit: int,
     phase: RunPhase,
+    attention: tuple[Attention, ...],
 ) -> dict[str, object]:
     """Serialize one stable page of the pending queue."""
     return {
@@ -267,9 +284,10 @@ def present_queue(
         "commit_id": state.commit_id,
         "queue_revision": state.queue_revision,
         "mode": state.mode.value,
-        "needs_attention": state.needs_attention,
+        "needs_attention": bool(attention),
         "active_count": state.active_job_count,
-        "attention_count": state.attention_job_count,
+        "attention_count": len(attention),
+        "attention": present_attention(attention),
         "recovery_targets": [
             {
                 "robot_id": state.robot_leases[source_id].robot_id

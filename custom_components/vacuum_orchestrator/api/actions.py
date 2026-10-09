@@ -282,6 +282,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
                 offset=offset,
                 limit=limit,
                 phase=runtime.orchestrator.run_phase(),
+                attention=runtime.orchestrator.attention(),
             )
             | view_metadata(runtime.orchestrator),
         )
