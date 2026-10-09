@@ -1347,10 +1347,13 @@ class VacuumOrchestrator:
 
     @staticmethod
     def _canonical_intent(state: OrchestratorState, intent: JobIntent) -> JobIntent:
+        """Name every target by its room; only active rooms take new work."""
         areas = []
         for index, target in enumerate(intent.areas):
             with located("areas", index):
                 room = state.room_registry.resolve(target.area_id)
+                if not room.enabled or room.area_missing:
+                    raise ConflictError("room_unavailable", target.area_id)
             areas.append(TargetRef(room.room_id, target.map_context))
         return replace(intent, areas=tuple(areas))
 

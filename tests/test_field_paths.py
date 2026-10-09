@@ -40,6 +40,12 @@ async def test_job_errors_name_their_field(hass: HomeAssistant) -> None:
         required_on=["binary_sensor.door"],
         required_off=["binary_sensor.door"],
     ) == ("contradictory_state_requirement", "required_off")
+    excluded = (await call(hass, "create_room", name="Attic"))["room_id"]
+    await call(hass, "disable_room", room_id=excluded)
+    assert await located(hass, "create_job", areas=[room, excluded]) == (
+        "room_unavailable",
+        "areas.1",
+    )
     await call(hass, "create_job", areas=[room], dedupe_key="daily")
     assert await located(hass, "create_job", areas=[room], dedupe_key="daily") == (
         "dedupe_key_already_queued",
