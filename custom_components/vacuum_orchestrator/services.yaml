@@ -590,6 +590,33 @@ get_room:
   name: Get room
   description: Return room bindings, requirements, releases and cleaning evidence.
   fields: *id005
+validate:
+  name: Validate
+  description: Check the input of a command without applying it; returns every
+    field error with its path.
+  fields:
+    command:
+      name: Command
+      required: true
+      selector:
+        select:
+          options:
+          - create_job
+          - update_job
+          - save_template
+          - create_room
+          - update_room
+          - release_rooms
+          - configure_queue
+          - configure_job_defaults
+          - add_robot
+          - configure_robot
+          - rename_robot
+    data:
+      name: Data
+      required: true
+      selector:
+        object: {}
 get_trace:
   name: Get trace
   description: Return bounded diagnostic events with sequence numbers.

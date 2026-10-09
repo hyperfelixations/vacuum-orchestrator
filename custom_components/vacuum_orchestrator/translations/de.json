@@ -443,7 +443,7 @@
       "message": "Die Roboterreservierung ist ungültig"
     },
     "invalid_robot_name": {
-      "message": "Ein Robotername muss 1 bis 100 Zeichen enthalten."
+      "message": "Ein Robotername muss 1 bis 100 Zeichen enthalten"
     },
     "invalid_robot_preference": {
       "message": "Die Roboterpräferenz muss zwischen -100 und 100 liegen"
@@ -474,6 +474,9 @@
     },
     "invalid_target_areas": {
       "message": "Die Zielbereiche des Roboters sind ungültig"
+    },
+    "invalid_value": {
+      "message": "Der Wert ist hier nicht gültig"
     },
     "invalid_vendor_extension_namespace": {
       "message": "Der Namensraum der Herstellererweiterung ist ungültig"
@@ -598,6 +601,9 @@
     "orchestrator_shutting_down": {
       "message": "Vacuum Orchestrator wird beendet"
     },
+    "out_of_range": {
+      "message": "Der Wert liegt außerhalb des erlaubten Bereichs"
+    },
     "overlapping_room_mapping": {
       "message": "Zwei Räume verweisen auf überlappende Roboterziele"
     },
@@ -660,6 +666,9 @@
     },
     "release_reservation_requires_once": {
       "message": "Nur Einmalfreigaben können für einen Auftrag reserviert werden"
+    },
+    "required_field": {
+      "message": "Ein Pflichtfeld fehlt"
     },
     "requirement_binding_missing": {
       "message": "Die Entität einer Bedingung ist nicht mehr verfügbar"
@@ -810,6 +819,9 @@
     },
     "unknown_entity_role": {
       "message": "Die Roboterrolle ist unbekannt"
+    },
+    "unknown_field": {
+      "message": "Dieses Feld wird nicht unterstützt"
     },
     "unknown_job": {
       "message": "Der Auftrag existiert nicht"

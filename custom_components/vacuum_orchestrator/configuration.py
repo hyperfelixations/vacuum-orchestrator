@@ -326,6 +326,23 @@ def require_idle_robot(entry: ConfigEntry, robot_id: str) -> ConfigSubentry:
     return subentry
 
 
+def prepare_robot(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    data: Mapping[str, Any],
+    *,
+    robot_id: str | None = None,
+) -> tuple[ConfigSubentry | None, dict[str, Any]]:
+    """Check an idle robot change and return the profile it replaces and its data."""
+    previous = require_idle_robot(entry, robot_id) if robot_id else None
+    merged = {**(previous.data if previous else {}), **data}
+    if CONF_ROBOT_ENTITY_ID in data:
+        merged.pop(CONF_ROBOT_REGISTRY_ID, None)
+    return previous, validate_robot_configuration(
+        hass, entry, merged, robot_id=robot_id
+    )
+
+
 def configure_robot(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -334,11 +351,7 @@ def configure_robot(
     robot_id: str | None = None,
 ) -> str:
     """Apply one validated idle robot mutation without reloading the runtime."""
-    previous = require_idle_robot(entry, robot_id) if robot_id else None
-    merged = {**(previous.data if previous else {}), **data}
-    if CONF_ROBOT_ENTITY_ID in data:
-        merged.pop(CONF_ROBOT_REGISTRY_ID, None)
-    normalized = validate_robot_configuration(hass, entry, merged, robot_id=robot_id)
+    previous, normalized = prepare_robot(hass, entry, data, robot_id=robot_id)
     if previous is not None:
         hass.config_entries.async_update_subentry(entry, previous, data=normalized)
         return previous.subentry_id

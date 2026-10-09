@@ -12,7 +12,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.vacuum_orchestrator.api.actions import (
+from custom_components.vacuum_orchestrator.api.job_input import (
     ATTR_AREAS,
     ATTR_JOB_ID,
     ATTR_MODE,

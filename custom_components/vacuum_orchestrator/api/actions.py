@@ -34,76 +34,28 @@ from ..const import (
     SERVICE_UPDATE_JOB,
 )
 from ..domain.errors import ConflictError, OrchestratorError
-from ..domain.intents import JobIntentPatch
-from ..domain.types import (
-    MoveDirection,
-    QueueMode,
-    SettingsPolicy,
-)
+from ..domain.types import MoveDirection, QueueMode
 from ..ha_context import request_context
 from ..runtime import VacuumOrchestratorRuntime, async_get_runtime
 from .configuration import setup_configuration_actions
 from .errors import service_error
 from .job_input import (
-    ALL_ROOMS,
-    CREATE_SCHEMA,
-    _mode,
-    areas,
+    ATTR_DIRECTION,
+    ATTR_HOLD_ID,
+    ATTR_JOB_ID,
+    ATTR_LIMIT,
+    ATTR_MODE,
+    ATTR_OFFSET,
+    ATTR_ROBOT_ID,
+    ATTR_START,
+    CREATE_JOB_SCHEMA,
+    UPDATE_SCHEMA,
     intent_from_data,
-    mop_route,
-    selected_areas,
-    vacuum_level,
-    water_level,
+    patch_from_data,
 )
 from .presentation import present_job, present_queue, present_settings, view_metadata
 from .telemetry import command_trace
 
-ATTR_JOB_ID = "job_id"
-ATTR_AREAS = "areas"
-ATTR_MODE = "mode"
-ATTR_NAME = "name"
-ATTR_VACUUM_POWER = "vacuum_power"
-ATTR_MOP_INTENSITY = "mop_intensity"
-ATTR_MOP_ROUTE = "mop_route"
-ATTR_PASSES = "passes"
-ATTR_REASON = "reason"
-ATTR_NOTE = "note"
-ATTR_DEDUPE_KEY = "dedupe_key"
-ATTR_REQUIRED_ON = "required_on"
-ATTR_REQUIRED_OFF = "required_off"
-ATTR_SETTINGS_POLICY = "settings_policy"
-ATTR_DIRECTION = "direction"
-ATTR_ROBOT_ID = "robot_id"
-ATTR_OFFSET = "offset"
-ATTR_LIMIT = "limit"
-ATTR_HOLD_ID = "hold_id"
-
-
-UPDATE_SCHEMA = probatio.Schema(
-    {
-        probatio.Required(ATTR_JOB_ID): cv.string,
-        probatio.Optional(ATTR_AREAS): areas,
-        probatio.Optional(ATTR_MODE): _mode,
-        probatio.Optional(ATTR_NAME): probatio.Any(None, cv.string),
-        probatio.Optional(ATTR_VACUUM_POWER): probatio.Any(None, vacuum_level),
-        probatio.Optional(ATTR_MOP_INTENSITY): probatio.Any(None, water_level),
-        probatio.Optional(ATTR_MOP_ROUTE): probatio.Any(None, mop_route),
-        probatio.Optional(ATTR_PASSES): probatio.All(
-            probatio.Coerce(int), probatio.Range(min=1, max=10)
-        ),
-        probatio.Optional(ATTR_REASON): probatio.Any(None, cv.string),
-        probatio.Optional(ATTR_NOTE): probatio.Any(None, cv.string),
-        probatio.Optional(ATTR_DEDUPE_KEY): probatio.Any(None, cv.string),
-        probatio.Optional(ATTR_REQUIRED_ON): probatio.All(
-            cv.ensure_list, [cv.entity_id]
-        ),
-        probatio.Optional(ATTR_REQUIRED_OFF): probatio.All(
-            cv.ensure_list, [cv.entity_id]
-        ),
-        probatio.Optional(ATTR_SETTINGS_POLICY): probatio.Coerce(SettingsPolicy),
-        probatio.Optional(ATTR_HOLD_ID): cv.string,
-    }
-)
 JOB_SCHEMA = probatio.Schema({probatio.Required(ATTR_JOB_ID): cv.string})
 DELETE_SCHEMA = probatio.Schema(
     {
@@ -133,13 +85,6 @@ CANCEL_SCHEMA = probatio.Schema(
     }
 )
 ROBOT_SCHEMA = probatio.Schema({probatio.Required(ATTR_ROBOT_ID): cv.string})
-ATTR_START = "start"
-CREATE_JOB_SCHEMA = CREATE_SCHEMA.extend(
-    {
-        probatio.Optional(ATTR_START, default=False): cv.boolean,
-        probatio.Optional(ATTR_ROBOT_ID): cv.string,
-    }
-)
 ATTR_RUNNING_JOBS = "running_jobs"
 END_QUEUE_SCHEMA = probatio.Schema(
     {
@@ -203,7 +148,11 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         await _translate_errors(
             runtime.orchestrator.async_update_job(
                 call.data[ATTR_JOB_ID],
-                _patch_from_call(runtime, call),
+                patch_from_data(
+                    call.data,
+                    runtime.orchestrator.active_room_ids,
+                    runtime.orchestrator.entity_references,
+                ),
                 hold_id=call.data.get(ATTR_HOLD_ID),
             )
         )
@@ -419,38 +368,6 @@ async def _runtime_for_call(
         return async_get_runtime(hass)
     except OrchestratorError as err:
         raise service_error(err) from err
-
-
-def _patch_from_call(
-    runtime: VacuumOrchestratorRuntime, call: ServiceCall
-) -> JobIntentPatch:
-    names = {
-        ATTR_AREAS: "areas",
-        ATTR_MODE: "mode",
-        ATTR_NAME: "name",
-        ATTR_VACUUM_POWER: "vacuum_power",
-        ATTR_MOP_INTENSITY: "mop_intensity",
-        ATTR_MOP_ROUTE: "mop_route",
-        ATTR_PASSES: "passes",
-        ATTR_REASON: "reason",
-        ATTR_NOTE: "note",
-        ATTR_DEDUPE_KEY: "dedupe_key",
-        ATTR_REQUIRED_ON: "required_on",
-        ATTR_REQUIRED_OFF: "required_off",
-        ATTR_SETTINGS_POLICY: "settings_policy",
-    }
-    values: dict[str, object] = {}
-    for public_name, field_name in names.items():
-        if public_name not in call.data:
-            continue
-        value = call.data[public_name]
-        if public_name == ATTR_AREAS:
-            values["all_rooms"] = value == ALL_ROOMS
-            value = selected_areas(value, runtime.orchestrator.active_room_ids)
-        elif public_name in {ATTR_REQUIRED_ON, ATTR_REQUIRED_OFF}:
-            value = tuple(map(runtime.orchestrator.entity_references.reference, value))
-        values[field_name] = value
-    return JobIntentPatch(**values)  # type: ignore[arg-type]
 
 
 def _command_response(

@@ -72,6 +72,7 @@ from .presentation import (
 )
 from .room_presentation import present_room
 from .telemetry import command_trace
+from .validation import async_validate
 
 if TYPE_CHECKING:
     from ..application.orchestrator import VacuumOrchestrator
@@ -195,7 +196,27 @@ CARD_COMMANDS: dict[str, probatio.Schema] = {
     ),
     "revoke_rooms": probatio.Schema({probatio.Required("rooms"): [cv.string]}),
 }
+# Commands whose input `validate` checks; see dev doc "Validierung".
+VALIDATED_COMMANDS = (
+    "create_job",
+    "update_job",
+    "save_template",
+    "create_room",
+    "update_room",
+    "release_rooms",
+    "configure_queue",
+    "configure_job_defaults",
+    "add_robot",
+    "configure_robot",
+    "rename_robot",
+)
 QUERIES: dict[str, probatio.Schema] = {
+    "validate": probatio.Schema(
+        {
+            probatio.Required("command"): probatio.In(VALIDATED_COMMANDS),
+            probatio.Required("data"): dict,
+        }
+    ),
     "get_job_execution": probatio.Schema({probatio.Required("job_id"): cv.string}),
     "preview_job": probatio.Schema(
         {
@@ -222,6 +243,14 @@ async def async_query_configuration(
     core = async_get_runtime(hass).orchestrator
     if name == "preview_job":
         return await _async_preview(core, data)
+    if name == "validate":
+        return await async_validate(
+            hass,
+            data["command"],
+            data["data"],
+            schemas={**COMMANDS, **CARD_COMMANDS},
+            execute=_execute_configuration,
+        ) | view_metadata(core)
     if name != "get_job_execution":
         return query_configuration(hass, name, data) | view_metadata(core)
     explanations = await explain_job(core, data["job_id"])

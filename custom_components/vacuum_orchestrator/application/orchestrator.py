@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from types import MappingProxyType
@@ -70,6 +71,14 @@ def _utcnow() -> datetime:
 
 
 VIEW_SCOPES = frozenset({"queue", "jobs", "rooms", "robots", "templates"})
+
+# Set while a command is validated: its first state change ends it unapplied.
+_DRY_RUN: ContextVar[bool] = ContextVar("vacuum_orchestrator_dry_run", default=False)
+
+
+class _DryRunComplete(Exception):
+    """A validated command reached its state change."""
+
 
 # Committed fields each read model shows; see dev doc "Änderungssignale".
 SCOPE_FIELDS: Mapping[str, tuple[str, ...]] = MappingProxyType(
@@ -1351,9 +1360,25 @@ class VacuumOrchestrator:
             raise ConflictError("job_plan_missing")
         return state.plans[job.plan_id]
 
+    async def async_dry_run(self, command: Awaitable[object]) -> None:
+        """Run a command up to its state change and discard it.
+
+        The command's own checks run unchanged; see dev doc "Validierung".
+        """
+        token = _DRY_RUN.set(True)
+        try:
+            await command
+        except _DryRunComplete:
+            pass
+        finally:
+            _DRY_RUN.reset(token)
+
     async def _mutate(
         self, mutation: Callable[[OrchestratorState], OrchestratorState]
     ) -> None:
+        if _DRY_RUN.get():
+            mutation(self._verified_state())
+            raise _DryRunComplete
         async with self._lock:
             previous = self._verified_state()
             candidate = mutation(previous)
@@ -1364,6 +1389,8 @@ class VacuumOrchestrator:
     async def _commit_locked(
         self, previous: OrchestratorState, candidate: OrchestratorState
     ) -> None:
+        if _DRY_RUN.get():
+            raise RuntimeError("commit_during_validation")
         self.trace.record(TraceEvent.STORAGE, self._clock(), stage="committing")
         try:
             await self._repository.async_commit(

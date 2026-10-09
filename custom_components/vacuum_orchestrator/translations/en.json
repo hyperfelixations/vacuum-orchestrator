@@ -443,7 +443,7 @@
       "message": "The robot reservation is invalid"
     },
     "invalid_robot_name": {
-      "message": "A robot name must contain 1 to 100 characters."
+      "message": "A robot name must contain 1 to 100 characters"
     },
     "invalid_robot_preference": {
       "message": "The robot preference must be between -100 and 100"
@@ -474,6 +474,9 @@
     },
     "invalid_target_areas": {
       "message": "The robot's target areas are invalid"
+    },
+    "invalid_value": {
+      "message": "The value is not valid here"
     },
     "invalid_vendor_extension_namespace": {
       "message": "The vendor extension namespace is invalid"
@@ -598,6 +601,9 @@
     "orchestrator_shutting_down": {
       "message": "Vacuum Orchestrator is shutting down"
     },
+    "out_of_range": {
+      "message": "The value is outside the allowed range"
+    },
     "overlapping_room_mapping": {
       "message": "Two rooms map to overlapping robot targets"
     },
@@ -660,6 +666,9 @@
     },
     "release_reservation_requires_once": {
       "message": "Only one-time releases can be reserved for a job"
+    },
+    "required_field": {
+      "message": "A required field is missing"
     },
     "requirement_binding_missing": {
       "message": "The entity of a requirement is no longer available"
@@ -810,6 +819,9 @@
     },
     "unknown_entity_role": {
       "message": "The robot role is unknown"
+    },
+    "unknown_field": {
+      "message": "This field is not supported"
     },
     "unknown_job": {
       "message": "The job does not exist"

@@ -38,7 +38,7 @@ from .const import (
     SUBENTRY_TYPE_ROBOT,
 )
 from .domain.due import DueBasis, DueState
-from .domain.errors import ConflictError, OrchestratorError
+from .domain.errors import ConflictError, OrchestratorError, located
 from .domain.monitoring import next_deadline
 from .domain.progress import STARTED_STATES
 from .domain.types import OperationKind
@@ -200,8 +200,15 @@ class RuntimeController:
 
     def rename_robot(self, robot_id: str, name: str | None) -> None:
         """Set or clear a robot's custom name without touching its adapter."""
+        self._set_override(*self.checked_name(robot_id, name))
+
+    def checked_name(
+        self, robot_id: str, name: str | None
+    ) -> tuple[ConfigSubentry, str | None]:
+        """Resolve the robot and its normalized custom name."""
         subentry = require_robot(self.entry, robot_id)
-        self._set_override(subentry, robot_name_override(name))
+        with located("name"):
+            return subentry, robot_name_override(name)
 
     def _set_override(self, subentry: ConfigSubentry, name: str | None) -> None:
         data = {

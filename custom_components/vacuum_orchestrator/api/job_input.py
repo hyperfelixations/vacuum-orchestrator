@@ -1,13 +1,13 @@
 """Shared public job-intent schema for jobs and stored templates."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 import probatio
 from homeassistant.helpers import config_validation as cv
 
 from ..domain.errors import ValidationError
-from ..domain.intents import CleaningPreferences, JobIntent, TargetRef
+from ..domain.intents import CleaningPreferences, JobIntent, JobIntentPatch, TargetRef
 from ..domain.job_defaults import JobDefaults
 from ..domain.types import (
     ROUTE_LADDER,
@@ -36,6 +36,8 @@ ATTR_DIRECTION = "direction"
 ATTR_ROBOT_ID = "robot_id"
 ATTR_OFFSET = "offset"
 ATTR_LIMIT = "limit"
+ATTR_HOLD_ID = "hold_id"
+ATTR_START = "start"
 ALL_ROOMS = "all"
 
 
@@ -91,6 +93,37 @@ INTENT_FIELDS: dict[Any, Any] = {
     probatio.Optional(ATTR_SETTINGS_POLICY): probatio.Coerce(SettingsPolicy),
 }
 CREATE_SCHEMA = probatio.Schema(INTENT_FIELDS)
+CREATE_JOB_SCHEMA = CREATE_SCHEMA.extend(
+    {
+        probatio.Optional(ATTR_START, default=False): cv.boolean,
+        probatio.Optional(ATTR_ROBOT_ID): cv.string,
+    }
+)
+UPDATE_SCHEMA = probatio.Schema(
+    {
+        probatio.Required(ATTR_JOB_ID): cv.string,
+        probatio.Optional(ATTR_AREAS): areas,
+        probatio.Optional(ATTR_MODE): _mode,
+        probatio.Optional(ATTR_NAME): probatio.Any(None, cv.string),
+        probatio.Optional(ATTR_VACUUM_POWER): probatio.Any(None, vacuum_level),
+        probatio.Optional(ATTR_MOP_INTENSITY): probatio.Any(None, water_level),
+        probatio.Optional(ATTR_MOP_ROUTE): probatio.Any(None, mop_route),
+        probatio.Optional(ATTR_PASSES): probatio.All(
+            probatio.Coerce(int), probatio.Range(min=1, max=10)
+        ),
+        probatio.Optional(ATTR_REASON): probatio.Any(None, cv.string),
+        probatio.Optional(ATTR_NOTE): probatio.Any(None, cv.string),
+        probatio.Optional(ATTR_DEDUPE_KEY): probatio.Any(None, cv.string),
+        probatio.Optional(ATTR_REQUIRED_ON): probatio.All(
+            cv.ensure_list, [cv.entity_id]
+        ),
+        probatio.Optional(ATTR_REQUIRED_OFF): probatio.All(
+            cv.ensure_list, [cv.entity_id]
+        ),
+        probatio.Optional(ATTR_SETTINGS_POLICY): probatio.Coerce(SettingsPolicy),
+        probatio.Optional(ATTR_HOLD_ID): cv.string,
+    }
+)
 
 
 def selected_areas(
@@ -126,3 +159,38 @@ def intent_from_data(
         settings_policy=data.get(ATTR_SETTINGS_POLICY, defaults.settings_policy),
         all_rooms=data[ATTR_AREAS] == ALL_ROOMS,
     )
+
+
+def patch_from_data(
+    data: Mapping[str, Any],
+    active_rooms: Callable[[], tuple[str, ...]],
+    references: EntityReferences,
+) -> JobIntentPatch:
+    """Build a job update from the fields an update names."""
+    names = {
+        ATTR_AREAS: "areas",
+        ATTR_MODE: "mode",
+        ATTR_NAME: "name",
+        ATTR_VACUUM_POWER: "vacuum_power",
+        ATTR_MOP_INTENSITY: "mop_intensity",
+        ATTR_MOP_ROUTE: "mop_route",
+        ATTR_PASSES: "passes",
+        ATTR_REASON: "reason",
+        ATTR_NOTE: "note",
+        ATTR_DEDUPE_KEY: "dedupe_key",
+        ATTR_REQUIRED_ON: "required_on",
+        ATTR_REQUIRED_OFF: "required_off",
+        ATTR_SETTINGS_POLICY: "settings_policy",
+    }
+    values: dict[str, object] = {}
+    for public_name, field_name in names.items():
+        if public_name not in data:
+            continue
+        value = data[public_name]
+        if public_name == ATTR_AREAS:
+            values["all_rooms"] = value == ALL_ROOMS
+            value = selected_areas(value, active_rooms)
+        elif public_name in {ATTR_REQUIRED_ON, ATTR_REQUIRED_OFF}:
+            value = tuple(map(references.reference, value))
+        values[field_name] = value
+    return JobIntentPatch(**values)  # type: ignore[arg-type]
