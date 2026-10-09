@@ -11,6 +11,11 @@ from custom_components.vacuum_orchestrator.domain.execution import (
     ExecutionAttempt,
     ExecutionPolicy,
 )
+from custom_components.vacuum_orchestrator.domain.faults import (
+    Fault,
+    FaultScope,
+    FaultSource,
+)
 from custom_components.vacuum_orchestrator.domain.intents import CleaningPreferences
 from custom_components.vacuum_orchestrator.domain.monitoring import (
     MonitorAction,
@@ -149,7 +154,12 @@ def test_errors_and_connection_loss_never_become_success(state) -> None:
         ATTEMPT, state=state, observed_start_at=NOW, terminal_observed_at=NOW
     )
     assert (
-        evaluate(attempt, replace(IDLE, error_code="stuck")).reason
+        evaluate(
+            attempt,
+            replace(
+                IDLE, faults=(Fault("stuck", FaultSource.ROBOT, FaultScope.GENERAL),)
+            ),
+        ).reason
         == "robot_reported_error"
     )
     assert (
@@ -381,3 +391,23 @@ def test_out_of_order_observations_do_not_advance_and_cannot_evade_timeouts() ->
 def test_invalid_execution_policy_rejects_nonfinite_timeouts() -> None:
     with pytest.raises(Exception, match="invalid_duration"):
         ExecutionPolicy(run_seconds=float("inf"))
+
+
+def test_only_faults_of_the_running_operation_stop_it() -> None:
+    started = replace(
+        ATTEMPT, state=AttemptState.START_CONFIRMED, observed_start_at=NOW
+    )
+    cleaning = replace(IDLE, cleaning_active=True, normal_end=False)
+    mop = Fault("vibrarise_jammed", FaultSource.ROBOT, FaultScope.MOP)
+    tank = Fault("water_empty", FaultSource.DOCK, FaultScope.STATION_VACUUM)
+
+    assert evaluate(started, replace(cleaning, faults=(mop,))).action is (
+        MonitorAction.WAIT
+    )
+    assert evaluate(started, replace(cleaning, faults=(tank,))).reason == (
+        "robot_reported_error"
+    )
+    # Once the floor run has ended normally, a station fault is not its failure.
+    assert evaluate(started, replace(IDLE, faults=(tank,))).action is (
+        MonitorAction.SETTLE
+    )

@@ -499,6 +499,17 @@ def query_configuration(
                 ],
                 **present_maps(adapter.maps() if adapter else RobotMaps()),
                 "active": leased,
+                "faults": []
+                if observation is None
+                else [
+                    {
+                        "code": fault.code,
+                        "source": fault.source.value,
+                        "operations": sorted(item.value for item in fault.operations),
+                        "entity_id": fault.entity_id,
+                    }
+                    for fault in observation.faults
+                ],
                 "actions": present_actions(
                     robot_actions(
                         leased=leased,

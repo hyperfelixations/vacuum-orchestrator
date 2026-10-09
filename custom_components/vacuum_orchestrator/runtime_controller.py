@@ -359,6 +359,10 @@ class RuntimeController:
                     (robot_id, adapter.profile, adapter.room_reach())
                     for robot_id, adapter in core.adapters.items()
                 ),
+                tuple(
+                    (robot_id, observation.faults, observation.at_dock)
+                    for robot_id, observation in core.latest_observations.items()
+                ),
                 tuple(self._names.items()),
             ),
             "rooms": (

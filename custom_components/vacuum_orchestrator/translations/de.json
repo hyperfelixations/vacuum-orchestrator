@@ -709,6 +709,9 @@
     "robot_busy": {
       "message": "Der Roboter ist beschäftigt"
     },
+    "robot_fault": {
+      "message": "Der Roboter meldet einen Fehler, der diese Betriebsart sperrt"
+    },
     "robot_generation_not_monotonic": {
       "message": "Die Befehlsfolge des Roboters ist nicht in der richtigen Reihenfolge"
     },

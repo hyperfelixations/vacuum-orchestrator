@@ -7,6 +7,7 @@ from enum import StrEnum
 from .completion import CompletionQuality
 from .dispatching import RobotObservation
 from .execution import ExecutionAttempt
+from .faults import interrupting
 from .planning import DispatchAssignment, WorkUnit
 from .types import AttemptState, RobotAvailabilityState
 
@@ -87,7 +88,8 @@ def evaluate_observation(
         return MonitorDecision(MonitorAction.WAIT, "observation_out_of_order")
     if observation.source_robot_id != attempt.source_robot_id:
         return MonitorDecision(MonitorAction.ATTENTION, "observation_source_mismatch")
-    if observation.error_code is not None:
+    finished = observation.normal_end and observation.cleaning_active is False
+    if interrupting(observation.faults, unit.operation, finished=finished):
         return MonitorDecision(MonitorAction.ATTENTION, "robot_reported_error")
     if observation.state in {
         RobotAvailabilityState.UNKNOWN,

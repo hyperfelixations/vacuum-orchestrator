@@ -11,6 +11,7 @@ from homeassistant.components.vacuum.const import VacuumEntityFeature
 from ..domain.capabilities import AreaAddressing, PassCapability, RobotProfile
 from ..domain.dispatching import RobotObservation
 from ..domain.errors import ConflictError, DispatchNotStartedError, OrchestratorError
+from ..domain.faults import Fault, FaultScope, FaultSource
 from ..domain.maps import MapSegment, MapsUnavailable, RobotMap, RobotMaps
 from ..domain.planning import DispatchAssignment, WorkUnit
 from ..domain.reach import ReachStatus, RoomReach
@@ -19,6 +20,7 @@ from ..domain.types import PassScope, RobotAvailabilityState
 from ..ha_context import physical_context
 from ..ports.telemetry import TelemetryEvent, report_adapter
 from .home_assistant_vacuum import HomeAssistantVacuumAdapter
+from .roborock_faults import DOCK_FAULTS, ROBOT_FAULTS, STATUS_FAULTS
 from .settings import available_options, supported_mapping
 
 _MODE_OPTIONS = {"vacuum": "vacuum", "mop": "mop", "vacuum_and_mop": "vac_and_mop"}
@@ -54,7 +56,6 @@ _DOCK_STATES = frozenset(
         "air_drying_stopping",
     }
 )
-_ERROR_STATES = frozenset({"error", "charging_problem", "device_offline", "locked"})
 
 
 class RoborockAdapter(HomeAssistantVacuumAdapter):
@@ -343,11 +344,17 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
             context=physical_context(),
         )
 
+    def fault_scope(self, source: FaultSource, code: str) -> FaultScope:
+        """Classify by the published option tables; unknown codes stop the robot."""
+        table = ROBOT_FAULTS if source is FaultSource.ROBOT else DOCK_FAULTS
+        return table.get(code, FaultScope.GENERAL)
+
     async def async_observe(self) -> RobotObservation:
         """Separate floor cleaning from mapping, mop washing and dock activity."""
         observation = await super().async_observe()
         if observation.state is RobotAvailabilityState.UNKNOWN:
             return observation
+        general = any(fault.scope is FaultScope.GENERAL for fault in observation.faults)
         flag = self.role_value("in_cleaning")
         # Bound but unusable roles fail closed; see internal dev doc "Adapter".
         continuing = flag == "on" or (flag is None and self.role_bound("in_cleaning"))
@@ -357,7 +364,7 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
                 return replace(
                     observation,
                     state=RobotAvailabilityState.UNAVAILABLE
-                    if observation.error_code
+                    if general
                     else RobotAvailabilityState.BUSY,
                     cleaning_active=None,
                     normal_end=False,
@@ -368,23 +375,35 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
             return replace(
                 observation,
                 state=RobotAvailabilityState.UNAVAILABLE
-                if observation.error_code
+                if general
                 else RobotAvailabilityState.BUSY,
                 normal_end=False,
                 reason="cleaning_continues",
             )
-        error = observation.error_code or (status if status in _ERROR_STATES else None)
-        idle = status in _IDLE_STATES and not continuing and not error
+        faults = observation.faults
+        if status in STATUS_FAULTS:
+            # The status names the fault; the generic vacuum `error` adds nothing.
+            faults = (
+                *(fault for fault in faults if fault.code != "device_error"),
+                Fault(
+                    status,
+                    FaultSource.ROBOT,
+                    FaultScope.GENERAL,
+                    self.role_entity("status"),
+                ),
+            )
+        general = any(fault.scope is FaultScope.GENERAL for fault in faults)
+        idle = status in _IDLE_STATES and not continuing and not general
         return replace(
             observation,
             state=RobotAvailabilityState.UNAVAILABLE
-            if error
+            if general or status == "device_offline"
             else RobotAvailabilityState.AVAILABLE
             if idle
             else RobotAvailabilityState.BUSY,
             cleaning_active=status in _CLEANING_STATES,
             normal_end=idle,
-            error_code=error,
+            faults=faults,
             reason=status,
             at_dock=status in _DOCK_STATES,
         )

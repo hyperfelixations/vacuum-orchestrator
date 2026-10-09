@@ -709,6 +709,9 @@
     "robot_busy": {
       "message": "The robot is busy"
     },
+    "robot_fault": {
+      "message": "The robot reports a fault that blocks this operation"
+    },
     "robot_generation_not_monotonic": {
       "message": "The robot command sequence is out of order"
     },

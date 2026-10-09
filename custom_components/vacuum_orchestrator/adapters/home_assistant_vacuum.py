@@ -36,6 +36,7 @@ from ..domain.errors import (
     ValidationError,
 )
 from ..domain.execution import ExecutionPolicy
+from ..domain.faults import Fault, FaultScope, FaultSource
 from ..domain.intents import settings_for_operation
 from ..domain.maps import MapsUnavailable, RobotMaps
 from ..domain.planning import DispatchAssignment, WorkUnit
@@ -55,6 +56,8 @@ from ..ports.telemetry import TelemetryEvent, report_adapter
 from .discovery import candidate_for, mapped_areas, resolve_entity_id
 from .settings import async_set_option, available_options, supported_mapping
 
+# Fault role values that mean "no fault".
+_NEUTRAL_FAULTS = frozenset({"none", "0", "no_error", "ok"})
 # Semantic setting, option-map name and companion role (None: the vacuum itself).
 _SETTINGS = (
     ("vacuum_power", "vacuum_levels", None),
@@ -385,18 +388,16 @@ class HomeAssistantVacuumAdapter:
                 )
             if battery is not None and not 0 <= battery <= 100:
                 battery = None
-        error = self.role_value("error")
-        error = None if error in {None, "none", "0", "no_error", "ok"} else error
+        faults = self.observed_faults(state.state if usable and state else None)
+        general = any(fault.scope is FaultScope.GENERAL for fault in faults)
         idle = usable and state is not None and state.state in {"idle", "docked"}
-        if state is not None and state.state == "error":
-            error = error or "device_error"
         return RobotObservation(
             self._robot_id,
             self._source_robot_id,
             RobotAvailabilityState.UNKNOWN
             if not usable
             else RobotAvailabilityState.UNAVAILABLE
-            if error
+            if general
             else RobotAvailabilityState.AVAILABLE
             if idle
             else RobotAvailabilityState.BUSY,
@@ -408,12 +409,42 @@ class HomeAssistantVacuumAdapter:
             cleaning_active=(state.state == "cleaning")
             if usable and state is not None
             else None,
-            normal_end=bool(idle and not error),
-            error_code=error,
+            normal_end=bool(idle and not general),
+            faults=faults,
             observed_operation=self.observed_operation(),
             at_dock=state.state == "docked" if usable and state is not None else None,
             **self._clean_percent(),
         )
+
+    def observed_faults(self, vacuum_state: str | None) -> tuple[Fault, ...]:
+        """Read the robot and dock fault roles; the vacuum `error` state is one."""
+        faults = [
+            Fault(
+                value, source, self.fault_scope(source, value), self.role_entity(role)
+            )
+            for role, source in (
+                ("error", FaultSource.ROBOT),
+                ("dock_error", FaultSource.DOCK),
+            )
+            if (value := self.role_value(role)) is not None
+            and value not in _NEUTRAL_FAULTS
+        ]
+        if vacuum_state == "error" and not any(
+            fault.source is FaultSource.ROBOT for fault in faults
+        ):
+            faults.append(
+                Fault(
+                    "device_error",
+                    FaultSource.ROBOT,
+                    FaultScope.GENERAL,
+                    self.entity_id,
+                )
+            )
+        return tuple(faults)
+
+    def fault_scope(self, source: FaultSource, code: str) -> FaultScope:
+        """Classify a fault; without vendor knowledge every fault stops the robot."""
+        return FaultScope.GENERAL
 
     def _clean_percent(self) -> dict[str, Any]:
         """Return the run progress with the time its value last changed."""

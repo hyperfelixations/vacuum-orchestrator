@@ -11,6 +11,11 @@ from custom_components.vacuum_orchestrator.domain.completion import (
     CompletionQuality,
 )
 from custom_components.vacuum_orchestrator.domain.dispatching import RobotObservation
+from custom_components.vacuum_orchestrator.domain.faults import (
+    Fault,
+    FaultScope,
+    FaultSource,
+)
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
 from custom_components.vacuum_orchestrator.domain.room_registry import RoomRegistry
 from custom_components.vacuum_orchestrator.domain.rooms import Room
@@ -86,7 +91,7 @@ def test_incomplete_mapping_unknown_mode_and_disconnect_never_update_rooms() -> 
             END,
             completion_confirmed=True,
             completed_targets=("kitchen",),
-            error_code="stuck",
+            faults=(Fault("stuck", FaultSource.ROBOT, FaultScope.GENERAL),),
         ),
     ):
         assert not apply(apply(STATE, START), end).room_registry.receipts

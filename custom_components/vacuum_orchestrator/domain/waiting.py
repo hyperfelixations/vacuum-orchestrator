@@ -27,6 +27,7 @@ HOLD_CODES = frozenset({"being_edited", "pending_confirmation"})
 # Public code of every eligibility reason, in the order a robot shows them.
 ROBOT_CODES = {
     "robot_needs_attention": "robot_needs_attention",
+    "robot_fault": "robot_fault",
     "robot_availability_unknown": "robot_state_unknown",
     "robot_unknown": "robot_state_unknown",
     "robot_unavailable": "robot_unavailable",

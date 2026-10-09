@@ -21,6 +21,11 @@ from custom_components.vacuum_orchestrator.domain.errors import (
     DispatchNotStartedError,
     StaleCommandError,
 )
+from custom_components.vacuum_orchestrator.domain.faults import (
+    Fault,
+    FaultScope,
+    FaultSource,
+)
 from custom_components.vacuum_orchestrator.domain.intents import CleaningPreferences
 from custom_components.vacuum_orchestrator.domain.maps import MapsUnavailable
 from custom_components.vacuum_orchestrator.domain.planning import (
@@ -433,7 +438,10 @@ async def test_error_and_unsupported_stop_are_not_normal_completion(
     hass.states.async_set("vacuum.test", "error")
     adapter = _adapter(hass)
     observed = await adapter.async_observe()
-    assert observed.error_code == "device_error"
+    assert observed.faults == (
+        Fault("device_error", FaultSource.ROBOT, FaultScope.GENERAL, "vacuum.test"),
+    )
+    assert observed.state is RobotAvailabilityState.UNAVAILABLE
     assert observed.normal_end is False
     with pytest.raises(ConflictError, match="unsupported_cancel_semantics"):
         await adapter.async_cancel()

@@ -8,6 +8,7 @@ from ..domain.capabilities import RobotProfile
 from ..domain.completion import CleaningReceipt, CleaningSource, CompletionQuality
 from ..domain.dispatching import RobotObservation
 from ..domain.execution import RobotRun
+from ..domain.faults import interrupting
 from ..domain.queue import OrchestratorState
 from ..domain.types import RobotAvailabilityState
 
@@ -41,7 +42,11 @@ def apply_external_observation(
         pending is not None
         and pending.failure_code is None
         and (
-            observation.error_code is not None
+            interrupting(
+                observation.faults,
+                pending.operation or observation.observed_operation,
+                finished=observation.normal_end,
+            )
             or observation.state
             in {RobotAvailabilityState.UNKNOWN, RobotAvailabilityState.UNAVAILABLE}
         )
@@ -84,7 +89,9 @@ def apply_external_observation(
         and observation.completion_confirmed
         and observation.observed_operation is not None
         and bool(observation.completed_targets)
-        and observation.error_code is None
+        and not interrupting(
+            observation.faults, observation.observed_operation, finished=True
+        )
     )
     if proven:
         targets = set(observation.completed_targets)

@@ -16,6 +16,11 @@ from custom_components.vacuum_orchestrator.domain.errors import (
     DispatchNotStartedError,
     PlanningError,
 )
+from custom_components.vacuum_orchestrator.domain.faults import (
+    Fault,
+    FaultScope,
+    FaultSource,
+)
 from custom_components.vacuum_orchestrator.domain.intents import CleaningPreferences
 from custom_components.vacuum_orchestrator.domain.maps import (
     MapSegment,
@@ -67,6 +72,7 @@ def setup_robot(
         "status": ("sensor", "charging", None),
         "in_cleaning": ("binary_sensor", "off", None),
         "error": ("sensor", "none", None),
+        "dock_error": ("sensor", "ok", None),
     }
     for role, (domain, value, options) in values.items():
         entity = registry.async_get_or_create(
@@ -250,7 +256,9 @@ async def test_charge_during_ongoing_cleaning_and_errors_do_not_complete(
     hass.states.async_set("binary_sensor.in_cleaning", "off")
     hass.states.async_set("sensor.status", "error")
     observed = await adapter.async_observe()
-    assert observed.error_code == "error"
+    assert observed.faults == (
+        Fault("error", FaultSource.ROBOT, FaultScope.GENERAL, "sensor.status"),
+    )
     assert observed.state is RobotAvailabilityState.UNAVAILABLE
     hass.states.async_set("sensor.status", "segment_cleaning")
     assert (await adapter.async_observe()).cleaning_active is True
@@ -275,10 +283,12 @@ async def test_unusable_bound_status_never_ends_an_active_run(
     observed = await adapter.async_observe()
     assert observed.state is RobotAvailabilityState.BUSY
     assert observed.normal_end is False
-    hass.states.async_set("sensor.error", "main_brush_jammed")
+    hass.states.async_set("sensor.error", "wheels_jammed")
     observed = await adapter.async_observe()
     assert observed.state is RobotAvailabilityState.UNAVAILABLE
-    assert observed.error_code == "main_brush_jammed"
+    assert observed.faults == (
+        Fault("wheels_jammed", FaultSource.ROBOT, FaultScope.GENERAL, "sensor.error"),
+    )
 
 
 @pytest.mark.parametrize("flag", ["unknown", "unavailable"])
@@ -306,7 +316,7 @@ async def test_unbound_status_still_honors_the_cleaning_flag(
     assert observed.normal_end is False
     hass.states.async_set("binary_sensor.in_cleaning", "unavailable")
     assert (await adapter.async_observe()).normal_end is False
-    hass.states.async_set("sensor.error", "main_brush_jammed")
+    hass.states.async_set("sensor.error", "wheels_jammed")
     observed = await adapter.async_observe()
     assert observed.state is RobotAvailabilityState.UNAVAILABLE
     assert observed.normal_end is False

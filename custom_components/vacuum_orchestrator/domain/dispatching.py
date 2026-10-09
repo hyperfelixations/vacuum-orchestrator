@@ -14,6 +14,7 @@ from .capabilities import (
 )
 from .errors import PlanningError
 from .execution import RobotLease
+from .faults import Fault, FaultScope, blocking
 from .intents import SETTING_NAMES, settings_for_operation
 from .job_defaults import JobDefaults
 from .planning import DispatchAssignment, ResolvedSetting, SettingsResolution, WorkUnit
@@ -41,6 +42,7 @@ MOMENTARY_CODES = frozenset(
     {
         "robot_availability_unknown",
         *(f"robot_{state.value}" for state in RobotAvailabilityState),
+        "robot_fault",
         "battery_below_minimum",
         "robot_needs_attention",
         "robot_already_executing",
@@ -77,7 +79,7 @@ class RobotObservation:
     history_end: datetime | None = None
     cleaning_active: bool | None = None
     normal_end: bool = False
-    error_code: str | None = None
+    faults: tuple[Fault, ...] = ()
     observed_operation: OperationKind | None = None
     completed_targets: tuple[str, ...] = ()
     completion_confirmed: bool = False
@@ -132,7 +134,18 @@ def eligibility(
     if observation is None or observation.source_robot_id != profile.source_robot_id:
         reasons.append(Ineligibility("robot_availability_unknown"))
     else:
-        if observation.state is not RobotAvailabilityState.AVAILABLE:
+        faults = blocking(observation.faults, unit.operation)
+        if faults:
+            reasons.append(
+                Ineligibility(
+                    "robot_fault", detail=",".join(fault.code for fault in faults)
+                )
+            )
+        # A general fault already explains why the robot is unavailable.
+        if observation.state is not RobotAvailabilityState.AVAILABLE and not (
+            observation.state is RobotAvailabilityState.UNAVAILABLE
+            and any(fault.scope is FaultScope.GENERAL for fault in faults)
+        ):
             reasons.append(Ineligibility(f"robot_{observation.state.value}"))
         if profile.minimum_battery is not None and (
             observation.battery_percentage is None
