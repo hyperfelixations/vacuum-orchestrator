@@ -100,17 +100,9 @@ class QueueRunService:
 
         def end(state: OrchestratorState) -> OrchestratorState:
             run = state.queue_run
-            if run is None or not run.active:
-                return (
-                    state
-                    if state.mode is QueueMode.IDLE
-                    else replace(
-                        state, commit_id=state.commit_id + 1, mode=QueueMode.IDLE
-                    )
-                )
             now = self._clock()
-            if close or not _running(state):
-                return _closed(state, run, now)
+            if close or run is None or not run.active or not _running(state):
+                return closed_now(state, now)
             ending = replace(
                 run, idle_since=None, end_requested_at=run.end_requested_at or now
             )
@@ -161,6 +153,18 @@ class QueueRunService:
             )
 
         await self._mutate(reconcile)
+
+
+def closed_now(state: OrchestratorState, now: datetime) -> OrchestratorState:
+    """End the run at once: idle mode, run completed, its grants revoked."""
+    run = state.queue_run
+    if run is None or not run.active:
+        return (
+            state
+            if state.mode is QueueMode.IDLE
+            else replace(state, commit_id=state.commit_id + 1, mode=QueueMode.IDLE)
+        )
+    return _closed(state, run, now)
 
 
 def has_unfinished_work(state: OrchestratorState) -> bool:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import uuid4
@@ -18,6 +18,7 @@ from ..domain.dispatching import (
 from ..domain.errors import (
     ConflictError,
     DispatchNotStartedError,
+    OrchestratorError,
     PlanningError,
     StaleCommandError,
     StorageIntegrityError,
@@ -48,8 +49,8 @@ from ..ports.robot import RobotAdapter
 from ..ports.telemetry import adapter_reporter
 from .external_observations import apply_external_observation
 from .observation_handler import apply_observation
-from .queue_run_service import QueueRunService, has_unfinished_work
-from .robot_session import RobotSession
+from .queue_run_service import QueueRunService, closed_now, has_unfinished_work
+from .robot_session import RobotCommandTicket, RobotSession
 from .room_readiness import RequirementReader, evaluate_room_readiness
 from .room_service import RoomService
 from .template_service import TemplateService
@@ -107,6 +108,18 @@ def changed_scopes(
         )
         if any(getattr(previous, name) != getattr(candidate, name) for name in fields)
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _Stop:
+    """A committed, fenced cancel whose physical stop is still to be sent."""
+
+    job_id: str
+    attempt: ExecutionAttempt
+    adapter: RobotAdapter
+    session: RobotSession
+    ticket: RobotCommandTicket
+    return_to_dock: bool
 
 
 def _uuid() -> str:
@@ -500,30 +513,56 @@ class VacuumOrchestrator:
     ) -> None:
         """End the queue run: let started jobs finish, or cancel them first.
 
-        Cancelling uses the cancel_job path for every started job and then
-        closes the run at once; see dev doc "Queue-Ende".
+        Cancelling closes the run and fences every started job in one commit
+        before the first stop is sent; see dev doc "Queue-Ende".
         """
+        if not cancel_running:
+            await self.runs.async_end(close=False)
+            return
         failure: Exception | None = None
-        if cancel_running:
+        stops: list[_Stop] = []
+        async with self._lock:
+            previous = self._verified_state()
             started = [
                 job
-                for job in self.state.jobs.values()
+                for job in previous.jobs.values()
                 if job.state in {JobState.DISPATCHING, JobState.RUNNING}
             ]
             if return_to_dock:
                 for job in started:
-                    attempt = self.state.attempts.get(job.active_attempt_id or "")
-                    robot = attempt and self._adapters.get(attempt.robot_id)
-                    if robot and not robot.profile.capabilities.returns_to_dock:
-                        raise ConflictError("return_to_dock_unsupported")
+                    self._require_return(previous, job.active_attempt_id)
+            now = self._clock()
+            candidate = previous
+            requested: list[tuple[str, str | None, int | None]] = []
             for job in started:
                 try:
-                    await self.async_cancel_job(
-                        job.job_id, return_to_dock=return_to_dock
+                    candidate, generation = candidate.request_cancel(
+                        job.job_id, now, return_to_dock=return_to_dock
                     )
-                except Exception as err:
+                except OrchestratorError as err:
                     failure = failure or err
-        await self.runs.async_end(close=cancel_running)
+                    continue
+                requested.append((job.job_id, job.active_attempt_id, generation))
+            candidate = closed_now(candidate, now)
+            if candidate is not previous:
+                # Every change above is one decision and one commit.
+                candidate = replace(candidate, commit_id=previous.commit_id + 1)
+                await self._commit_locked(previous, candidate)
+            for job_id, attempt_id, generation in requested:
+                try:
+                    stop = self._fence_stop(
+                        candidate, job_id, attempt_id, generation, return_to_dock
+                    )
+                except OrchestratorError as err:
+                    failure = failure or err
+                    continue
+                if stop is not None:
+                    stops.append(stop)
+        for stop in stops:
+            try:
+                await self._async_send_stop(stop)
+            except Exception as err:
+                failure = failure or err
         if failure is not None:
             raise failure
 
@@ -628,58 +667,78 @@ class VacuumOrchestrator:
         With `return_to_dock` the stop is followed by a return under the same
         lease; the cancel completes only once the robot rests at its dock.
         """
-        adapter: RobotAdapter | None = None
-        session: RobotSession | None = None
-        ticket = None
-        previous: OrchestratorState
-        candidate: OrchestratorState
         async with self._lock:
             previous = self._verified_state()
             job = previous.jobs.get(job_id)
             attempt_id = job.active_attempt_id if job is not None else None
-            if return_to_dock and attempt_id is not None:
-                robot = self._adapters.get(previous.attempts[attempt_id].robot_id)
-                if robot is not None and not robot.profile.capabilities.returns_to_dock:
-                    raise ConflictError("return_to_dock_unsupported")
+            if return_to_dock:
+                self._require_return(previous, attempt_id)
             candidate, generation = previous.request_cancel(
                 job_id, self._clock(), return_to_dock=return_to_dock
             )
             await self._commit_locked(previous, candidate)
-            if generation is None:
-                return
-            if attempt_id is None:
-                raise ConflictError("active_attempt_missing")
-            attempt = candidate.attempts[attempt_id]
-            session = self._sessions[attempt.source_robot_id]
-            ticket = session.fence(generation, needs_attention=False)
-            if attempt.state is AttemptState.CANCELLED:
-                return
-            adapter = self._adapters.get(attempt.robot_id)
-            if adapter is None:
-                raise ConflictError("assigned_robot_missing")
-        assert adapter is not None and session is not None and ticket is not None
+            stop = self._fence_stop(
+                candidate, job_id, attempt_id, generation, return_to_dock
+            )
+        if stop is not None:
+            await self._async_send_stop(stop)
+
+    def _require_return(self, state: OrchestratorState, attempt_id: str | None) -> None:
+        """Refuse a return before any stop when the assigned robot cannot."""
+        attempt = state.attempts.get(attempt_id or "")
+        robot = attempt and self._adapters.get(attempt.robot_id)
+        if robot and not robot.profile.capabilities.returns_to_dock:
+            raise ConflictError("return_to_dock_unsupported")
+
+    def _fence_stop(
+        self,
+        state: OrchestratorState,
+        job_id: str,
+        attempt_id: str | None,
+        generation: int | None,
+        return_to_dock: bool,
+    ) -> _Stop | None:
+        """Fence a committed cancel; return the physical stop still to send."""
+        if generation is None:
+            return None
+        if attempt_id is None:
+            raise ConflictError("active_attempt_missing")
+        attempt = state.attempts[attempt_id]
+        session = self._sessions[attempt.source_robot_id]
+        ticket = session.fence(generation, needs_attention=False)
+        if attempt.state is AttemptState.CANCELLED:
+            return None
+        adapter = self._adapters.get(attempt.robot_id)
+        if adapter is None:
+            raise ConflictError("assigned_robot_missing")
+        return _Stop(job_id, attempt, adapter, session, ticket, return_to_dock)
+
+    async def _async_send_stop(self, stop: _Stop) -> None:
+        """Send one fenced stop outside the writer lock and record it."""
+        attempt = stop.attempt
         telemetry_token = adapter_reporter.set(
             lambda event, stage, reason: self.trace.record(
                 event,
                 self._clock(),
                 stage=stage,
                 reason=reason,
-                job_id=job_id,
-                attempt_id=attempt_id,
+                job_id=stop.job_id,
+                attempt_id=attempt.attempt_id,
                 robot_id=attempt.robot_id,
             )
         )
         try:
-            await session.cancel(
-                ticket, lambda: adapter.async_cancel(return_to_dock=return_to_dock)
+            await stop.session.cancel(
+                stop.ticket,
+                lambda: stop.adapter.async_cancel(return_to_dock=stop.return_to_dock),
             )
         except Exception as err:
-            await self._mark_robot_uncertain(attempt_id, err)
+            await self._mark_robot_uncertain(attempt.attempt_id, err)
             raise
         finally:
             adapter_reporter.reset(telemetry_token)
         await self._mutate(
-            lambda state: state.mark_stop_sent(attempt_id, self._clock())
+            lambda state: state.mark_stop_sent(attempt.attempt_id, self._clock())
         )
 
     async def async_return_robot(self, robot_id: str) -> None:

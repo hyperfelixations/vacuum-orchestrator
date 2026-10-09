@@ -5,6 +5,7 @@ from dataclasses import replace
 import pytest
 
 from custom_components.vacuum_orchestrator.domain.errors import ConflictError
+from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
 from custom_components.vacuum_orchestrator.domain.releases import ReleaseKind
 from custom_components.vacuum_orchestrator.domain.types import (
     CleaningMode,
@@ -16,7 +17,12 @@ from custom_components.vacuum_orchestrator.infrastructure.codec import (
     decode_orchestrator_state,
     encode_orchestrator_state,
 )
-from tests.application.test_orchestrator import _intent
+from tests.application.test_orchestrator import (
+    RecordingAdapter,
+    RecordingBackend,
+    _intent,
+    _orchestrator,
+)
 from tests.application.test_queue_runs import setup_run
 from tests.application.test_room_execution import finished_run
 
@@ -155,3 +161,41 @@ async def test_failed_cancel_still_closes_the_run_and_is_reported():
         await core.async_end_queue(cancel_running=True)
 
     assert not core.state.queue_run.active and core.state.mode is QueueMode.IDLE
+
+
+@pytest.mark.parametrize("stage", ["request", "fence"])
+async def test_one_failing_job_never_keeps_the_others_running(monkeypatch, stage):
+    backend = RecordingBackend()
+    kitchen = RecordingAdapter(backend, "a", targets=("kitchen",))
+    hall = RecordingAdapter(backend, "b", targets=("hall",))
+    core = await _orchestrator(backend, kitchen, hall)
+    broken = await core.async_create_job(_intent())
+    healthy = await core.async_create_job(_intent("hall"))
+    for job in (broken, healthy):
+        await core.async_start_job(job)
+    await core.async_run_queue()
+    if stage == "request":
+        request = OrchestratorState.request_cancel
+
+        def failing(state, job_id, now, **kwargs):
+            if job_id == broken:
+                raise ConflictError("attempt_lease_missing")
+            return request(state, job_id, now, **kwargs)
+
+        monkeypatch.setattr(OrchestratorState, "request_cancel", failing)
+    else:
+        fence = core._fence_stop
+
+        def failing(state, job_id, *args):
+            if job_id == broken:
+                raise ConflictError("assigned_robot_missing")
+            return fence(state, job_id, *args)
+
+        monkeypatch.setattr(core, "_fence_stop", failing)
+
+    with pytest.raises(ConflictError):
+        await core.async_end_queue(cancel_running=True)
+
+    assert (kitchen.cancel_count, hall.cancel_count) == (0, 1)
+    assert core.state.jobs[healthy].state is JobState.CANCELING
+    assert core.state.mode is QueueMode.IDLE and not core.state.queue_run.active
