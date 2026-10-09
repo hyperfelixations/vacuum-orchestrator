@@ -226,8 +226,6 @@ class OrchestratorState:
         if job.state is not JobState.QUEUED:
             raise ConflictError("job_not_editable")
         held = self._permitted_hold(job_id, hold_id, now)
-        if hold_id is not None and held is None:
-            raise ConflictError("hold_expired")
         if patch.empty and held is not None:
             intent = job.intent
         else:
@@ -1022,10 +1020,15 @@ class OrchestratorState:
     def _permitted_hold(
         self, job_id: str, hold_id: str | None, now: datetime
     ) -> JobHold | None:
-        """Reject a foreign active hold; return the caller's own active hold."""
+        """Return the caller's own active hold; reject foreign and lapsed ones.
+
+        A token whose hold is gone never authorizes a later change.
+        """
         hold = self.active_hold(job_id, now)
         if hold is not None and hold.hold_id != hold_id:
             raise ConflictError("job_held", hold.purpose.value)
+        if hold_id is not None and hold is None:
+            raise ConflictError("hold_expired")
         return hold
 
     def _hold_by_id(self, hold_id: str) -> JobHold | None:

@@ -118,7 +118,9 @@ def test_only_the_holder_deletes_or_cancels_a_held_job() -> None:
     assert "a" not in deleted.jobs and deleted.job_holds == {}
 
     lapsed = NOW + LEASE
-    assert "a" not in state.delete_job("a", lapsed, hold_id="h1").jobs
+    with pytest.raises(ConflictError, match="hold_expired"):
+        state.delete_job("a", lapsed, hold_id="h1")
+    assert "a" not in state.delete_job("a", lapsed).jobs
     cancelled, _generation = state.request_cancel("a", lapsed)
     assert cancelled.jobs["a"].state is JobState.CANCELLED
     assert cancelled.job_holds == {}
@@ -143,3 +145,22 @@ def test_lapsed_holds_end_together_in_one_commit() -> None:
     assert expired.jobs["a"].start_after == lapsed + DELAY
     assert expired.jobs["c"].start_after == NOW + DELAY
     assert expired.expire_job_holds(lapsed) is expired
+
+
+def test_a_lapsed_confirmation_never_deletes_what_someone_changed_since() -> None:
+    lapsed = NOW + LEASE
+    edited = (
+        _held()
+        .hold_job(
+            JobHold("h2", "a", HoldPurpose.EDIT, lapsed, lease_end(lapsed)), lapsed
+        )
+        .update_job("a", JobIntentPatch(note="new"), lapsed, hold_id="h2")
+    )
+    with pytest.raises(ConflictError, match="hold_expired"):
+        edited.delete_job("a", lapsed, hold_id="h1")
+
+    finished, _generation = _held().request_cancel("a", lapsed)
+    assert finished.jobs["a"].state is JobState.CANCELLED
+    with pytest.raises(ConflictError, match="hold_expired"):
+        finished.delete_job("a", lapsed, hold_id="h1")
+    assert "a" not in finished.delete_job("a", lapsed).jobs

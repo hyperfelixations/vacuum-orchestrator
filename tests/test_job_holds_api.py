@@ -119,3 +119,19 @@ async def test_a_lapsed_hold_wakes_the_scheduler_and_restarts_the_delay(
         (await call(hass, "get_job", job_id=job))["created_at"]
     )
     assert core.state.jobs[job].start_after == lapsed + timedelta(seconds=95)
+
+
+@pytest.mark.usefixtures("configured")
+async def test_a_lapsed_delete_confirmation_cannot_delete_a_newer_version(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    job = await _job(hass)
+    deleting, editing = Card(hass), Card(hass)
+    stale = await deleting.command("hold_job", job_id=job, purpose="confirm")
+    freezer.tick(timedelta(seconds=90))
+    edit = await editing.command("hold_job", job_id=job, purpose="edit")
+    await call(hass, "update_job", job_id=job, note="Newer", hold_id=edit["hold_id"])
+
+    with raises_code("hold_expired"):
+        await call(hass, "delete_job", job_id=job, hold_id=stale["hold_id"])
+    assert (await call(hass, "get_job", job_id=job))["note"] == "Newer"
