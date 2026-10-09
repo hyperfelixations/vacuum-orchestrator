@@ -74,6 +74,34 @@ def present_blocker(blocker: Blocker, entities: EntityReferences) -> dict[str, o
         "room_ids": list(blocker.room_ids),
         "entity_ids": present_references(blocker.entity_ids, entities),
         "robot_ids": list(blocker.robot_ids),
+        "detail": blocker.detail,
+    }
+
+
+def present_waiting(waiting: Waiting, entities: EntityReferences) -> dict[str, object]:
+    """Serialize the main reason and the job, execution and queue axes."""
+
+    def blockers(items: tuple[Blocker, ...]) -> list[dict[str, object]]:
+        return [present_blocker(item, entities) for item in items]
+
+    robots = waiting.robots
+    return {
+        **present_blocker(waiting.primary, entities),
+        "job": {"ready": not waiting.job, "blockers": blockers(waiting.job)},
+        "robots": {
+            "state": robots.state.value,
+            "candidates": [
+                {"robot_id": item.robot_id, "blockers": blockers(item.blockers)}
+                for item in robots.candidates
+            ],
+            "unsuitable": [
+                {"robot_id": item.robot_id, "reasons": blockers(item.blockers)}
+                for item in robots.unsuitable
+            ],
+        },
+        "queue": None
+        if waiting.queue is None
+        else {"ready": not waiting.queue, "blockers": blockers(waiting.queue)},
     }
 
 
@@ -140,12 +168,7 @@ def present_job(
         "hold": None
         if hold is None
         else {"purpose": hold.purpose.value, "expires_at": hold.expires_at.isoformat()},
-        "waiting": None
-        if waiting is None
-        else {
-            **present_blocker(waiting.primary, entities),
-            "blockers": [present_blocker(item, entities) for item in waiting.blockers],
-        },
+        "waiting": None if waiting is None else present_waiting(waiting, entities),
         "progress": None
         if progress is None
         else {

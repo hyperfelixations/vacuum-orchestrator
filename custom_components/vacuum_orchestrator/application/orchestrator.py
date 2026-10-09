@@ -56,7 +56,7 @@ from .room_readiness import RequirementReader, evaluate_room_readiness
 from .room_service import RoomService
 from .template_service import TemplateService
 from .tracing import TraceEvent, TraceRecorder
-from .waiting import explain_waiting
+from .waiting import awaiting_release, explain_waiting
 
 Clock = Callable[[], datetime]
 IdFactory = Callable[[], str]
@@ -399,7 +399,7 @@ class VacuumOrchestrator:
         waiting: dict[str, list[str]] = {}
         for job_id in state.queue:
             report = self.job_readiness(state, state.jobs[job_id])
-            for room_id in report.blocked_room_ids:
+            for room_id in awaiting_release(state, report):
                 waiting.setdefault(room_id, []).append(job_id)
         return {key: tuple(value) for key, value in waiting.items()}
 

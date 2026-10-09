@@ -35,6 +35,33 @@ _REQUIRED_COMPLETION_EVIDENCE = frozenset(
     }
 )
 
+# Every reason `eligibility` reports: a robot's state now, or what it can never
+# do as configured. See dev doc "Wartegrund".
+MOMENTARY_CODES = frozenset(
+    {
+        "robot_availability_unknown",
+        *(f"robot_{state.value}" for state in RobotAvailabilityState),
+        "battery_below_minimum",
+        "robot_needs_attention",
+        "robot_already_executing",
+        "setting_entity_unavailable",
+    }
+) - {"robot_available"}
+STRUCTURAL_CODES = frozenset(
+    {
+        "unsupported_operation",
+        "unsupported_map_context",
+        "unmapped_target",
+        "unsupported_pass_count",
+        "unsupported_pass_scope",
+        "unsupported_cancel_semantics",
+        "insufficient_start_evidence",
+        "insufficient_completion_evidence",
+        "unsupported_vendor_extension",
+        "unsupported_cleaning_preference",
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class RobotObservation:
@@ -67,6 +94,86 @@ class RobotObservation:
             raise PlanningError("invalid_battery_percentage")
         if self.clean_percent is not None and not 0 <= self.clean_percent <= 100:
             raise PlanningError("invalid_clean_percent")
+
+
+@dataclass(frozen=True, slots=True)
+class Ineligibility:
+    """One reason a robot cannot take a work unit, now or as configured."""
+
+    code: str
+    room_ids: tuple[str, ...] = ()
+    detail: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.code not in MOMENTARY_CODES | STRUCTURAL_CODES:
+            raise ValueError(self.code)
+
+    @property
+    def structural(self) -> bool:
+        """Return whether the robot can never take the unit as configured."""
+        return self.code in STRUCTURAL_CODES
+
+
+def eligibility(
+    unit: WorkUnit,
+    profile: RobotProfile,
+    observation: RobotObservation | None,
+    leases: Mapping[str, RobotLease],
+    blocked_source_robot_ids: frozenset[str],
+    defaults: JobDefaults,
+) -> tuple[Ineligibility, ...]:
+    """Return every reason one robot cannot take `unit`; empty means it can.
+
+    Selection and waiting explanations share it; the selector raises the
+    first reason. See dev doc "Wartegrund".
+    """
+    capabilities = profile.capabilities
+    reasons: list[Ineligibility] = []
+    if observation is None or observation.source_robot_id != profile.source_robot_id:
+        reasons.append(Ineligibility("robot_availability_unknown"))
+    else:
+        if observation.state is not RobotAvailabilityState.AVAILABLE:
+            reasons.append(Ineligibility(f"robot_{observation.state.value}"))
+        if profile.minimum_battery is not None and (
+            observation.battery_percentage is None
+            or observation.battery_percentage < profile.minimum_battery
+        ):
+            reasons.append(Ineligibility("battery_below_minimum"))
+    if profile.source_robot_id in blocked_source_robot_ids:
+        reasons.append(Ineligibility("robot_needs_attention"))
+    if profile.source_robot_id in leases:
+        reasons.append(Ineligibility("robot_already_executing"))
+    if unit.operation not in profile.effective_operations:
+        reasons.append(Ineligibility("unsupported_operation", detail=unit.operation))
+    if unit.map_context is not None and capabilities.map_context != unit.map_context:
+        reasons.append(Ineligibility("unsupported_map_context"))
+    missing = tuple(
+        target
+        for target in unit.canonical_targets
+        if target not in capabilities.target_map
+    )
+    if missing:
+        reasons.append(
+            Ineligibility("unmapped_target", room_ids=missing, detail=",".join(missing))
+        )
+    if unit.passes > capabilities.passes.maximum:
+        reasons.append(Ineligibility("unsupported_pass_count"))
+    if unit.pass_scope is not capabilities.passes.scope:
+        reasons.append(Ineligibility("unsupported_pass_scope"))
+    if capabilities.cancel is CancelSemantics.UNSUPPORTED:
+        reasons.append(Ineligibility("unsupported_cancel_semantics"))
+    if not _REQUIRED_START_EVIDENCE.issubset(capabilities.start_evidence):
+        reasons.append(Ineligibility("insufficient_start_evidence"))
+    if not _REQUIRED_COMPLETION_EVIDENCE.issubset(capabilities.completion_evidence):
+        reasons.append(Ineligibility("insufficient_completion_evidence"))
+    extension = unit.vendor_extension
+    if (
+        extension is not None
+        and extension.namespace not in capabilities.vendor_extensions
+    ):
+        reasons.append(Ineligibility("unsupported_vendor_extension"))
+    reasons.extend(_resolve(unit, profile, defaults)[1])
+    return tuple(reasons)
 
 
 class RobotSelector:
@@ -142,54 +249,12 @@ class RobotSelector:
         blocked_source_robot_ids: frozenset[str],
         defaults: JobDefaults,
     ) -> DispatchAssignment:
+        reasons = eligibility(
+            unit, profile, observation, leases, blocked_source_robot_ids, defaults
+        )
+        if reasons:
+            raise PlanningError(reasons[0].code, reasons[0].detail)
         capabilities = profile.capabilities
-        if (
-            observation is None
-            or observation.source_robot_id != profile.source_robot_id
-        ):
-            raise PlanningError("robot_availability_unknown")
-        if observation.state is not RobotAvailabilityState.AVAILABLE:
-            raise PlanningError(f"robot_{observation.state.value}")
-        if profile.minimum_battery is not None and (
-            observation.battery_percentage is None
-            or observation.battery_percentage < profile.minimum_battery
-        ):
-            raise PlanningError("battery_below_minimum")
-        if profile.source_robot_id in blocked_source_robot_ids:
-            raise PlanningError("robot_needs_attention")
-        if profile.source_robot_id in leases:
-            raise PlanningError("robot_already_executing")
-        if unit.operation not in profile.effective_operations:
-            raise PlanningError("unsupported_operation", unit.operation)
-        if (
-            unit.map_context is not None
-            and capabilities.map_context != unit.map_context
-        ):
-            raise PlanningError("unsupported_map_context")
-        missing_targets = [
-            target
-            for target in unit.canonical_targets
-            if target not in capabilities.target_map
-        ]
-        if missing_targets:
-            raise PlanningError("unmapped_target", ",".join(missing_targets))
-        if unit.passes > capabilities.passes.maximum:
-            raise PlanningError("unsupported_pass_count")
-        if unit.pass_scope is not capabilities.passes.scope:
-            raise PlanningError("unsupported_pass_scope")
-        if capabilities.cancel is CancelSemantics.UNSUPPORTED:
-            raise PlanningError("unsupported_cancel_semantics")
-        if not _REQUIRED_START_EVIDENCE.issubset(capabilities.start_evidence):
-            raise PlanningError("insufficient_start_evidence")
-        if not _REQUIRED_COMPLETION_EVIDENCE.issubset(capabilities.completion_evidence):
-            raise PlanningError("insufficient_completion_evidence")
-        extension = unit.vendor_extension
-        if (
-            extension is not None
-            and extension.namespace not in capabilities.vendor_extensions
-        ):
-            raise PlanningError("unsupported_vendor_extension")
-
         settings = resolve_settings(unit, profile, defaults)
         return DispatchAssignment(
             work_unit_id=unit.work_unit_id,
@@ -219,6 +284,15 @@ def resolve_settings(
     current default. Best effort takes the nearest supported rung; strict needs
     the exact value. A bound but unusable setting entity never starts.
     """
+    resolved, problems = _resolve(unit, profile, defaults)
+    if problems:
+        raise PlanningError(problems[0].code, problems[0].detail)
+    return resolved
+
+
+def _resolve(
+    unit: WorkUnit, profile: RobotProfile, defaults: JobDefaults
+) -> tuple[SettingsResolution, tuple[Ineligibility, ...]]:
     capabilities = profile.capabilities
     axes: dict[str, tuple[tuple[SettingValue, ...], frozenset[SettingValue]]] = {
         "vacuum_power": (VACUUM_LADDER, frozenset(capabilities.vacuum_levels)),
@@ -226,11 +300,13 @@ def resolve_settings(
         "mop_route": (ROUTE_LADDER, frozenset(capabilities.mop_routes)),
     }
     resolved: list[ResolvedSetting] = []
+    problems: list[Ineligibility] = []
     for name in SETTING_NAMES:
         if name not in settings_for_operation(unit.operation):
             continue
         if name in capabilities.unavailable_settings:
-            raise PlanningError("setting_entity_unavailable", name)
+            problems.append(Ineligibility("setting_entity_unavailable", detail=name))
+            continue
         requested = getattr(unit.preferences, name) or getattr(defaults, name)
         ladder, supported = axes[name]
         applied = (
@@ -239,13 +315,15 @@ def resolve_settings(
             else nearest_supported(requested, ladder, supported)
         )
         if applied != requested and unit.settings_policy is SettingsPolicy.STRICT:
-            raise PlanningError("unsupported_cleaning_preference", name)
+            problems.append(
+                Ineligibility("unsupported_cleaning_preference", detail=name)
+            )
         resolved.append(
             ResolvedSetting(
                 name, requested.value, None if applied is None else applied.value
             )
         )
-    return SettingsResolution(tuple(resolved))
+    return SettingsResolution(tuple(resolved)), tuple(problems)
 
 
 def assignment_supports_current_capabilities(

@@ -23,24 +23,30 @@ async def test_jobs_name_their_blockers_and_rooms_their_waiting_jobs(
 
     detail = await call(hass, "get_job", job_id=job)
     waiting = detail["waiting"]
-    assert (waiting["code"], waiting["room_ids"], waiting["until"]) == (
-        "room_not_released",
-        [room],
-        None,
-    )
-    assert [item["code"] for item in waiting["blockers"]] == [
-        "room_not_released",
-        "no_robot_configured",
-        "queue_idle",
-        "start_delayed",
-    ]
-    assert waiting["blockers"][-1]["until"] == detail["start_after"]
-    assert waiting["blockers"][0] == {
+    blocker = {
         "code": "room_not_released",
         "until": None,
         "room_ids": [room],
         "entity_ids": [],
         "robot_ids": [],
+        "detail": None,
+    }
+    assert waiting == {
+        **blocker,
+        "job": {"ready": False, "blockers": [blocker]},
+        "robots": {"state": "no_robot_configured", "candidates": [], "unsuitable": []},
+        "queue": {
+            "ready": False,
+            "blockers": [
+                {**blocker, "code": "queue_idle", "room_ids": []},
+                {
+                    **blocker,
+                    "code": "start_delayed",
+                    "room_ids": [],
+                    "until": detail["start_after"],
+                },
+            ],
+        },
     }
     assert (await call(hass, "get_queue"))["jobs"][0]["waiting"] == waiting
     assert (await call(hass, "get_room", room_id=room))["waiting_job_ids"] == [job]
@@ -51,6 +57,53 @@ async def test_jobs_name_their_blockers_and_rooms_their_waiting_jobs(
     assert (await call(hass, "get_room", room_id=room))["waiting_job_ids"] == []
     released = (await call(hass, "get_job", job_id=job))["waiting"]
     assert released["code"] == "no_robot_configured"
+
+    core = async_get_runtime(hass).orchestrator
+    elsewhere = RecordingAdapter(RecordingBackend(), "robot", targets=("attic",))
+    await core.async_replace_adapters({"robot": elsewhere})
+    robots = (await call(hass, "get_job", job_id=job))["waiting"]["robots"]
+    assert robots == {
+        "state": "no_capable_robot",
+        "candidates": [],
+        "unsuitable": [
+            {
+                "robot_id": "robot",
+                "reasons": [
+                    {
+                        "code": "room_unreachable",
+                        "until": None,
+                        "room_ids": [room],
+                        "entity_ids": [],
+                        "robot_ids": [],
+                        "detail": room,
+                    }
+                ],
+            }
+        ],
+    }
+    reaching = RecordingAdapter(RecordingBackend(), "robot", targets=(room,))
+    await core.async_replace_adapters({"robot": reaching})
+    waiting = (await call(hass, "get_job", job_id=job))["waiting"]
+    assert waiting["robots"]["candidates"] == [
+        {
+            "robot_id": "robot",
+            "blockers": [
+                {
+                    "code": "robot_state_unknown",
+                    "until": None,
+                    "room_ids": [],
+                    "entity_ids": [],
+                    "robot_ids": [],
+                    "detail": None,
+                }
+            ],
+        }
+    ]
+    assert (waiting["job"]["ready"], waiting["code"], waiting["robot_ids"]) == (
+        True,
+        "robot_state_unknown",
+        ["robot"],
+    )
 
 
 @pytest.mark.usefixtures("configured")

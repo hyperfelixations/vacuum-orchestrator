@@ -18,6 +18,10 @@ from custom_components.vacuum_orchestrator.api.errors import (
     service_error,
 )
 from custom_components.vacuum_orchestrator.const import DOMAIN, SERVICE_GET_JOB
+from custom_components.vacuum_orchestrator.domain.dispatching import (
+    MOMENTARY_CODES,
+    STRUCTURAL_CODES,
+)
 from custom_components.vacuum_orchestrator.domain.errors import (
     ConflictError,
     ValidationError,
@@ -57,11 +61,13 @@ DYNAMIC = {
         "domain/dispatching.py",
         "PlanningError(failures[0] if len(unique) == 1 else 'no_eligible_robot')",
     ): {"no_eligible_robot"},
-    ("domain/dispatching.py", "PlanningError(f'robot_{observation.state.value}')"): {
-        "robot_busy",
-        "robot_unavailable",
-        "robot_unknown",
-    },
+    ("domain/dispatching.py", "PlanningError(reasons[0].code, reasons[0].detail)"): (
+        MOMENTARY_CODES | STRUCTURAL_CODES
+    ),
+    (
+        "domain/dispatching.py",
+        "PlanningError(problems[0].code, problems[0].detail)",
+    ): MOMENTARY_CODES | STRUCTURAL_CODES,
     ("domain/intents.py", "ValidationError(code)"): set(),
     ("domain/intents.py", "ValidationError(f'empty_{field_name}')"): {
         "empty_name",
