@@ -81,8 +81,12 @@ class RobotObservation:
     cleaning_active: bool | None = None
     normal_end: bool = False
     faults: tuple[Fault, ...] = ()
+    # The current mode setting; evidence only during active cleaning.
     observed_operation: OperationKind | None = None
+    # A completion record of the last run; see dev doc "Readiness und
+    # Ausführungsbeobachtung".
     completed_targets: tuple[str, ...] = ()
+    completed_operation: OperationKind | None = None
     completion_confirmed: bool = False
     at_dock: bool | None = None
     phase: RobotPhase = RobotPhase.UNKNOWN

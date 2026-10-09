@@ -94,7 +94,8 @@ def test_confirmed_completion_requires_exact_mode_scope_and_start() -> None:
     complete = replace(
         IDLE,
         completion_confirmed=True,
-        observed_operation=OperationKind.VACUUM,
+        observed_operation=OperationKind.MOP,
+        completed_operation=OperationKind.VACUUM,
         completed_targets=("16",),
     )
     assert evaluate(observation=complete).action is MonitorAction.WAIT
@@ -110,10 +111,12 @@ def test_confirmed_completion_requires_exact_mode_scope_and_start() -> None:
     )
     assert (
         evaluate(
-            started, replace(complete, observed_operation=OperationKind.MOP)
+            started, replace(complete, completed_operation=OperationKind.MOP)
         ).reason
-        == "observed_mode_mismatch"
+        == "completion_mode_mismatch"
     )
+    unrecorded = evaluate(started, replace(complete, completed_operation=None))
+    assert (unrecorded.action, unrecorded.quality) == (MonitorAction.SETTLE, None)
 
 
 def test_derived_completion_waits_for_stability_and_resets_when_cleaning_resumes() -> (

@@ -40,6 +40,7 @@ END = replace(
     cleaning_active=False,
     normal_end=True,
     observed_at=NOW + timedelta(minutes=10),
+    completed_operation=OperationKind.VACUUM,
 )
 STATE = replace(
     OrchestratorState.empty("installation"),
@@ -85,7 +86,7 @@ def test_incomplete_mapping_unknown_mode_and_disconnect_never_update_rooms() -> 
             END,
             completion_confirmed=True,
             completed_targets=("kitchen",),
-            observed_operation=None,
+            completed_operation=None,
         ),
         replace(
             END,
@@ -126,5 +127,8 @@ def test_changed_map_or_conflicting_mode_cannot_attribute_external_completion():
     )
     assert not result.room_registry.receipts
     assert not apply(
+        started, replace(end, completed_operation=OperationKind.MOP)
+    ).room_registry.receipts
+    assert apply(
         started, replace(end, observed_operation=OperationKind.MOP)
     ).room_registry.receipts

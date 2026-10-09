@@ -38,7 +38,7 @@ def apply_observation(
         candidate = state.require_robot_attention(attempt.attempt_id, None, None, now)
         if (
             decision.reason == "completion_scope_mismatch"
-            and observation.observed_operation == unit.operation
+            and observation.completed_operation == unit.operation
             and set(observation.completed_targets) < set(assignment.adapter_targets)
         ):
             completed_rooms = tuple(

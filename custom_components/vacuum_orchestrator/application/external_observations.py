@@ -85,12 +85,12 @@ def apply_external_observation(
     proven = (
         pending.failure_code is None
         and pending.capability_revision == profile.capabilities.revision
-        and pending.operation in {None, observation.observed_operation}
+        and pending.operation in {None, observation.completed_operation}
         and observation.completion_confirmed
-        and observation.observed_operation is not None
+        and observation.completed_operation is not None
         and bool(observation.completed_targets)
         and not interrupting(
-            observation.faults, observation.observed_operation, finished=True
+            observation.faults, observation.completed_operation, finished=True
         )
     )
     if proven:
@@ -112,19 +112,19 @@ def apply_external_observation(
         pending,
         observed_end=observed_at,
         history_end=observation.history_end,
-        operation=observation.observed_operation if proven else pending.operation,
+        operation=observation.completed_operation if proven else pending.operation,
         canonical_targets=room_ids,
         completion_quality=CompletionQuality.CONFIRMED if proven else None,
     )
     registry = state.room_registry
-    if room_ids and observation.observed_operation is not None:
+    if room_ids and observation.completed_operation is not None:
         registry = registry.record(
             CleaningReceipt(
                 f"external:{run.robot_run_id}",
                 CleaningSource.EXTERNAL,
                 run.robot_run_id,
                 room_ids,
-                observation.observed_operation,
+                observation.completed_operation,
                 observed_at,
                 CompletionQuality.CONFIRMED,
                 ("external_scope_mode_and_success_confirmed",),

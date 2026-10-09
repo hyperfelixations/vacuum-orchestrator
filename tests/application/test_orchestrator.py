@@ -169,6 +169,9 @@ class RecordingAdapter:
             completion_confirmed=self.confirm_completions,
             observed_operation=work.operation if work else None,
             completed_targets=assignment.adapter_targets if assignment else (),
+            completed_operation=work.operation
+            if work and self.confirm_completions
+            else None,
         )
 
     def _persisted_attempt_state(self) -> AttemptState:

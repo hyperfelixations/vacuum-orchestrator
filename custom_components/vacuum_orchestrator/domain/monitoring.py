@@ -117,7 +117,7 @@ def evaluate_observation(
         return MonitorDecision(MonitorAction.ATTENTION, "run_timeout")
     # Mode evidence rule; see dev doc "Readiness und Ausführungsbeobachtung".
     if (
-        (observation.cleaning_active is True or observation.completion_confirmed)
+        observation.cleaning_active is True
         and observation.observed_operation is not None
         and observation.observed_operation != unit.operation
     ):
@@ -131,13 +131,19 @@ def evaluate_observation(
         )
     if (
         observation.completion_confirmed
+        and observation.completed_operation is not None
+        and observation.completed_operation != unit.operation
+    ):
+        return MonitorDecision(MonitorAction.ATTENTION, "completion_mode_mismatch")
+    if (
+        observation.completion_confirmed
         and observation.completed_targets
         and set(observation.completed_targets) != set(assignment.adapter_targets)
     ):
         return MonitorDecision(MonitorAction.ATTENTION, "completion_scope_mismatch")
     if (
         observation.completion_confirmed
-        and observation.observed_operation == unit.operation
+        and observation.completed_operation == unit.operation
         and set(observation.completed_targets) == set(assignment.adapter_targets)
     ):
         return MonitorDecision(
