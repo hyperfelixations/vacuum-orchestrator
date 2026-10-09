@@ -28,8 +28,8 @@ async def explain_job(
     core: VacuumOrchestrator, job_id: str
 ) -> tuple[RobotExplanation, ...]:
     """Observe without dispatching, writing state or reserving a robot."""
-    observations = await core._observe_robots()
-    state = core.state
+    snapshot = await core.async_observed_snapshot()
+    state, observations = snapshot.state, snapshot.observations
     job = state.jobs.get(job_id)
     if job is None:
         raise ConflictError("unknown_job")

@@ -17,7 +17,7 @@ from homeassistant.helpers import config_validation as cv
 
 from ..adapters.discovery import discover_robots
 from ..application.explanation import explain_job
-from ..application.preview import JobPreview, preview_job
+from ..application.preview import JobPreview, preview_draft
 from ..configuration import configure_robot, require_idle_robot
 from ..const import API_VERSION, DOMAIN
 from ..diagnostics import build_diagnostics
@@ -213,7 +213,7 @@ async def async_query_configuration(
     """Include live per-robot explanations without performing physical commands."""
     core = async_get_runtime(hass).orchestrator
     if name == "preview_job":
-        return await _async_preview(core, data) | view_metadata(core)
+        return await _async_preview(core, data)
     if name != "get_job_execution":
         return query_configuration(hass, name, data) | view_metadata(core)
     explanations = await explain_job(core, data["job_id"])
@@ -258,6 +258,8 @@ async def async_query_configuration(
 async def _async_preview(
     core: VacuumOrchestrator, data: dict[str, Any]
 ) -> dict[str, Any]:
+    """Observe first; everything after it comes from one state, metadata too."""
+    snapshot = await core.async_observed_snapshot() if ATTR_AREAS in data else None
     defaults = core.state.job_defaults
     intent, area_reason = None, None
     if ATTR_AREAS in data:
@@ -267,8 +269,9 @@ async def _async_preview(
             )
         except ConflictError as err:
             area_reason = err.code
-    preview: JobPreview = await preview_job(
+    preview: JobPreview = preview_draft(
         core,
+        snapshot,
         data.get(ATTR_MODE, defaults.mode),
         CleaningPreferences(
             data.get(ATTR_VACUUM_POWER),
@@ -309,7 +312,7 @@ async def _async_preview(
         "unreachable_room_ids": list(preview.unreachable_room_ids),
         "startable_now": reason is None,
         "reason": reason,
-    }
+    } | view_metadata(core)
 
 
 def page(items: list[dict[str, Any]], data: dict[str, Any], key: str) -> dict[str, Any]:

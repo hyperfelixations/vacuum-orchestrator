@@ -28,7 +28,7 @@ from ..domain.types import (
 )
 
 if TYPE_CHECKING:
-    from .orchestrator import VacuumOrchestrator
+    from .orchestrator import ObservedSnapshot, VacuumOrchestrator
 
 PREVIEW_JOB_ID = "preview"
 _LADDERS: dict[
@@ -79,13 +79,27 @@ async def preview_job(
     intent: JobIntent | None = None,
     robot_id: str | None = None,
 ) -> JobPreview:
+    """Observe robots once rooms exist, then resolve the draft."""
+    snapshot = None if intent is None else await core.async_observed_snapshot()
+    return preview_draft(core, snapshot, mode, preferences, intent, robot_id)
+
+
+def preview_draft(
+    core: VacuumOrchestrator,
+    snapshot: ObservedSnapshot | None,
+    mode: CleaningMode,
+    preferences: CleaningPreferences,
+    intent: JobIntent | None = None,
+    robot_id: str | None = None,
+) -> JobPreview:
     """Resolve a draft without committing; `intent` is None until rooms exist.
 
-    Options are the union of the values offered by every robot that can carry
-    out an operation using the setting on the selected rooms a robot reaches;
-    see dev doc "Vorschau".
+    Synchronous on purpose: state, profiles and defaults belong to `snapshot`,
+    which a draft with rooms needs. Options are the union of the values
+    offered by every robot that can carry out an operation using the setting
+    on the selected rooms a robot reaches; see dev doc "Vorschau".
     """
-    state = core.state
+    state = core.state if snapshot is None else snapshot.state
     defaults = state.job_defaults
     profiles = tuple(adapter.profile for adapter in core.adapters.values())
     if intent is not None:
@@ -130,7 +144,8 @@ async def preview_job(
     if intent is None:
         return JobPreview(mode, settings, (), "job_requires_area")
 
-    observations = await core._observe_robots()
+    assert snapshot is not None
+    observations = snapshot.observations
     now = core._clock()
     job = Job(PREVIEW_JOB_ID, 1, intent, JobState.QUEUED, now, now)
     plan = Planner().create_plan(PREVIEW_JOB_ID, intent)

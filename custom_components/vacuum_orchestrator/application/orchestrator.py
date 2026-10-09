@@ -121,6 +121,14 @@ def with_queue(scopes: Iterable[str]) -> frozenset[str]:
 
 
 @dataclass(frozen=True, slots=True)
+class ObservedSnapshot:
+    """Robot observations and the state taken right after them."""
+
+    state: OrchestratorState
+    observations: Mapping[str, RobotObservation]
+
+
+@dataclass(frozen=True, slots=True)
 class _Stop:
     """A committed, fenced cancel whose physical stop is still to be sent."""
 
@@ -1221,6 +1229,19 @@ class VacuumOrchestrator:
             requested_robot_id,
             defaults=state.job_defaults,
         )
+
+    async def async_observed_snapshot(self) -> ObservedSnapshot:
+        """Observe robots, then take the state that belongs to the observations.
+
+        Callers derive everything else synchronously, without a further await;
+        see dev doc "Vorschau".
+        """
+        adapters = self._adapters
+        observations = await self._observe_robots()
+        if self._adapters is not adapters:
+            # Robots replaced while observing are observed once more.
+            observations = await self._observe_robots()
+        return ObservedSnapshot(self.state, MappingProxyType(observations))
 
     async def _observe_robots(self) -> dict[str, RobotObservation]:
         adapters = dict(self._adapters)
