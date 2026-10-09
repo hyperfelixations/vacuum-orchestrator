@@ -32,11 +32,13 @@ from custom_components.vacuum_orchestrator.domain.intents import (
     JobIntentPatch,
     TargetRef,
 )
+from custom_components.vacuum_orchestrator.domain.maps import RobotMaps
 from custom_components.vacuum_orchestrator.domain.planning import (
     DispatchAssignment,
     WorkUnit,
 )
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
+from custom_components.vacuum_orchestrator.domain.reach import ReachStatus, RoomReach
 from custom_components.vacuum_orchestrator.domain.releases import (
     ReleaseKind,
     RoomRelease,
@@ -145,6 +147,15 @@ class RecordingAdapter:
     @property
     def profile(self) -> RobotProfile:
         return self._profile
+
+    def room_reach(self) -> tuple[RoomReach, ...]:
+        return tuple(
+            RoomReach(target, ReachStatus.REACHABLE, (target,))
+            for target in self._profile.capabilities.target_map
+        )
+
+    def maps(self) -> RobotMaps:
+        return RobotMaps()
 
     async def async_observe(self) -> RobotObservation:
         work = self.dispatches[-1][0] if self.dispatches else None

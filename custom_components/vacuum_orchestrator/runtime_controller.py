@@ -17,7 +17,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from .adapters.discovery import discover_robots, resolve_entity_id
 from .adapters.home_assistant_vacuum import HomeAssistantVacuumAdapter
 from .adapters.roborock import RoborockAdapter
-from .application.orchestrator import VacuumOrchestrator
+from .application.orchestrator import VacuumOrchestrator, with_queue
 from .application.robot_session import RobotOwnershipRegistry
 from .application.room_service import AreaSnapshot
 from .application.scheduler import WakeupScheduler
@@ -221,38 +221,38 @@ class RuntimeController:
         self.last_error = None
 
     def _notify_view_changes(self, rebuild: bool) -> None:
-        """Notify only when an uncommitted read projection changed."""
+        """Notify only when an uncommitted read projection changed.
+
+        Uses the same projection as commit signals; see dev doc
+        "Änderungssignale".
+        """
         core = self.orchestrator
         now = datetime.now(UTC)
+        projection = core.view_projection(core.state)
         fingerprint: dict[str, object] = {
             "jobs": (
+                projection["jobs"],
                 tuple(
-                    (core.readiness_for_job(job_id), core.waiting(job_id))
-                    for job_id in core.state.queue
-                ),
-                tuple(
-                    (
-                        job_id,
-                        core.progress(job_id),
-                        core.readiness_before_start(job_id),
-                        core.waiting(job_id),
-                    )
+                    (job_id, core.progress(job_id))
                     for job_id, job in core.state.jobs.items()
                     if job.state in STARTED_STATES
                 ),
             ),
             "robots": tuple(
-                (robot_id, adapter.profile)
+                (robot_id, adapter.profile, adapter.room_reach())
                 for robot_id, adapter in core.adapters.items()
             ),
-            "rooms": tuple(
-                (
-                    room_id,
-                    room.released(now),
-                    room.due(OperationKind.VACUUM, now).state,
-                    room.due(OperationKind.MOP, now).state,
-                )
-                for room_id, room in core.rooms.registry.rooms.items()
+            "rooms": (
+                projection["rooms"],
+                tuple(
+                    (
+                        room_id,
+                        room.released(now),
+                        room.due(OperationKind.VACUUM, now).state,
+                        room.due(OperationKind.MOP, now).state,
+                    )
+                    for room_id, room in core.rooms.registry.rooms.items()
+                ),
             ),
         }
         previous, self._fingerprint = self._fingerprint, fingerprint
@@ -261,12 +261,10 @@ class RuntimeController:
             for scope, value in fingerprint.items()
             if previous is None or previous[scope] != value
         }
-        if "jobs" in scopes:
-            scopes.add("queue")
         if rebuild:
             scopes.add("robots")
         if scopes:
-            core.notify_runtime_change(frozenset(scopes))
+            core.notify_runtime_change(with_queue(scopes))
 
     async def _async_discover(self) -> None:
         current = {

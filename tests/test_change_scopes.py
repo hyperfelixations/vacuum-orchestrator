@@ -2,17 +2,28 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import fields, replace
 from types import MappingProxyType
+from typing import Any, cast
 
 import pytest
 from homeassistant.components.vacuum.const import VacuumEntityFeature
+from homeassistant.components.websocket_api.connection import ActiveConnection
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.vacuum_orchestrator.api.websocket import (
+    TYPE_SUBSCRIBE,
+    websocket_subscribe,
+)
+from custom_components.vacuum_orchestrator.application.orchestrator import (
+    INTERNAL_FIELDS,
+    SCOPE_FIELDS,
+    VIEW_SCOPES,
+)
 from custom_components.vacuum_orchestrator.const import (
     CONF_ADAPTER,
     CONF_INSTALLATION_ID,
@@ -21,6 +32,7 @@ from custom_components.vacuum_orchestrator.const import (
     CONF_TARGET_AREAS,
     DOMAIN,
 )
+from custom_components.vacuum_orchestrator.domain.holds import HoldPurpose
 from custom_components.vacuum_orchestrator.domain.intents import JobIntent, TargetRef
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
 from custom_components.vacuum_orchestrator.domain.releases import ReleaseKind
@@ -36,7 +48,10 @@ from tests.application.test_orchestrator import (
     _intent,
     _orchestrator,
 )
+from tests.test_configuration_api import call, configured  # noqa: F401
+from tests.test_job_holds_api import Card
 from tests.test_runtime import MemoryBackend
+from tests.test_websocket import Connection
 
 
 def test_job_counters_follow_job_states() -> None:
@@ -70,6 +85,149 @@ async def test_commits_report_the_changed_scopes() -> None:
     await core.async_configure_job_defaults({"passes": 2})
     await core.async_configure_job_defaults({"passes": 2})
     assert seen == [frozenset({"queue"})]
+
+
+def test_every_state_field_belongs_to_a_scope_or_is_internal() -> None:
+    scoped = {name for names in SCOPE_FIELDS.values() for name in names}
+
+    assert set(SCOPE_FIELDS) == VIEW_SCOPES
+    assert not scoped & INTERNAL_FIELDS
+    assert scoped | INTERNAL_FIELDS == {item.name for item in fields(OrchestratorState)}
+
+
+async def test_holds_and_the_start_delay_signal_their_read_models() -> None:
+    backend = RecordingBackend()
+    core = await _orchestrator(backend, RecordingAdapter(backend, "robot"))
+    job = await core.async_create_job(_intent())
+    seen: list[frozenset[str]] = []
+    core.subscribe_view(lambda: seen.append(core.changed_scopes))
+
+    hold = await core.async_hold_job(job, HoldPurpose.EDIT)
+    await core.async_release_job_hold(hold.hold_id)
+    await core.runs.async_configure(start_delay_seconds=30)
+
+    assert seen == [{"jobs", "queue"}, {"jobs", "queue"}, {"queue"}]
+
+
+async def test_a_job_waiting_for_a_release_signals_its_room() -> None:
+    backend = RecordingBackend()
+    core = await _orchestrator(backend, RecordingAdapter(backend, "robot"))
+    await core.rooms.async_revoke("hall")
+    seen: list[frozenset[str]] = []
+    core.subscribe_view(lambda: seen.append(core.changed_scopes))
+
+    job = await core.async_create_job(_intent("hall"))
+    await core.rooms.async_grant("hall", ReleaseKind.PERMANENT)
+    await core.rooms.async_revoke("hall")
+    await core.async_delete_job(job)
+
+    assert seen == [{"jobs", "queue", "rooms"}] * 4
+
+
+async def test_a_new_area_of_a_named_room_signals_the_jobs_naming_it() -> None:
+    backend = RecordingBackend()
+    core = await _orchestrator(backend, RecordingAdapter(backend, "robot"))
+    await core.async_create_job(_intent())
+    seen: list[frozenset[str]] = []
+    core.subscribe_view(lambda: seen.append(core.changed_scopes))
+
+    await core.rooms.async_update("kitchen", lambda room: replace(room, name="Cook"))
+    await core.rooms.async_update("hall", lambda room: replace(room, area_id="lobby"))
+    await core.rooms.async_update(
+        "kitchen", lambda room: replace(room, area_id="galley")
+    )
+
+    assert seen == [{"rooms"}, {"rooms"}, {"jobs", "queue", "rooms"}]
+
+
+async def test_a_failing_projection_signals_every_scope_and_keeps_the_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    backend = RecordingBackend()
+    core = await _orchestrator(backend, RecordingAdapter(backend, "robot"))
+    seen: list[frozenset[str]] = []
+    core.subscribe_view(lambda: seen.append(core.changed_scopes))
+
+    def broken(_state: OrchestratorState) -> dict[str, object]:
+        raise RuntimeError("projection")
+
+    monkeypatch.setattr(core, "view_projection", broken)
+    job = await core.async_create_job(_intent())
+
+    assert job in core.state.jobs
+    assert seen == [VIEW_SCOPES]
+    assert any(
+        row.get("reason") == "view_projection_failed" for row in core.trace.snapshot()
+    )
+
+
+@pytest.mark.usefixtures("configured")
+async def test_a_loaded_subscriber_hears_what_others_change(
+    hass: HomeAssistant,
+) -> None:
+    room = (await call(hass, "create_room", name="Office"))["room_id"]
+    subscriber = Connection()
+    websocket_subscribe(
+        hass, cast(ActiveConnection, subscriber), {"id": 1, "type": TYPE_SUBSCRIBE}
+    )
+    await hass.async_block_till_done()
+
+    async def changed(action: Any) -> set[str]:
+        before = len(subscriber.events)
+        await action
+        await hass.async_block_till_done()
+        return set().union(
+            *(event["changed"] for _id, event in subscriber.events[before:])
+        )
+
+    job = None
+
+    async def create() -> None:
+        nonlocal job
+        job = (await call(hass, "create_job", areas=[room]))["job_id"]
+
+    assert {"jobs", "queue", "rooms"} <= await changed(create())
+    assert "queue" in await changed(
+        call(hass, "configure_queue", start_delay_seconds=30)
+    )
+    assert {"jobs", "queue"} <= await changed(
+        Card(hass).command("hold_job", job_id=job, purpose="edit")
+    )
+    assert {"jobs", "queue", "rooms"} <= await changed(
+        call(hass, "release_room", room_id=room, kind="permanent")
+    )
+
+
+@pytest.mark.usefixtures("configured")
+async def test_a_new_room_signals_the_reach_of_every_robot(hass: HomeAssistant) -> None:
+    vacuum = er.async_get(hass).async_get_or_create("vacuum", "demo", "reach")
+    hass.states.async_set(
+        vacuum.entity_id,
+        "docked",
+        {"supported_features": int(VacuumEntityFeature.CLEAN_AREA)},
+    )
+    await call(
+        hass,
+        "add_robot",
+        configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
+    )
+    await hass.async_block_till_done()
+    subscriber = Connection()
+    websocket_subscribe(
+        hass, cast(ActiveConnection, subscriber), {"id": 1, "type": TYPE_SUBSCRIBE}
+    )
+    await hass.async_block_till_done()
+    before = len(subscriber.events)
+
+    room = (await call(hass, "create_room", name="Hall"))["room_id"]
+    await hass.async_block_till_done()
+
+    changed = set().union(
+        *(event["changed"] for _id, event in subscriber.events[before:])
+    )
+    assert changed == {"rooms", "robots"}
+    reach = (await call(hass, "get_robots"))["robots"][0]["reach"]
+    assert room in {item["room_id"] for item in reach}
 
 
 async def test_controller_skips_passes_without_visible_change(

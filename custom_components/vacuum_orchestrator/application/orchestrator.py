@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from types import MappingProxyType
 from typing import Any, cast
 from uuid import uuid4
 
@@ -69,45 +70,54 @@ def _utcnow() -> datetime:
 
 VIEW_SCOPES = frozenset({"queue", "jobs", "rooms", "robots", "templates"})
 
+# Committed fields each read model shows; see dev doc "Änderungssignale".
+SCOPE_FIELDS: Mapping[str, tuple[str, ...]] = MappingProxyType(
+    {
+        "jobs": (
+            "jobs",
+            "plans",
+            "assignments",
+            "attempts",
+            "work_unit_states",
+            "robot_runs",
+            "correlations",
+            "job_holds",
+        ),
+        "queue": (
+            "queue",
+            "queue_revision",
+            "mode",
+            "queue_run",
+            "queue_grace_seconds",
+            "start_delay_seconds",
+            "job_defaults",
+            "blocked_robots",
+        ),
+        "rooms": ("room_registry",),
+        "robots": ("robot_leases", "blocked_robots"),
+        "templates": ("templates",),
+    }
+)
+INTERNAL_FIELDS = frozenset({"installation_id", "commit_id", "robot_generations"})
+
 
 def changed_scopes(
     previous: OrchestratorState, candidate: OrchestratorState
 ) -> frozenset[str]:
-    """Name the public read models whose committed data differs."""
-    return frozenset(
+    """Name the public read models whose committed fields differ."""
+    return with_queue(
         scope
-        for scope, fields in (
-            (
-                "jobs",
-                (
-                    "jobs",
-                    "plans",
-                    "assignments",
-                    "attempts",
-                    "work_unit_states",
-                    "robot_runs",
-                    "correlations",
-                ),
-            ),
-            (
-                "queue",
-                (
-                    "queue",
-                    "queue_revision",
-                    "mode",
-                    "queue_run",
-                    "queue_grace_seconds",
-                    "job_defaults",
-                    "blocked_robots",
-                    "jobs",
-                ),
-            ),
-            ("rooms", ("room_registry",)),
-            ("robots", ("robot_leases", "blocked_robots")),
-            ("templates", ("templates",)),
-        )
+        for scope, fields in SCOPE_FIELDS.items()
         if any(getattr(previous, name) != getattr(candidate, name) for name in fields)
     )
+
+
+def with_queue(scopes: Iterable[str]) -> frozenset[str]:
+    """Add the queue to job changes; its page embeds job records."""
+    result = set(scopes)
+    if "jobs" in result:
+        result.add("queue")
+    return frozenset(result)
 
 
 @dataclass(frozen=True, slots=True)
@@ -373,9 +383,11 @@ class VacuumOrchestrator:
             self._observations.get(attempt.robot_id) if attempt is not None else None,
         )
 
-    def jobs_awaiting_release(self) -> dict[str, tuple[str, ...]]:
+    def jobs_awaiting_release(
+        self, state: OrchestratorState | None = None
+    ) -> dict[str, tuple[str, ...]]:
         """Map each room to the waiting jobs that need its release, queue first."""
-        state = self.state
+        state = self.state if state is None else state
         waiting: dict[str, list[str]] = {}
         for job_id in state.queue:
             report = self.job_readiness(state, state.jobs[job_id])
@@ -388,12 +400,70 @@ class VacuumOrchestrator:
         job = self.state.jobs.get(job_id)
         if job is None:
             raise ConflictError("unknown_job", job_id)
+        return self._readiness_before_start(self.state, job)
+
+    def _readiness_before_start(
+        self, state: OrchestratorState, job: Job
+    ) -> ReadinessReport | None:
         if job.state is JobState.QUEUED:
-            return self.readiness_for_job(job_id)
+            return self.job_readiness(state, job)
         if job.state is JobState.DISPATCHING and job.active_attempt_id is None:
-            unit = self.state.next_pending_unit(job)
-            return self.readiness_for_job(job_id, operation=unit.operation)
+            unit = state.next_pending_unit(job)
+            return self.job_readiness(state, job, operation=unit.operation)
         return None
+
+    def view_projection(self, state: OrchestratorState) -> dict[str, object]:
+        """Derive the read-model parts that depend on more than their own fields.
+
+        Commit signals and the controller fingerprint compare exactly these
+        values; see dev doc "Änderungssignale". No I/O.
+        """
+        now = self._clock()
+        named = {
+            target.area_id for job in state.jobs.values() for target in job.intent.areas
+        }
+        return {
+            "jobs": (
+                tuple(
+                    (
+                        job_id,
+                        self._readiness_before_start(state, job),
+                        explain_waiting(self, state, job, now),
+                    )
+                    for job_id, job in state.jobs.items()
+                    if job.state in {JobState.QUEUED, JobState.DISPATCHING}
+                ),
+                # Job records name their rooms by area.
+                tuple(
+                    (room_id, room.area_id)
+                    for room_id, room in state.room_registry.rooms.items()
+                    if room_id in named
+                ),
+            ),
+            "rooms": self.jobs_awaiting_release(state),
+        }
+
+    def _commit_scopes(
+        self, previous: OrchestratorState, candidate: OrchestratorState
+    ) -> frozenset[str]:
+        """Add derived read models a commit changed; signal all if unsure."""
+        try:
+            before = self.view_projection(previous)
+            after = self.view_projection(candidate)
+        except Exception as err:
+            self.trace.record(
+                TraceEvent.ERROR,
+                self._clock(),
+                reason="view_projection_failed",
+                error=err,
+            )
+            return VIEW_SCOPES
+        return with_queue(
+            {
+                *changed_scopes(previous, candidate),
+                *(scope for scope, value in after.items() if before[scope] != value),
+            }
+        )
 
     async def async_create_job(self, intent: JobIntent) -> str:
         """Create and append a validated robot-independent job."""
@@ -1338,7 +1408,7 @@ class VacuumOrchestrator:
                     if attempt.completion_quality
                     else None,
                 )
-        self.notify_runtime_change(changed_scopes(previous, candidate))
+        self.notify_runtime_change(self._commit_scopes(previous, candidate))
         for listener in tuple(self._listeners):
             try:
                 listener()
