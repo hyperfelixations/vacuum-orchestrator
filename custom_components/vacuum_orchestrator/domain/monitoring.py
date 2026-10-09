@@ -115,8 +115,10 @@ def evaluate_observation(
         seconds=attempt.policy.run_seconds
     ):
         return MonitorDecision(MonitorAction.ATTENTION, "run_timeout")
+    # Mode evidence rule; see dev doc "Readiness und Ausführungsbeobachtung".
     if (
-        observation.observed_operation is not None
+        (observation.cleaning_active is True or observation.completion_confirmed)
+        and observation.observed_operation is not None
         and observation.observed_operation != unit.operation
     ):
         return MonitorDecision(MonitorAction.ATTENTION, "observed_mode_mismatch")

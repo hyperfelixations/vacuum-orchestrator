@@ -411,3 +411,54 @@ def test_only_faults_of_the_running_operation_stop_it() -> None:
     assert evaluate(started, replace(IDLE, faults=(tank,))).action is (
         MonitorAction.SETTLE
     )
+
+
+def test_a_mode_setting_counts_only_while_cleaning_or_with_confirmed_completion() -> (
+    None
+):
+    started = replace(
+        ATTEMPT, state=AttemptState.START_CONFIRMED, observed_start_at=NOW
+    )
+    other = OperationKind.MOP
+    cleaning = replace(
+        IDLE,
+        state=RobotAvailabilityState.BUSY,
+        cleaning_active=True,
+        normal_end=False,
+    )
+    returning = replace(cleaning, cleaning_active=False, observed_operation=other)
+
+    assert evaluate(started, replace(cleaning, observed_operation=other)).reason == (
+        "observed_mode_mismatch"
+    )
+    decision = evaluate(started, returning)
+    assert (decision.action, decision.reason) == (
+        MonitorAction.WAIT,
+        "cleaning_not_finished",
+    )
+    assert evaluate(started, replace(IDLE, observed_operation=other)).action is (
+        MonitorAction.SETTLE
+    )
+    settling = replace(
+        started, state=AttemptState.COMPLETION_PENDING, terminal_observed_at=NOW
+    )
+    later = NOW + timedelta(seconds=30)
+    derived = evaluate(
+        settling, replace(IDLE, observed_at=later, observed_operation=other), later
+    )
+    assert derived.quality is CompletionQuality.DERIVED
+
+
+def test_station_activity_after_the_return_restarts_settling() -> None:
+    started = replace(
+        ATTEMPT, state=AttemptState.START_CONFIRMED, observed_start_at=NOW
+    )
+    docked = replace(IDLE, at_dock=True, observed_operation=OperationKind.MOP)
+    emptying = replace(docked, state=RobotAvailabilityState.BUSY, normal_end=False)
+
+    assert evaluate(started, docked).action is MonitorAction.SETTLE
+    settling = replace(
+        started, state=AttemptState.COMPLETION_PENDING, terminal_observed_at=NOW
+    )
+    assert evaluate(settling, emptying).action is MonitorAction.RESUME
+    assert evaluate(started, docked).action is MonitorAction.SETTLE
