@@ -18,7 +18,7 @@ from homeassistant.helpers import config_validation as cv
 from ..adapters.discovery import discover_robots
 from ..application.explanation import explain_job
 from ..application.preview import JobPreview, preview_draft
-from ..configuration import configure_robot, require_idle_robot
+from ..configuration import configure_robot, require_idle_robot, robot_name
 from ..const import API_VERSION, DOMAIN
 from ..diagnostics import build_diagnostics
 from ..domain.capabilities import CancelSemantics
@@ -156,6 +156,9 @@ COMMANDS: dict[str, probatio.Schema | probatio.All[dict[str, Any]]] = {
         {**ROBOT_ID, probatio.Required("configuration"): dict}
     ),
     "remove_robot": probatio.Schema(ROBOT_ID),
+    "rename_robot": probatio.Schema(
+        {**ROBOT_ID, probatio.Optional("name"): probatio.Any(None, str)}
+    ),
     "resolve_recovery": probatio.Schema(
         {**ROBOT_ID, probatio.Optional("confirm_stopped", default=False): bool}
     ),
@@ -425,7 +428,13 @@ def query_configuration(
         robots.append(
             {
                 "robot_id": robot_id,
-                "name": subentry.title,
+                **dict(
+                    zip(
+                        ("name", "name_source", "ha_name"),
+                        robot_name(hass, subentry),
+                        strict=True,
+                    )
+                ),
                 "configuration": dict(subentry.data),
                 "reach": []
                 if adapter is None
@@ -612,6 +621,8 @@ async def _execute_configuration(
         if name == "remove_robot":
             require_idle_robot(entry, data["robot_id"])
             hass.config_entries.async_remove_subentry(entry, data["robot_id"])
+        elif name == "rename_robot":
+            controller.rename_robot(data["robot_id"], data.get("name"))
         else:
             robot_id = configure_robot(
                 hass, entry, data["configuration"], robot_id=robot_id

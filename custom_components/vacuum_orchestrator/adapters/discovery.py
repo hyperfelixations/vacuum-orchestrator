@@ -56,6 +56,11 @@ def resolve_entity_id(hass: HomeAssistant, registry_id: str) -> str | None:
     return None if entry is None or entry.disabled else entry.entity_id
 
 
+def ha_robot_name(hass: HomeAssistant, vacuum: er.RegistryEntry) -> str:
+    """Name a vacuum exactly as its state's friendly name; see dev doc "Robotername"."""
+    return er.async_get_legacy_friendly_name(hass, vacuum) or vacuum.entity_id
+
+
 def mapped_areas(vacuum: er.RegistryEntry) -> dict[str, tuple[str, ...]]:
     """Read HA's "segments to areas" mapping; malformed entries are skipped."""
     raw = dict(vacuum.options.get("vacuum") or {}).get("area_mapping", {})
@@ -139,7 +144,7 @@ def discover_robots(hass: HomeAssistant) -> tuple[RobotCandidate, ...]:
             RobotCandidate(
                 vacuum.id,
                 vacuum.entity_id,
-                vacuum.name or vacuum.original_name or vacuum.entity_id,
+                ha_robot_name(hass, vacuum),
                 "roborock" if vacuum.platform == "roborock" else "home_assistant",
                 source_id,
                 vacuum.device_id,

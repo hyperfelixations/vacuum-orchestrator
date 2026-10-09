@@ -8,13 +8,14 @@ from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from .adapters.discovery import candidate_for
+from .adapters.discovery import candidate_for, ha_robot_name
 from .configuration_values import normalize_requirements
 from .const import (
     CONF_ADAPTER,
     CONF_LAST_CLEAN_END_ENTITY_ID,
     CONF_LAST_CLEAN_START_ENTITY_ID,
     CONF_ROBOT_ENTITY_ID,
+    CONF_ROBOT_NAME,
     CONF_ROBOT_REGISTRY_ID,
     CONF_TARGET_AREAS,
     SUBENTRY_TYPE_ROBOT,
@@ -35,6 +36,7 @@ def validate_robot_configuration(
     allowed_fields = {
         CONF_ROBOT_REGISTRY_ID,
         CONF_ROBOT_ENTITY_ID,
+        CONF_ROBOT_NAME,
         CONF_ADAPTER,
         CONF_LAST_CLEAN_START_ENTITY_ID,
         CONF_LAST_CLEAN_END_ENTITY_ID,
@@ -84,6 +86,8 @@ def validate_robot_configuration(
         ):
             raise ConflictError("already_configured")
     result = dict(data)
+    if (name := robot_name_override(result.pop(CONF_ROBOT_NAME, None))) is not None:
+        result[CONF_ROBOT_NAME] = name
     result.update(
         {
             CONF_ROBOT_REGISTRY_ID: candidate.registry_id,
@@ -264,11 +268,41 @@ def migrate_setting_mappings(data: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
-def require_idle_robot(entry: ConfigEntry, robot_id: str) -> ConfigSubentry:
-    """Validate mutation ownership for both configuration flows and public commands."""
+def robot_name_override(value: object) -> str | None:
+    """Validate a custom robot name; None or no value follows Home Assistant."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 100:
+        raise ValidationError("invalid_robot_name")
+    return value.strip()
+
+
+def robot_name(
+    hass: HomeAssistant, subentry: ConfigSubentry
+) -> tuple[str, str, str | None]:
+    """Return the effective name, its source and the Home Assistant name.
+
+    See dev doc "Robotername".
+    """
+    vacuum = er.async_get(hass).async_get(str(subentry.data[CONF_ROBOT_REGISTRY_ID]))
+    ha_name = None if vacuum is None else ha_robot_name(hass, vacuum)
+    override = subentry.data.get(CONF_ROBOT_NAME)
+    if override is not None:
+        return str(override), "custom", ha_name
+    return ha_name or subentry.title, "home_assistant", ha_name
+
+
+def require_robot(entry: ConfigEntry, robot_id: str) -> ConfigSubentry:
+    """Resolve a configured robot profile."""
     subentry = entry.subentries.get(robot_id)
     if subentry is None or subentry.subentry_type != SUBENTRY_TYPE_ROBOT:
         raise ConflictError("unknown_robot")
+    return subentry
+
+
+def require_idle_robot(entry: ConfigEntry, robot_id: str) -> ConfigSubentry:
+    """Validate mutation ownership for both configuration flows and public commands."""
+    subentry = require_robot(entry, robot_id)
     runtime = getattr(entry, "runtime_data", None)
     if runtime is not None and any(
         lease.robot_id == robot_id

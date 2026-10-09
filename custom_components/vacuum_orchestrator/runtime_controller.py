@@ -22,10 +22,16 @@ from .application.robot_session import RobotOwnershipRegistry
 from .application.room_service import AreaSnapshot
 from .application.scheduler import WakeupScheduler
 from .application.tracing import TraceEvent
-from .configuration import validate_robot_configuration
+from .configuration import (
+    require_robot,
+    robot_name,
+    robot_name_override,
+    validate_robot_configuration,
+)
 from .const import (
     API_VERSION,
     CONF_ROBOT_ENTITY_ID,
+    CONF_ROBOT_NAME,
     CONF_ROBOT_REGISTRY_ID,
     DOMAIN,
     SIGNAL_VIEW_CHANGED,
@@ -38,6 +44,24 @@ from .domain.progress import STARTED_STATES
 from .domain.types import OperationKind
 from .repairs import RepairReporter
 from .runtime_adapters import build_adapters
+
+# Registry fields that only change how an entity or device is named.
+_NAME_FIELDS = {
+    er.EVENT_ENTITY_REGISTRY_UPDATED: frozenset(
+        {
+            "name",
+            "original_name",
+            "has_entity_name",
+            "next_name_part",
+            "icon",
+            "original_icon",
+            "aliases",
+        }
+    ),
+    dr.EVENT_DEVICE_REGISTRY_UPDATED: frozenset(
+        {"name", "name_by_user", "next_name_part"}
+    ),
+}
 
 
 class RuntimeController:
@@ -73,6 +97,15 @@ class RuntimeController:
         self._restart = True
         self._closed = False
         self._fingerprint: dict[str, object] | None = None
+        # Titles VOI wrote itself; any other title is a rename in HA.
+        self._titles = {
+            key: value.title
+            for key, value in entry.subentries.items()
+            if value.subentry_type == SUBENTRY_TYPE_ROBOT
+        }
+        self._names: dict[str, str] = {}
+        self._names_dirty = True
+        self._configuration = self._configuration_fingerprint()
         self.last_error: str | None = None
         self.repairs = RepairReporter(hass, orchestrator)
         self.scheduler = WakeupScheduler(
@@ -134,13 +167,86 @@ class RuntimeController:
             self.scheduler.notify()
 
     @callback
-    def _registry_changed(self, _event: Event[Any]) -> None:
-        self._registry_dirty = True
+    def _registry_changed(self, event: Event[Any]) -> None:
+        """Rename robots for naming changes; rebuild adapters for anything else."""
+        fields = _NAME_FIELDS.get(event.event_type)
+        if (
+            fields is not None
+            and event.data.get("action") == "update"
+            and set(event.data["changes"]) <= fields
+        ):
+            self._names_dirty = True
+        else:
+            self._registry_dirty = True
         self.scheduler.notify()
 
     async def _entry_updated(self, _hass: HomeAssistant, _entry: ConfigEntry) -> None:
-        self._registry_dirty = True
+        """Adopt robot entries renamed in HA; only configuration changes rebuild."""
+        for robot_id, subentry in self._robot_subentries().items():
+            known = self._titles.get(robot_id)
+            if known is None or subentry.title == known:
+                continue
+            self._titles[robot_id] = subentry.title
+            _name, _source, ha_name = robot_name(self.hass, subentry)
+            self._set_override(
+                subentry, None if subentry.title == ha_name else subentry.title
+            )
+        configuration = self._configuration_fingerprint()
+        if configuration != self._configuration:
+            self._configuration = configuration
+            self._registry_dirty = True
+        self._names_dirty = True
         self.scheduler.notify()
+
+    def rename_robot(self, robot_id: str, name: str | None) -> None:
+        """Set or clear a robot's custom name without touching its adapter."""
+        subentry = require_robot(self.entry, robot_id)
+        self._set_override(subentry, robot_name_override(name))
+
+    def _set_override(self, subentry: ConfigSubentry, name: str | None) -> None:
+        data = {
+            key: value for key, value in subentry.data.items() if key != CONF_ROBOT_NAME
+        }
+        if name is not None:
+            data[CONF_ROBOT_NAME] = name
+        if data != dict(subentry.data):
+            self.hass.config_entries.async_update_subentry(
+                self.entry, subentry, data=data
+            )
+        self._sync_names()
+
+    def _robot_subentries(self) -> dict[str, ConfigSubentry]:
+        return {
+            key: value
+            for key, value in self.entry.subentries.items()
+            if value.subentry_type == SUBENTRY_TYPE_ROBOT
+        }
+
+    def _configuration_fingerprint(self) -> object:
+        """Describe what adapters are built from; names and titles excluded."""
+        return (
+            dict(self.entry.data),
+            {
+                key: {
+                    name: value
+                    for name, value in subentry.data.items()
+                    if name != CONF_ROBOT_NAME
+                }
+                for key, subentry in self.entry.subentries.items()
+            },
+        )
+
+    def _sync_names(self) -> None:
+        """Mirror effective robot names into entry titles; see dev doc "Robotername"."""
+        names: dict[str, str] = {}
+        for robot_id, subentry in self._robot_subentries().items():
+            name = names[robot_id] = robot_name(self.hass, subentry)[0]
+            self._titles[robot_id] = name
+            if subentry.title != name:
+                self.hass.config_entries.async_update_subentry(
+                    self.entry, subentry, title=name
+                )
+        self._names = names
 
     def _error(self, err: Exception) -> None:
         self.last_error = (
@@ -172,6 +278,9 @@ class RuntimeController:
                 self._registry_dirty = True
                 raise
             self._active_ids = active
+        if rebuild or self._names_dirty:
+            self._names_dirty = False
+            self._sync_names()
         self._refresh_watched_entities()
         changed, self._changed = self._changed, set()
         now = datetime.now(UTC)
@@ -238,9 +347,12 @@ class RuntimeController:
                     if job.state in STARTED_STATES
                 ),
             ),
-            "robots": tuple(
-                (robot_id, adapter.profile, adapter.room_reach())
-                for robot_id, adapter in core.adapters.items()
+            "robots": (
+                tuple(
+                    (robot_id, adapter.profile, adapter.room_reach())
+                    for robot_id, adapter in core.adapters.items()
+                ),
+                tuple(self._names.items()),
             ),
             "rooms": (
                 projection["rooms"],

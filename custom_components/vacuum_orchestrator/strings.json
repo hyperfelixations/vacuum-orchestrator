@@ -61,6 +61,7 @@
         "invalid_operation": "Use vacuum, mop or vacuum_and_mop for a physical operation.",
         "empty_allowed_operations": "Select at least one operation.",
         "invalid_robot_enabled": "Enabled must be true or false.",
+        "invalid_robot_name": "A robot name must contain 1 to 100 characters.",
         "unsupported_robot_protocol": "The selected robot protocol is not supported.",
         "invalid_robot_preference": "Preference must be an integer between -100 and 100.",
         "invalid_minimum_battery": "Minimum battery must be between 0 and 100.",
@@ -440,6 +441,9 @@
     },
     "invalid_robot_lease": {
       "message": "The robot reservation is invalid"
+    },
+    "invalid_robot_name": {
+      "message": "A robot name must contain 1 to 100 characters."
     },
     "invalid_robot_preference": {
       "message": "The robot preference must be between -100 and 100"

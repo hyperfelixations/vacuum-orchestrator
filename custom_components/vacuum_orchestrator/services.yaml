@@ -468,6 +468,17 @@ remove_robot:
   description: Remove an idle profile and exclude it from automatic rediscovery.
   fields:
     robot_id: *id006
+rename_robot:
+  name: Rename robot
+  description: Give a robot a custom name, or leave the name empty to follow the
+    name of its vacuum in Home Assistant again.
+  fields:
+    robot_id: *id006
+    name:
+      name: Name
+      required: false
+      selector:
+        text: {}
 resolve_recovery:
   name: Resolve recovery
   description: Abandon uncertain work after a verified stop. Explicit confirmation
