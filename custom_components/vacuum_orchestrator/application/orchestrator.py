@@ -29,6 +29,7 @@ from ..domain.errors import (
 from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun
 from ..domain.holds import HoldPurpose, JobHold, lease_end
 from ..domain.intents import UNSET, JobIntent, JobIntentPatch, TargetRef
+from ..domain.permissions import require, returnable
 from ..domain.planning import DispatchAssignment, ExecutionPlan, Planner, WorkUnit
 from ..domain.progress import Progress, job_progress
 from ..domain.queue import Job, OrchestratorState
@@ -837,12 +838,13 @@ class VacuumOrchestrator:
             if adapter is None:
                 raise ConflictError("unknown_robot", robot_id)
             source = adapter.profile.source_robot_id
-            if source in state.robot_leases:
-                raise ConflictError("robot_already_executing")
-            if source in state.blocked_robots:
-                raise ConflictError("robot_needs_attention")
-            if not adapter.profile.capabilities.returns_to_dock:
-                raise ConflictError("return_to_dock_unsupported")
+            require(
+                returnable(
+                    source in state.robot_leases,
+                    source in state.blocked_robots,
+                    adapter.profile.capabilities.returns_to_dock,
+                )
+            )
             session = self._sessions.setdefault(
                 source, RobotSession(source, state.robot_generations.get(source, 0))
             )

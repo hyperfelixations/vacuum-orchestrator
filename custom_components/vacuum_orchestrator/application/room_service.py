@@ -12,11 +12,11 @@ from ..domain.errors import (
     ValidationError,
     located,
 )
+from ..domain.permissions import require, room_editable
 from ..domain.queue import OrchestratorState
 from ..domain.releases import GrantRequest, ReleaseKind, RoomRelease
 from ..domain.room_registry import RoomRegistry
 from ..domain.rooms import Room
-from ..domain.types import JobState
 from ..domain.validation import seconds
 
 Mutation = Callable[[OrchestratorState], OrchestratorState]
@@ -89,8 +89,7 @@ class RoomService:
                 raise ValidationError("room_configuration_changes_runtime_state")
             if new == old:
                 return state
-            if self._is_active(state, old):
-                raise ConflictError("room_has_active_job")
+            require(room_editable(state, old))
             if self._counter_source(new.due_policy) != self._counter_source(
                 old.due_policy
             ):
@@ -316,19 +315,4 @@ class RoomService:
             policy.occupancy_entity_registry_id,
             policy.occupied_state,
             policy.unoccupied_state,
-        )
-
-    @staticmethod
-    def _is_active(state: OrchestratorState, room: Room) -> bool:
-        aliases = {room.room_id, room.area_id}
-        return any(
-            job.state
-            in {
-                JobState.DISPATCHING,
-                JobState.RUNNING,
-                JobState.CANCELING,
-                JobState.NEEDS_ATTENTION,
-            }
-            and any(target.area_id in aliases for target in job.intent.areas)
-            for job in state.jobs.values()
         )

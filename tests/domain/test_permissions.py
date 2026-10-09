@@ -16,10 +16,15 @@ from custom_components.vacuum_orchestrator.domain.permissions import (
     job_actions,
     queue_actions,
     require,
+    robot_actions,
+    room_actions,
+    template_actions,
     unavailable,
 )
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
 from custom_components.vacuum_orchestrator.domain.queue_runs import RunPhase
+from custom_components.vacuum_orchestrator.domain.rooms import Room
+from custom_components.vacuum_orchestrator.domain.templates import JobTemplate
 from custom_components.vacuum_orchestrator.domain.types import JobState
 from custom_components.vacuum_orchestrator.domain.waiting import (
     Blocker,
@@ -173,3 +178,72 @@ def test_require_raises_the_reason() -> None:
     with pytest.raises(ConflictError, match="job_held") as raised:
         require(unavailable("job_held", "edit"))
     assert raised.value.detail == "edit"
+
+
+def test_room_actions_follow_activity_release_and_running_work() -> None:
+    state = _queued()
+    room = Room("kitchen", "Kitchen", "kitchen")
+
+    assert _reasons(room_actions(state, room)) == {
+        "release": None,
+        "revoke": "room_not_released",
+        "edit": None,
+        "disable": None,
+        "enable": "room_enabled",
+        "create_job": None,
+    }
+    excluded = replace(room, enabled=False)
+    assert _reasons(room_actions(state, excluded)) == {
+        "release": "room_unavailable",
+        "revoke": "room_not_released",
+        "edit": None,
+        "disable": "room_disabled",
+        "enable": None,
+        "create_job": "room_unavailable",
+    }
+    started, _unit = _prepared()
+    busy = room_actions(started, room)
+    assert (busy["edit"], busy["disable"]) == (unavailable("room_has_active_job"),) * 2
+    assert busy["release"] == AVAILABLE
+
+
+def test_robot_actions_follow_lease_attention_and_dock() -> None:
+    idle = robot_actions(leased=False, blocked=False, returns=True, at_dock=False)
+    assert _reasons(idle) == {
+        "configure": None,
+        "rename": None,
+        "remove": None,
+        "return_to_dock": None,
+    }
+    leased = robot_actions(leased=True, blocked=True, returns=True, at_dock=False)
+    assert _reasons(leased) == {
+        "configure": "robot_busy",
+        "rename": None,
+        "remove": "robot_busy",
+        "return_to_dock": "robot_already_executing",
+    }
+    for blocked, returns, at_dock, reason in (
+        (True, True, False, "robot_needs_attention"),
+        (False, False, False, "return_to_dock_unsupported"),
+        (False, True, True, "robot_at_dock"),
+        (False, None, None, "robot_unavailable"),
+    ):
+        actions = robot_actions(
+            leased=False, blocked=blocked, returns=returns, at_dock=at_dock
+        )
+        assert actions["return_to_dock"] == unavailable(reason)
+
+
+def test_template_actions_follow_enabled_and_demand() -> None:
+    template = JobTemplate("t", "Daily", INTENT, NOW)
+
+    assert _reasons(template_actions(template)) == {
+        "create_job": None,
+        "edit": None,
+        "remove": None,
+        "reset_demand": "no_suppressed_demand",
+    }
+    paused = replace(template, enabled=False, demand_tokens={"kitchen": "token"})
+    actions = template_actions(paused)
+    assert actions["create_job"] == unavailable("template_disabled")
+    assert actions["reset_demand"] == AVAILABLE

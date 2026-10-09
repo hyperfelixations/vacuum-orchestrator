@@ -8,6 +8,7 @@ from hashlib import sha256
 from ..domain.due import DueState
 from ..domain.errors import ConflictError
 from ..domain.intents import JobIntent, TargetRef
+from ..domain.permissions import instantiable, require
 from ..domain.queue import JobProvenance, OrchestratorState
 from ..domain.templates import JobTemplate, requested_operations
 from ..domain.types import JobState, ProvenanceKind
@@ -136,8 +137,7 @@ class TemplateService:
             template = state.templates.get(template_id)
             if template is None:
                 raise ConflictError("unknown_template")
-            if not template.enabled:
-                raise ConflictError("template_disabled")
+            require(instantiable(template))
             return state.add_job(
                 job_id,
                 replace(template.intent, areas=self._targets(state, template)),
@@ -156,6 +156,8 @@ class TemplateService:
             template = state.templates.get(template_id)
             if template is None:
                 raise ConflictError("unknown_template")
+            if not template.demand_tokens:
+                return state
             return replace(
                 state,
                 commit_id=state.commit_id + 1,

@@ -21,6 +21,7 @@ from .const import (
     SUBENTRY_TYPE_ROBOT,
 )
 from .domain.errors import ConflictError, ValidationError, located
+from .domain.permissions import require, robot_idle
 from .domain.types import MopRoute, OperationKind, VacuumLevel, WaterLevel
 from .domain.validation import identifier, seconds
 
@@ -318,11 +319,15 @@ def require_idle_robot(entry: ConfigEntry, robot_id: str) -> ConfigSubentry:
     """Validate mutation ownership for both configuration flows and public commands."""
     subentry = require_robot(entry, robot_id)
     runtime = getattr(entry, "runtime_data", None)
-    if runtime is not None and any(
-        lease.robot_id == robot_id
-        for lease in runtime.orchestrator.state.robot_leases.values()
-    ):
-        raise ConflictError("robot_busy")
+    require(
+        robot_idle(
+            runtime is not None
+            and any(
+                lease.robot_id == robot_id
+                for lease in runtime.orchestrator.state.robot_leases.values()
+            )
+        )
+    )
     return subentry
 
 

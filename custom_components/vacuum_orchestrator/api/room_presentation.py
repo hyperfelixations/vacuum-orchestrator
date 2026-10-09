@@ -1,21 +1,28 @@
 """Rich room and robot projections for optional clients and configuration views."""
 
+from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import datetime
 from typing import Any
 
+from ..domain.permissions import Availability
 from ..domain.rooms import Room
 from ..domain.types import OperationKind
 from ..infrastructure.room_codec import encode_room
+from .presentation import present_actions
 
 
 def present_room(
-    room: Room, now: datetime, waiting_job_ids: tuple[str, ...] = ()
+    room: Room,
+    now: datetime,
+    waiting_job_ids: tuple[str, ...],
+    actions: Mapping[str, Availability],
 ) -> dict[str, Any]:
-    """Expose policy, grant, due state and the jobs waiting for its release."""
+    """Expose policy, grant, due state, waiting jobs and allowed actions."""
     result = dict(encode_room(room))
     result["released"] = room.released(now)
     result["waiting_job_ids"] = list(waiting_job_ids)
+    result["actions"] = present_actions(actions)
     result["due"] = {
         operation.value: {
             **asdict(report),

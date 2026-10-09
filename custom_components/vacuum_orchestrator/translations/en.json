@@ -592,6 +592,9 @@
     "no_rooms": {
       "message": "No room was specified"
     },
+    "no_suppressed_demand": {
+      "message": "No job was created for the current due period yet"
+    },
     "non_monotonic_commit": {
       "message": "The state changed concurrently; retry the action"
     },
@@ -697,6 +700,9 @@
     "robot_already_executing": {
       "message": "The robot is already running a job"
     },
+    "robot_at_dock": {
+      "message": "The robot is already at its dock"
+    },
     "robot_availability_unknown": {
       "message": "The robot's availability is unknown"
     },
@@ -753,6 +759,12 @@
     },
     "room_configuration_changes_runtime_state": {
       "message": "Cleaning history and releases cannot be changed through the room configuration"
+    },
+    "room_disabled": {
+      "message": "The room is already excluded from cleaning"
+    },
+    "room_enabled": {
+      "message": "The room is already included in cleaning"
     },
     "room_has_active_job": {
       "message": "The room has an active job"

@@ -31,6 +31,7 @@ from ..domain.errors import (
 from ..domain.holds import HoldPurpose
 from ..domain.intents import CleaningPreferences
 from ..domain.maps import RobotMaps
+from ..domain.permissions import robot_actions, room_actions, template_actions
 from ..domain.queue import MAX_START_DELAY_SECONDS
 from ..domain.releases import GrantRequest, ReleaseKind
 from ..domain.templates import JobTemplate
@@ -64,6 +65,7 @@ from .job_input import (
     water_level,
 )
 from .presentation import (
+    present_actions,
     present_job,
     present_job_defaults,
     present_job_view,
@@ -425,13 +427,23 @@ def query_configuration(
         waiting = core.jobs_awaiting_release()
         return {
             "api_version": API_VERSION,
-            **present_room(room, now, waiting.get(room.room_id, ())),
+            **present_room(
+                room,
+                now,
+                waiting.get(room.room_id, ()),
+                room_actions(core.state, room),
+            ),
         }
     if name == "get_rooms":
         waiting = core.jobs_awaiting_release()
         return page(
             [
-                present_room(room, now, waiting.get(room.room_id, ()))
+                present_room(
+                    room,
+                    now,
+                    waiting.get(room.room_id, ()),
+                    room_actions(core.state, room),
+                )
                 for room in core.rooms.registry.rooms.values()
             ],
             data,
@@ -460,6 +472,10 @@ def query_configuration(
     for robot_id, subentry in controller.entry.subentries.items():
         adapter = core.adapters.get(robot_id)
         profile = adapter.profile if adapter else None
+        observation = core.latest_observations.get(robot_id)
+        leased = any(
+            lease.robot_id == robot_id for lease in core.state.robot_leases.values()
+        )
         robots.append(
             {
                 "robot_id": robot_id,
@@ -483,9 +499,17 @@ def query_configuration(
                     for item in adapter.room_reach()
                 ],
                 **present_maps(adapter.maps() if adapter else RobotMaps()),
-                "active": any(
-                    lease.robot_id == robot_id
-                    for lease in core.state.robot_leases.values()
+                "active": leased,
+                "actions": present_actions(
+                    robot_actions(
+                        leased=leased,
+                        blocked=profile is not None
+                        and profile.source_robot_id in core.state.blocked_robots,
+                        returns=profile.capabilities.returns_to_dock
+                        if profile
+                        else None,
+                        at_dock=observation.at_dock if observation else None,
+                    )
                 ),
                 "blocked_reason": core.state.blocked_robots.get(profile.source_robot_id)
                 if profile
@@ -720,6 +744,7 @@ def present_template(
         "automatic": template.automatic,
         "updated_at": template.updated_at.isoformat(),
         "suppressed_room_ids": list(template.demand_tokens),
+        "actions": present_actions(template_actions(template)),
     }
 
 

@@ -16,9 +16,19 @@ from .types import JobState
 
 if TYPE_CHECKING:
     from .queue import Job, OrchestratorState
+    from .rooms import Room
+    from .templates import JobTemplate
     from .waiting import Waiting
 
 TERMINAL_STATES = frozenset({JobState.COMPLETED, JobState.FAILED, JobState.CANCELLED})
+_ROOM_IN_USE = frozenset(
+    {
+        JobState.DISPATCHING,
+        JobState.RUNNING,
+        JobState.CANCELING,
+        JobState.NEEDS_ATTENTION,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,3 +153,88 @@ def _startable(job: Job, waiting: Waiting | None) -> Availability:
 def _boundary(job: Job, at_boundary: bool, boundary: Availability) -> Availability:
     availability = movable(job)
     return boundary if availability.available and at_boundary else availability
+
+
+def room_in_use(state: OrchestratorState, room: Room) -> bool:
+    """Return whether started or unresolved work targets the room."""
+    aliases = {room.room_id, room.area_id}
+    return any(
+        job.state in _ROOM_IN_USE
+        and any(target.area_id in aliases for target in job.intent.areas)
+        for job in state.jobs.values()
+    )
+
+
+def room_editable(state: OrchestratorState, room: Room) -> Availability:
+    """`update_room`, `disable_room`, `enable_room`: never under running work."""
+    return unavailable("room_has_active_job") if room_in_use(state, room) else AVAILABLE
+
+
+def room_actions(state: OrchestratorState, room: Room) -> Mapping[str, Availability]:
+    """Offer each room action; enabling or disabling twice changes nothing."""
+    usable = (
+        AVAILABLE
+        if room.enabled and not room.area_missing
+        else unavailable("room_unavailable")
+    )
+    edit = room_editable(state, room)
+    return {
+        "release": usable,
+        "revoke": AVAILABLE
+        if room.release is not None
+        else unavailable("room_not_released"),
+        "edit": edit,
+        "disable": edit if room.enabled else unavailable("room_disabled"),
+        "enable": unavailable("room_enabled") if room.enabled else edit,
+        "create_job": usable,
+    }
+
+
+def robot_idle(leased: bool) -> Availability:
+    """`configure_robot`, `remove_robot`: never while a job owns the robot."""
+    return unavailable("robot_busy") if leased else AVAILABLE
+
+
+def returnable(leased: bool, blocked: bool, returns: bool | None) -> Availability:
+    """`return_robot`; `returns` is None without a loaded adapter."""
+    if returns is None:
+        return unavailable("robot_unavailable")
+    if leased:
+        return unavailable("robot_already_executing")
+    if blocked:
+        return unavailable("robot_needs_attention")
+    if not returns:
+        return unavailable("return_to_dock_unsupported")
+    return AVAILABLE
+
+
+def robot_actions(
+    *, leased: bool, blocked: bool, returns: bool | None, at_dock: bool | None
+) -> Mapping[str, Availability]:
+    """Offer each robot action; a docked robot is not sent home again."""
+    home = returnable(leased, blocked, returns)
+    return {
+        "configure": robot_idle(leased),
+        "rename": AVAILABLE,
+        "remove": robot_idle(leased),
+        "return_to_dock": unavailable("robot_at_dock")
+        if home.available and at_dock
+        else home,
+    }
+
+
+def template_actions(template: JobTemplate) -> Mapping[str, Availability]:
+    """Offer each template action."""
+    return {
+        "create_job": instantiable(template),
+        "edit": AVAILABLE,
+        "remove": AVAILABLE,
+        "reset_demand": AVAILABLE
+        if template.demand_tokens
+        else unavailable("no_suppressed_demand"),
+    }
+
+
+def instantiable(template: JobTemplate) -> Availability:
+    """`create_job_from_template`: only enabled templates."""
+    return AVAILABLE if template.enabled else unavailable("template_disabled")

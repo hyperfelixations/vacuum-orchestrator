@@ -592,6 +592,9 @@
     "no_rooms": {
       "message": "Es wurde kein Raum angegeben"
     },
+    "no_suppressed_demand": {
+      "message": "Für die aktuelle Fälligkeit wurde noch kein Auftrag angelegt"
+    },
     "non_monotonic_commit": {
       "message": "Der Zustand wurde gleichzeitig geändert; wiederhole die Aktion"
     },
@@ -697,6 +700,9 @@
     "robot_already_executing": {
       "message": "Der Roboter führt bereits einen Auftrag aus"
     },
+    "robot_at_dock": {
+      "message": "Der Roboter ist bereits an seiner Station"
+    },
     "robot_availability_unknown": {
       "message": "Die Verfügbarkeit des Roboters ist unbekannt"
     },
@@ -753,6 +759,12 @@
     },
     "room_configuration_changes_runtime_state": {
       "message": "Reinigungsverlauf und Freigaben können nicht über die Raumkonfiguration geändert werden"
+    },
+    "room_disabled": {
+      "message": "Der Raum ist bereits von der Reinigung ausgeschlossen"
+    },
+    "room_enabled": {
+      "message": "Der Raum wird bereits gereinigt"
     },
     "room_has_active_job": {
       "message": "Der Raum hat einen aktiven Auftrag"
