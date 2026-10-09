@@ -1,7 +1,6 @@
 """Authenticated room, robot and recovery actions sharing canonical validators."""
 
 from collections.abc import Callable, Coroutine
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
 import probatio
@@ -373,7 +372,7 @@ def query_configuration(
     """Read rich configuration models without invoking device services."""
     runtime = async_get_runtime(hass)
     core = runtime.orchestrator
-    now = datetime.now(UTC)
+    now = core.now()
     if name == "get_diagnostics":
         return build_diagnostics(runtime)
     if name == "get_trace":
