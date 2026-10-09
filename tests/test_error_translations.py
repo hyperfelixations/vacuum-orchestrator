@@ -40,7 +40,7 @@ ERRORS = {
     "StorageIntegrityError",
     "OrchestratorError",
 }
-CODE_ARGUMENT = {"identifier": 1}
+CODE_ARGUMENT = {"identifier": 1, "unavailable": 0}
 # Call sites whose code is computed; each maps to every value it can produce.
 DYNAMIC = {
     ("adapters/home_assistant_vacuum.py", "DispatchNotStartedError(code)"): {
@@ -68,6 +68,10 @@ DYNAMIC = {
         "domain/dispatching.py",
         "PlanningError(problems[0].code, problems[0].detail)",
     ): MOMENTARY_CODES | STRUCTURAL_CODES,
+    (
+        "domain/permissions.py",
+        "ConflictError(str(availability.reason), availability.detail)",
+    ): set(),
     ("domain/intents.py", "ValidationError(f'invalid_{field}', path=(field,))"): {
         "invalid_required_on",
         "invalid_required_off",

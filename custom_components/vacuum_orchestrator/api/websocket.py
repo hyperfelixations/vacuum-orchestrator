@@ -34,7 +34,7 @@ from .configuration import (
     execute_configuration,
 )
 from .errors import send_websocket_error
-from .presentation import present_job, present_queue, server_time, view_metadata
+from .presentation import present_job_view, present_queue, server_time, view_metadata
 
 TYPE_QUEUE_GET = "vacuum_orchestrator/queue/get"
 TYPE_JOB_GET = "vacuum_orchestrator/job/get"
@@ -130,14 +130,8 @@ async def websocket_queue_get(
         limit = msg["limit"]
         selected = state.queue[offset : offset + limit]
         jobs = [
-            present_job(
-                state.jobs[job_id],
-                orchestrator.entity_references,
-                orchestrator.readiness_for_job(job_id),
-                state.room_registry.rooms,
-                hold=orchestrator.job_hold(job_id),
-                waiting=orchestrator.waiting(job_id),
-                progress=orchestrator.progress(job_id),
+            present_job_view(
+                orchestrator, state.jobs[job_id], orchestrator.readiness_for_job(job_id)
             )
             for job_id in selected
         ]
@@ -171,15 +165,8 @@ async def websocket_job_get(
             raise ConflictError("unknown_job", msg["job_id"])
         connection.send_result(
             msg["id"],
-            present_job(
-                job,
-                orchestrator.entity_references,
-                orchestrator.readiness_before_start(job.job_id),
-                orchestrator.state.room_registry.rooms,
-                orchestrator.state.attempts,
-                hold=orchestrator.job_hold(job.job_id),
-                waiting=orchestrator.waiting(job.job_id),
-                progress=orchestrator.progress(job.job_id),
+            present_job_view(
+                orchestrator, job, orchestrator.readiness_before_start(job.job_id)
             )
             | view_metadata(orchestrator),
         )
@@ -220,15 +207,7 @@ async def websocket_jobs_list(
                 "offset": offset,
                 "limit": limit,
                 "jobs": [
-                    present_job(
-                        job,
-                        orchestrator.entity_references,
-                        rooms=state.room_registry.rooms,
-                        attempts=state.attempts,
-                        hold=orchestrator.job_hold(job.job_id),
-                        waiting=orchestrator.waiting(job.job_id),
-                        progress=orchestrator.progress(job.job_id),
-                    )
+                    present_job_view(orchestrator, job)
                     for job in ordered[offset : offset + limit]
                 ],
             }

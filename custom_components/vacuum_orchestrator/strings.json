@@ -487,6 +487,12 @@
     "job_already_exists": {
       "message": "A job with this identifier already exists"
     },
+    "job_at_bottom": {
+      "message": "The job is already last in the queue"
+    },
+    "job_at_top": {
+      "message": "The job is already first in the queue"
+    },
     "job_blocked": {
       "message": "The job's start conditions are not met"
     },
@@ -521,7 +527,10 @@
       "message": "Only finished jobs can be retried"
     },
     "job_not_startable": {
-      "message": "The job was not started"
+      "message": "The job cannot start now"
+    },
+    "job_not_started": {
+      "message": "Only started jobs can be cancelled; a waiting job is deleted"
     },
     "job_not_waiting": {
       "message": "The job no longer waits in the queue"
@@ -616,11 +625,17 @@
     "queue_contains_non_queued_job": {
       "message": "The queue contains a job that is not waiting"
     },
+    "queue_ending": {
+      "message": "The queue is already ending"
+    },
     "queue_grace_out_of_range": {
       "message": "The queue grace time must be between 0 and 86400 seconds"
     },
     "queue_not_running": {
       "message": "The queue is not running"
+    },
+    "queue_paused": {
+      "message": "The queue is already paused"
     },
     "queue_references_unknown_job": {
       "message": "The queue references an unknown job"
@@ -630,6 +645,9 @@
     },
     "queue_run_time_order": {
       "message": "The queue run times are out of order"
+    },
+    "queue_running": {
+      "message": "The queue is already running"
     },
     "queued_job_missing_from_queue": {
       "message": "A waiting job is missing from the queue"

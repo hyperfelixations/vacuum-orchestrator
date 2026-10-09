@@ -9,6 +9,7 @@ from ..const import API_VERSION, INTEGRATION_VERSION
 from ..domain.execution import ExecutionAttempt
 from ..domain.holds import JobHold
 from ..domain.job_defaults import JobDefaults
+from ..domain.permissions import Availability, job_actions, queue_actions
 from ..domain.planning import SettingsResolution
 from ..domain.progress import Progress
 from ..domain.queue import Job, OrchestratorState
@@ -105,6 +106,37 @@ def present_waiting(waiting: Waiting, entities: EntityReferences) -> dict[str, o
     }
 
 
+def present_actions(actions: Mapping[str, Availability]) -> dict[str, object]:
+    """Serialize which actions are offered now and why not."""
+    return {
+        name: {
+            "available": item.available,
+            "reason": item.reason,
+            "detail": item.detail,
+        }
+        for name, item in actions.items()
+    }
+
+
+def present_job_view(
+    core: VacuumOrchestrator, job: Job, readiness: ReadinessReport | None = None
+) -> dict[str, object]:
+    """Serialize a job with its hold, waiting reason, progress and actions."""
+    state = core.state
+    waiting = core.waiting(job.job_id)
+    return present_job(
+        job,
+        core.entity_references,
+        readiness,
+        state.room_registry.rooms,
+        state.attempts,
+        hold=core.job_hold(job.job_id),
+        waiting=waiting,
+        progress=core.progress(job.job_id),
+        actions=job_actions(state, job, core.now(), waiting),
+    )
+
+
 def present_job(
     job: Job,
     entities: EntityReferences,
@@ -115,6 +147,7 @@ def present_job(
     hold: JobHold | None = None,
     waiting: Waiting | None = None,
     progress: Progress | None = None,
+    actions: Mapping[str, Availability] | None = None,
 ) -> dict[str, object]:
     """Serialize one bounded job record; a hold never reveals its token."""
     intent = job.intent
@@ -182,6 +215,7 @@ def present_job(
             "phase_percent": progress.phase_percent,
             "percent": progress.percent,
         },
+        "actions": None if actions is None else present_actions(actions),
         "active_attempt_id": job.active_attempt_id,
         "origin": {
             "kind": job.provenance.kind.value,
@@ -269,6 +303,7 @@ def present_queue(
             if state.queue_run.completed_at
             else None,
         },
+        "actions": present_actions(queue_actions(phase)),
         "total": len(state.queue),
         "offset": offset,
         "limit": limit,

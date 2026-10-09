@@ -53,7 +53,12 @@ from .job_input import (
     intent_from_data,
     patch_from_data,
 )
-from .presentation import present_job, present_queue, present_settings, view_metadata
+from .presentation import (
+    present_job_view,
+    present_queue,
+    present_settings,
+    view_metadata,
+)
 from .telemetry import command_trace
 
 JOB_SCHEMA = probatio.Schema({probatio.Required(ATTR_JOB_ID): cv.string})
@@ -262,14 +267,10 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         limit = call.data[ATTR_LIMIT]
         selected = state.queue[offset : offset + limit]
         jobs = [
-            present_job(
+            present_job_view(
+                runtime.orchestrator,
                 state.jobs[job_id],
-                runtime.orchestrator.entity_references,
                 runtime.orchestrator.readiness_for_job(job_id),
-                state.room_registry.rooms,
-                hold=runtime.orchestrator.job_hold(job_id),
-                waiting=runtime.orchestrator.waiting(job_id),
-                progress=runtime.orchestrator.progress(job_id),
             )
             for job_id in selected
         ]
@@ -293,15 +294,10 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
             raise service_error(ConflictError("unknown_job", call.data[ATTR_JOB_ID]))
         return cast(
             ServiceResponse,
-            present_job(
+            present_job_view(
+                runtime.orchestrator,
                 job,
-                runtime.orchestrator.entity_references,
                 runtime.orchestrator.readiness_before_start(job.job_id),
-                state.room_registry.rooms,
-                state.attempts,
-                hold=runtime.orchestrator.job_hold(job.job_id),
-                waiting=runtime.orchestrator.waiting(job.job_id),
-                progress=runtime.orchestrator.progress(job.job_id),
             )
             | view_metadata(runtime.orchestrator),
         )

@@ -66,6 +66,7 @@ from .job_input import (
 from .presentation import (
     present_job,
     present_job_defaults,
+    present_job_view,
     present_references,
     present_settings,
     view_metadata,
@@ -559,14 +560,8 @@ async def _execute_configuration(
         result.update(
             hold_id=hold.hold_id,
             expires_at=hold.expires_at.isoformat(),
-            job=present_job(
-                core.state.jobs[hold.job_id],
-                core.entity_references,
-                core.readiness_for_job(hold.job_id),
-                core.state.room_registry.rooms,
-                hold=hold,
-                waiting=core.waiting(hold.job_id),
-                progress=core.progress(hold.job_id),
+            job=present_job_view(
+                core, core.state.jobs[hold.job_id], core.readiness_for_job(hold.job_id)
             ),
         )
     elif name == "renew_job_hold":

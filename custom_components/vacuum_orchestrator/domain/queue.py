@@ -13,6 +13,14 @@ from .execution import ExecutionAttempt, RobotLease, RobotRun, RunCorrelation
 from .holds import JobHold
 from .intents import JobIntent, JobIntentPatch
 from .job_defaults import JobDefaults
+from .permissions import (
+    deletable,
+    editable,
+    holdable,
+    movable,
+    require,
+    retryable,
+)
 from .planning import (
     DispatchAssignment,
     ExecutionPlan,
@@ -35,7 +43,6 @@ from .validation import seconds
 
 START_DELAY_SECONDS = 5.0
 MAX_START_DELAY_SECONDS = 600
-_TERMINAL = frozenset({JobState.COMPLETED, JobState.FAILED, JobState.CANCELLED})
 _ACTIVE = frozenset({JobState.DISPATCHING, JobState.RUNNING, JobState.CANCELING})
 _TARGET_RESERVED = _ACTIVE | {JobState.NEEDS_ATTENTION}
 
@@ -223,8 +230,7 @@ class OrchestratorState:
     ) -> OrchestratorState:
         """Apply a partial update to a queued job; saving also ends its hold."""
         job = self._job(job_id)
-        if job.state is not JobState.QUEUED:
-            raise ConflictError("job_not_editable")
+        require(editable(job))
         held = self._permitted_hold(job_id, hold_id, now)
         if patch.empty and held is not None:
             intent = job.intent
@@ -255,8 +261,7 @@ class OrchestratorState:
     ) -> OrchestratorState:
         """Delete queued or terminal history, never active, ambiguous or held work."""
         job = self._job(job_id)
-        if job.state not in {JobState.QUEUED, *_TERMINAL}:
-            raise ConflictError("job_not_deletable")
+        require(deletable(job))
         self._permitted_hold(job_id, hold_id, now)
         jobs = dict(self.jobs)
         del jobs[job_id]
@@ -313,8 +318,7 @@ class OrchestratorState:
     def move_job(self, job_id: str, direction: MoveDirection) -> OrchestratorState:
         """Move one queued job by a simple relative or absolute direction."""
         job = self._job(job_id)
-        if job.state is not JobState.QUEUED:
-            raise ConflictError("job_not_movable")
+        require(movable(job))
         queue = list(self.queue)
         index = queue.index(job_id)
         if direction is MoveDirection.UP:
@@ -800,8 +804,7 @@ class OrchestratorState:
     ) -> OrchestratorState:
         """Create a new queued job while preserving terminal history."""
         job = self._job(job_id)
-        if job.state not in _TERMINAL:
-            raise ConflictError("job_not_retryable")
+        require(retryable(job))
         if retry_job_id in self.jobs:
             raise ConflictError("job_already_exists")
         jobs = dict(self.jobs)
@@ -972,8 +975,7 @@ class OrchestratorState:
     def hold_job(self, hold: JobHold, now: datetime) -> OrchestratorState:
         """Protect a waiting job from every start until the hold ends."""
         job = self._job(hold.job_id)
-        if job.state is not JobState.QUEUED:
-            raise ConflictError("job_not_waiting")
+        require(holdable(job))
         self._permitted_hold(hold.job_id, None, now)
         return self._replace(job_holds={**self.job_holds, hold.job_id: hold})
 
