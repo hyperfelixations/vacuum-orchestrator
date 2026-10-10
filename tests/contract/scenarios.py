@@ -1,0 +1,314 @@
+"""What a card experiences in realistic homes; each scenario becomes a recording.
+
+See dev doc "Aufzeichnungen". A scenario drives the integration only through
+the card's WebSocket and changes the home only as its devices would.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any
+
+from homeassistant.core import HomeAssistant
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.vacuum_orchestrator.const import CONF_INSTALLATION_ID, DOMAIN
+from tests.contract.recorder import Session, action
+from tests.realistic import Household, busy, single_roborock
+
+
+@dataclass
+class Stage:
+    """The home, the card's connection and the not yet loaded integration."""
+
+    hass: HomeAssistant
+    home: Household
+    session: Session
+    entry: MockConfigEntry
+
+    async def load(self) -> None:
+        """Set the integration up as HA does after the user added it."""
+        self.entry.add_to_hass(self.hass)
+        assert await self.hass.config_entries.async_setup(self.entry.entry_id)
+        await self.session.settle()
+
+    async def open(self) -> None:
+        """Load the integration, then open the card: subscribe and read."""
+        await self.load()
+        await self.session.request({"type": f"{DOMAIN}/subscribe"})
+        await self.session.read()
+
+    async def rooms(self) -> dict[str, str]:
+        """VOI room IDs by area name, as the card reads them."""
+        names = {area_id: name for name, area_id in self.home.areas.items()}
+        rooms = (await self.session.query("get_rooms"))["rooms"]
+        return {names[room["area_id"]]: room["room_id"] for room in rooms}
+
+    async def release(self, *names: str) -> None:
+        """Release rooms permanently, as the release dialog does."""
+        rooms = await self.rooms()
+        await self.session.command(
+            "release_rooms",
+            grants=[{"room": rooms[name], "kind": "permanent"} for name in names],
+        )
+
+    def areas(self, *names: str) -> list[str]:
+        """HA area IDs by name."""
+        return [self.home.areas[name] for name in names]
+
+
+@dataclass(frozen=True)
+class Scenario:
+    """A named card experience in a household."""
+
+    household: Callable[[HomeAssistant], Household]
+    run: Callable[[Stage], Awaitable[None]]
+
+    @property
+    def description(self) -> str:
+        """What the recording shows."""
+        return " ".join((self.run.__doc__ or "").split())
+
+
+def entry() -> MockConfigEntry:
+    """The integration's config entry as the config flow creates it."""
+    return MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
+
+
+def _job_id(frame: dict[str, Any]) -> str:
+    assert frame["success"], frame
+    return str(frame["result"]["response"]["job_id"])
+
+
+async def setup(stage: Stage) -> None:
+    """First installation: the card waits for the integration, which finds the
+    Roborock and imports the areas as locked rooms; the assistant renames the
+    robot, sets the start delay and completes the setup. Each command's view
+    event arrives before its result."""
+    session = stage.session
+    await session.request({"type": f"{DOMAIN}/subscribe"})
+    await stage.load()
+    await session.read()
+    await session.query("get_robot_candidates")
+    (robot,) = (await session.query("get_robots"))["robots"]
+    await session.command(
+        "rename_robot", robot_id=robot["robot_id"], name="Saugi unten"
+    )
+    await session.command("configure_queue", start_delay_seconds=10)
+    await session.command("complete_setup")
+    await session.read()
+
+
+async def start_delay(stage: Stage) -> None:
+    """The queue runs; a job for two locked rooms waits for their release.
+    Released one second later, kitchen once and hall for four hours, it starts
+    after the remaining start delay and cleans both rooms."""
+    session, robot = stage.session, stage.home.roborock
+    await stage.open()
+    await session.action("run_queue")
+    await session.action("create_job", areas=stage.areas("Küche", "Flur"))
+    await session.read()
+    await session.advance(1)
+    rooms = await stage.rooms()
+    await session.command(
+        "release_rooms",
+        grants=[
+            {"room": rooms["Küche"], "kind": "once"},
+            {"room": rooms["Flur"], "kind": "timed", "duration_seconds": 14400},
+        ],
+    )
+    await session.read()
+    await session.advance(4)
+    await session.read()
+    robot.clean()
+    await session.home("Saugi cleans the kitchen and the hall")
+    await session.advance(300)
+    await session.read()
+    robot.return_home()
+    await session.home("Saugi drives home")
+    await session.advance(60)
+    robot.dock_after_run()
+    await session.home("Saugi charges at its dock")
+    await session.advance(60)
+    await session.read()
+
+
+async def job_hold(stage: Stage) -> None:
+    """Editing holds a waiting job: a second card's hold and a start are
+    refused with translated errors, saving restarts the start delay. A
+    deletion is confirmed under its own hold. Invalid input names its field."""
+    session = stage.session
+    await stage.open()
+    await stage.release("Küche", "Flur")
+    await session.action("run_queue")
+    job = _job_id(await session.action("create_job", areas=stage.areas("Küche")))
+    edit = await session.command("hold_job", job_id=job, purpose="edit")
+    hold = edit["result"]["hold_id"]
+    await session.command("hold_job", job_id=job, purpose="edit")
+    await session.action("start_job", job_id=job)
+    await session.read()
+    await session.advance(30)
+    await session.command("renew_job_hold", hold_id=hold)
+    await session.action(
+        "update_job", job_id=job, hold_id=hold, areas=stage.areas("Küche", "Flur")
+    )
+    await session.read()
+    confirm = await session.command("hold_job", job_id=job, purpose="confirm")
+    await session.action("delete_job", job_id=job, hold_id=confirm["result"]["hold_id"])
+    await session.action(
+        "create_job", areas=stage.areas("Küche"), all_rooms=True, mode="vacuum"
+    )
+    await session.command("configure_queue", start_delay_seconds=601)
+    await session.read()
+
+
+async def reload(stage: Stage) -> None:
+    """The integration reloads while the card is open: the card sees it
+    unloaded, then loaded with a new runtime and unchanged data."""
+    session = stage.session
+    await stage.open()
+    await session.action("create_job", areas=stage.areas("Flur"))
+    assert await stage.hass.config_entries.async_reload(stage.entry.entry_id)
+    await session.home("Home Assistant reloads the integration")
+    await session.read()
+
+
+async def delayed_answer(stage: Stage) -> None:
+    """The robot's cloud answers the start command slowly: the card reads the
+    queue while the start is pending, then the start's result arrives."""
+    session, robot = stage.session, stage.home.roborock
+    await stage.open()
+    await stage.release("Wohnzimmer")
+    answer = robot.delay_commands()
+    async with session.stalled():
+        await session.send(
+            action("create_job", areas=stage.areas("Wohnzimmer"), start=True)
+        )
+        await robot.waiting.wait()
+        await session.read()
+        answer.set()
+    await session.home("Saugi's cloud confirms the command")
+    await session.read()
+
+
+async def device_fault(stage: Stage) -> None:
+    """The station's clean water runs out while Saugi mops and Saugi stops: the
+    job waits for the fix and shows when it would fail; refilled, Saugi mops
+    again and the job completes."""
+    session, robot = stage.session, stage.home.roborock
+    await stage.open()
+    await stage.release("Küche")
+    await session.action(
+        "create_job", areas=stage.areas("Küche"), mode="mop", start=True
+    )
+    robot.clean()
+    await session.home("Saugi mops the kitchen")
+    await session.advance(60)
+    robot.set("clean_box_empty", "on")
+    robot.pause()
+    await session.home("The clean water tank is empty; Saugi stops")
+    await session.read()
+    await session.advance(300)
+    await session.read()
+    robot.set("clean_box_empty", "off")
+    await session.home("Someone refills the clean water tank")
+    await session.read()
+    robot.clean()
+    await session.home("Saugi mops again")
+    await session.advance(300)
+    robot.return_home()
+    await session.home("Saugi drives home")
+    await session.advance(60)
+    robot.dock_after_run()
+    await session.home("Saugi charges at its dock")
+    await session.advance(60)
+    await session.read()
+
+
+async def attention(stage: Stage) -> None:
+    """The station reports a full dirty water tank while Saugi rests: VOI asks
+    for attention at once; a mop job waits for the robot, a vacuum job starts."""
+    session, robot = stage.session, stage.home.roborock
+    await stage.open()
+    await stage.release("Küche", "Flur")
+    robot.set("dirty_box_full", "on")
+    await session.home("The dirty water tank is full")
+    await session.read()
+    await session.action("run_queue")
+    await session.action("create_job", areas=stage.areas("Küche"), mode="mop")
+    await session.action("create_job", areas=stage.areas("Flur"), mode="vacuum")
+    await session.advance(5)
+    await session.read()
+
+
+async def external_run(stage: Stage) -> None:
+    """Saugi cleans a run started in its app: the card shows it as external and
+    a new job waits for the robot; after the run the job starts."""
+    session, robot = stage.session, stage.home.roborock
+    await stage.open()
+    await stage.release("Flur")
+    await session.action("run_queue")
+    await session.action("create_job", areas=stage.areas("Flur"))
+    await session.advance(5)
+    await session.read()
+    robot.return_home()
+    await session.home("Saugi's app run ends; Saugi drives home")
+    await session.advance(60)
+    robot.dock_after_run()
+    await session.home("Saugi charges at its dock")
+    await session.advance(5)
+    await session.read()
+
+
+async def recovery(stage: Stage) -> None:
+    """Saugi goes offline while cleaning and stays away past the connection
+    window: the job needs clarification and keeps its incident. The user frees
+    the robot, then corrects the failed job to completed."""
+    session, robot = stage.session, stage.home.roborock
+    await stage.open()
+    await stage.release("Wohnzimmer")
+    job = _job_id(
+        await session.action("create_job", areas=stage.areas("Wohnzimmer"), start=True)
+    )
+    robot.clean()
+    await session.home("Saugi cleans the living room")
+    await session.advance(60)
+    robot.set_vacuum("unavailable")
+    await session.home("Saugi goes offline")
+    await session.advance(300)
+    await session.read()
+    await session.advance(300)
+    await session.read()
+    await session.query("get_trace", job_id=job)
+    robot.dock_after_run()
+    await session.home("Saugi is back at its dock")
+    (robot_view,) = (await session.query("get_robots"))["robots"]
+    await session.command(
+        "resolve_recovery", robot_id=robot_view["robot_id"], confirm_stopped=True
+    )
+    await session.read()
+    await session.action("correct_job", job_id=job, outcome="completed")
+    await session.request({"type": f"{DOMAIN}/job/get", "job_id": job})
+    await session.query("get_rooms")
+
+
+SCENARIOS: dict[str, Scenario] = {
+    "setup": Scenario(single_roborock, setup),
+    "start_delay": Scenario(single_roborock, start_delay),
+    "job_hold": Scenario(single_roborock, job_hold),
+    "reload": Scenario(single_roborock, reload),
+    "delayed_answer": Scenario(single_roborock, delayed_answer),
+    "device_fault": Scenario(single_roborock, device_fault),
+    "attention": Scenario(single_roborock, attention),
+    "external_run": Scenario(busy, external_run),
+    "recovery": Scenario(single_roborock, recovery),
+}
+
+
+def home_of(home: Household) -> dict[str, Any]:
+    """The HA side a consumer needs to render a recording."""
+    return {
+        "areas": home.areas,
+        "vacuums": {name: robot.entity_id for name, robot in home.robots.items()},
+    }

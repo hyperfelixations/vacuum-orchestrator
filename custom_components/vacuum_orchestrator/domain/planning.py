@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from uuid import uuid4
@@ -110,6 +110,9 @@ class DispatchAssignment:
 class Planner:
     """Compile user intent without inspecting or selecting a robot."""
 
+    def __init__(self, id_factory: Callable[[], str] = lambda: str(uuid4())) -> None:
+        self._id_factory = id_factory
+
     def create_plan(self, job_id: str, intent: JobIntent) -> ExecutionPlan:
         """Build the exact logical work-unit sequence for an intent."""
         operations = operations_for_mode(intent.mode)
@@ -120,7 +123,7 @@ class Planner:
             dependency = (units[-1].work_unit_id,) if units else ()
             units.append(
                 WorkUnit(
-                    work_unit_id=str(uuid4()),
+                    work_unit_id=self._id_factory(),
                     operation=operation,
                     canonical_targets=targets,
                     map_context=map_context,
@@ -132,7 +135,7 @@ class Planner:
                     depends_on=dependency,
                 )
             )
-        return ExecutionPlan(str(uuid4()), job_id, tuple(units))
+        return ExecutionPlan(self._id_factory(), job_id, tuple(units))
 
 
 def operations_for_mode(mode: CleaningMode) -> tuple[OperationKind, ...]:

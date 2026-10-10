@@ -14,6 +14,15 @@ def hass_config_dir(hass_tmp_config_dir: str) -> str:
     return hass_tmp_config_dir
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Rewrite instead of check the recordings in `tests/contract`."""
+    parser.addoption(
+        "--update-recordings",
+        action="store_true",
+        help="rewrite tests/contract/recordings from the integration",
+    )
+
+
 def pytest_configure() -> None:
     """Adapt HA's POSIX socket guard to Windows asyncio without opening egress."""
     if sys.platform == "win32":

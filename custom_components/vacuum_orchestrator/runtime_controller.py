@@ -3,7 +3,6 @@
 import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from types import MappingProxyType
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
@@ -23,6 +22,7 @@ from .application.room_service import AreaSnapshot
 from .application.scheduler import WakeupScheduler
 from .application.tracing import TraceEvent
 from .configuration import (
+    add_robot_profile,
     require_robot,
     robot_name,
     robot_name_override,
@@ -443,14 +443,8 @@ class RuntimeController:
                     )
                 except OrchestratorError:
                     continue
-                subentry = ConfigSubentry(
-                    data=MappingProxyType(data),
-                    subentry_type=SUBENTRY_TYPE_ROBOT,
-                    title=candidate.name,
-                    unique_id=candidate.registry_id,
-                )
-                self.hass.config_entries.async_add_subentry(self.entry, subentry)
-                current[subentry.subentry_id] = candidate.registry_id
+                robot_id = add_robot_profile(self.hass, self.entry, candidate, data)
+                current[robot_id] = candidate.registry_id
         self._known_profiles = current
 
     async def _async_rebuild_adapters(self, active: frozenset[str]) -> None:

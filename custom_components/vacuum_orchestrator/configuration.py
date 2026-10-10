@@ -8,8 +8,9 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import ulid as ulid_util
 
-from .adapters.discovery import candidate_for, ha_robot_name
+from .adapters.discovery import RobotCandidate, candidate_for, ha_robot_name
 from .configuration_values import normalize_requirements
 from .const import (
     CONF_ADAPTER,
@@ -404,11 +405,23 @@ def configure_robot(
         hass.config_entries.async_update_subentry(entry, previous, data=normalized)
         return previous.subentry_id
     candidate = candidate_for(hass, normalized[CONF_ROBOT_REGISTRY_ID])
+    return add_robot_profile(hass, entry, candidate, normalized)
+
+
+def add_robot_profile(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    candidate: RobotCandidate,
+    data: Mapping[str, Any],
+) -> str:
+    """Add a validated profile for a candidate; return its robot ID."""
     subentry = ConfigSubentry(
-        data=MappingProxyType(normalized),
+        data=MappingProxyType(dict(data)),
         subentry_type=SUBENTRY_TYPE_ROBOT,
         title=candidate.name,
         unique_id=candidate.registry_id,
+        # Drawn here so recordings can fix it; see dev doc "Aufzeichnungen".
+        subentry_id=ulid_util.ulid_now(),
     )
     hass.config_entries.async_add_subentry(entry, subentry)
     return subentry.subentry_id

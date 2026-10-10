@@ -1,7 +1,7 @@
 """Bounded structured execution traces without device payloads or free text."""
 
 from collections import deque
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass
@@ -64,13 +64,18 @@ class TraceRecorder:
     """Keep a bounded runtime trace independently of critical execution storage."""
 
     def __init__(
-        self, capacity: int = 512, *, sink: TelemetrySink | None = None
+        self,
+        capacity: int = 512,
+        *,
+        sink: TelemetrySink | None = None,
+        id_factory: Callable[[], str] = lambda: str(uuid4()),
     ) -> None:
         self._records: deque[TraceRecord] = deque(maxlen=capacity)
         self.sequence = 0
         self.sink_failures = 0
         self.sink = sink
-        self.runtime_id = str(uuid4())
+        self._id_factory = id_factory
+        self.runtime_id = id_factory()
         self.commit_id: int | None = None
         self.runtime_sequence = 0
         self.run_id: str | None = None
@@ -78,7 +83,7 @@ class TraceRecorder:
     @contextmanager
     def request(self) -> Iterator[str]:
         """Keep concurrent requests distinct across asynchronous suspension."""
-        request_id = str(uuid4())
+        request_id = self._id_factory()
         token = _request_id.set(request_id)
         try:
             yield request_id

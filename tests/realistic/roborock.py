@@ -7,6 +7,7 @@ checks them against the installed core. Identities and names are synthetic.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -260,11 +261,20 @@ class RoborockV1:
     entities: dict[str, er.RegistryEntry]
     images: dict[str, er.RegistryEntry]
     calls: list[ServiceCall] = field(default_factory=list)
+    # Set while a delayed command waits for its answer.
+    waiting: asyncio.Event = field(default_factory=asyncio.Event)
+    _answer: asyncio.Event | None = None
 
     @property
     def entity_id(self) -> str:
         """The vacuum entity."""
         return self.vacuum.entity_id
+
+    def delay_commands(self) -> asyncio.Event:
+        """Answer the next command only once the returned event is set."""
+        self._answer = asyncio.Event()
+        self.waiting.clear()
+        return self._answer
 
     @classmethod
     def install(
@@ -375,6 +385,10 @@ class RoborockV1:
     async def handle(self, call: ServiceCall) -> dict[str, Any] | None:
         """Record the call; answer `get_maps` and apply settings."""
         self.calls.append(call)
+        if call.service == "send_command" and self._answer is not None:
+            self.waiting.set()
+            await self._answer.wait()
+            self._answer = None
         if call.service == "get_maps":
             return {
                 self.entity_id: {
@@ -426,6 +440,11 @@ class RoborockV1:
         self.set("status", status)
         self.set("in_cleaning", "on")
         self.set_vacuum("cleaning")
+
+    def pause(self) -> None:
+        """Interrupt the run where the robot is."""
+        self.set("status", "paused")
+        self.set_vacuum("paused")
 
     def return_home(self) -> None:
         """Drive home after a run."""

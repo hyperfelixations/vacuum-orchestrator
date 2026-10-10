@@ -188,7 +188,7 @@ class VacuumOrchestrator:
         self._installation_id = installation_id
         self._repository = repository
         self._adapters = dict(adapters)
-        self._planner = planner or Planner()
+        self._planner = planner or Planner(id_factory)
         self._selector = selector or RobotSelector()
         self._readiness = readiness or ReadinessEvaluator()
         self._state_reader = state_reader

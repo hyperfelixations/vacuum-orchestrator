@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import cast
+from uuid import uuid4
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -38,6 +39,11 @@ from .runtime_controller import RuntimeController
 RUNTIME_KEY = f"{DOMAIN}_runtime"
 OWNERSHIP_KEY = f"{DOMAIN}_ownership"
 TELEMETRY_KEY = f"{DOMAIN}_telemetry"
+
+
+def new_id() -> str:
+    """Return a fresh opaque ID; recordings fix it (see dev doc "Aufzeichnungen")."""
+    return str(uuid4())
 
 
 @dataclass(slots=True)
@@ -77,7 +83,7 @@ async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> b
     """Compose robot adapters and initialize the one global state owner."""
     source_ids: list[str] = []
     ownership = _ownership_registry(hass)
-    trace = TraceRecorder(sink=LoggingSink(ADAPTER_VALUES))
+    trace = TraceRecorder(sink=LoggingSink(ADAPTER_VALUES), id_factory=new_id)
     hass.data[TELEMETRY_KEY] = {entry.entry_id: trace}
     trace.record(TraceEvent.LIFECYCLE, datetime.now(UTC), stage="starting")
     try:
@@ -162,6 +168,7 @@ async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> b
             state_reader=state_reader,
             requirement_reader=requirement_reader,
             entity_references=entity_references,
+            id_factory=new_id,
             trace=trace,
         )
         await orchestrator.async_initialize()
