@@ -33,6 +33,7 @@ from custom_components.vacuum_orchestrator.domain.types import (
     OperationKind,
     PassScope,
     RobotAvailabilityState,
+    RobotPhase,
     SettingsPolicy,
 )
 
@@ -661,3 +662,53 @@ def test_unrelated_observations_leave_the_attempt_unchanged() -> None:
     assert record_observation(ATTEMPT, stale, decision) is ATTEMPT
     done = replace(ATTEMPT, state=AttemptState.SUCCEEDED)
     assert record_observation(done, LOST, evaluate(done, LOST)) is done
+
+
+PREPARING = replace(
+    IDLE,
+    state=RobotAvailabilityState.BUSY,
+    cleaning_active=False,
+    normal_end=False,
+    at_dock=True,
+    phase=RobotPhase.STATION,
+)
+
+
+def test_station_work_before_cleaning_keeps_the_start_window_open() -> None:
+    """A dock washing the mop first is no missing start; see "Unterbrechungen"."""
+    seen = NOW + timedelta(seconds=5)
+    preparing = replace(PREPARING, observed_at=seen)
+    decision = evaluate(observation=preparing, now=seen)
+    assert (decision.action, decision.reason) == (
+        MonitorAction.WAIT,
+        "preparing_cleaning",
+    )
+    recorded = record_observation(ATTEMPT, preparing, decision)
+    assert recorded.preparing_since == seen
+    # Later station work keeps the first time.
+    later = replace(PREPARING, observed_at=seen + timedelta(seconds=60))
+    assert record_observation(recorded, later, decision).preparing_since == seen
+    limit = seen + timedelta(seconds=900)
+    assert next_deadline(recorded) == limit
+    waiting = evaluate(recorded, preparing, now=limit - timedelta(seconds=1))
+    assert waiting.reason == "preparing_cleaning"
+    before = limit - timedelta(seconds=1)
+    cleaning = replace(IDLE, cleaning_active=True, normal_end=False, observed_at=before)
+    assert evaluate(recorded, cleaning, now=before).action is MonitorAction.START
+    assert evaluate(recorded, preparing, now=limit).reason == "start_timeout"
+    assert evaluate(recorded, IDLE, now=limit).reason == "start_not_observed"
+
+
+def test_station_work_seen_first_at_the_start_deadline_still_counts() -> None:
+    deadline = NOW + timedelta(seconds=180)
+    preparing = replace(PREPARING, observed_at=deadline)
+    assert evaluate(observation=preparing, now=deadline).reason == "preparing_cleaning"
+
+
+def test_only_a_sent_command_records_station_work() -> None:
+    running = replace(
+        ATTEMPT, state=AttemptState.START_CONFIRMED, observed_start_at=NOW
+    )
+    decision = evaluate(running, PREPARING)
+    assert record_observation(running, PREPARING, decision).preparing_since is None
+    assert record_observation(ATTEMPT, IDLE, evaluate()).preparing_since is None

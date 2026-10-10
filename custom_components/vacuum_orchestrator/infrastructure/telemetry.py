@@ -94,6 +94,7 @@ CODES = frozenset(
         "omitted",
         "online",
         "partial",
+        "preparing_cleaning",
         "received",
         "recovery_abandoned",
         "rejected",

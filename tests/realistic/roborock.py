@@ -8,6 +8,7 @@ checks them against the installed core. Identities and names are synthetic.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -16,6 +17,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -247,6 +249,73 @@ MAPPING = {
 }
 
 
+# A run as a V1 robot with a mop-washing dock reports it: steps of
+# (seconds after the previous step, changes). Order and rounded timing are
+# synthetic but typical of the core integration; see dev doc "Testarchitektur".
+type Step = tuple[float, dict[str, str]]
+# Step values replaced by the time of the step or of the run's first step.
+NOW = "<now>"
+RUN_START = "<run start>"
+SECTION_SECONDS = 700
+
+
+def vacuum_run(sections: int = 1) -> tuple[Step, ...]:
+    """Vacuuming: the run flag ends on the way home, before the robot docks."""
+    return (
+        (0, {"status": "segment_cleaning", "vacuum": "cleaning"}),
+        (30, {"in_cleaning": "on"}),
+        (
+            SECTION_SECONDS * sections - 30,
+            {"status": "returning_home", "vacuum": "returning"},
+        ),
+        (
+            20,
+            {
+                "in_cleaning": "off",
+                "last_clean_start": RUN_START,
+                "last_clean_end": NOW,
+            },
+        ),
+        (45, {"status": "charging", "vacuum": "docked"}),
+    )
+
+
+def mop_run(sections: int = 1, *, prewash: float = 150) -> tuple[Step, ...]:
+    """Mopping: the dock washes the mop before, between and after the sections.
+
+    The run flag is on from the first wash and ends after the last; at the end
+    the dock briefly reports `returning` and resets the cleaning mode.
+    """
+    steps: list[Step] = [
+        (0, {"status": "washing_the_mop", "in_cleaning": "on"}),
+        (prewash, {"status": "segment_cleaning", "vacuum": "cleaning"}),
+    ]
+    for _ in range(sections - 1):
+        steps += [
+            (
+                SECTION_SECONDS,
+                {"status": "going_to_wash_the_mop", "vacuum": "returning"},
+            ),
+            (65, {"status": "washing_the_mop", "vacuum": "docked"}),
+            (180, {"status": "segment_cleaning", "vacuum": "cleaning"}),
+        ]
+    return (
+        *steps,
+        (SECTION_SECONDS, {"status": "returning_home", "vacuum": "returning"}),
+        (65, {"status": "charging", "vacuum": "docked"}),
+        (215, {"vacuum": "returning"}),
+        (3, {"vacuum": "docked", "cleaning_mode": "vac_and_mop"}),
+        (
+            15,
+            {
+                "in_cleaning": "off",
+                "last_clean_start": RUN_START,
+                "last_clean_end": NOW,
+            },
+        ),
+    )
+
+
 @dataclass
 class RoborockV1:
     """The registered robot, its recorded actions and its live state."""
@@ -457,6 +526,22 @@ class RoborockV1:
         self.set("status", "charging")
         self.set("in_cleaning", "off")
         self.set_vacuum("docked")
+
+    async def play(
+        self, script: tuple[Step, ...], advance: Callable[[float], Awaitable[None]]
+    ) -> None:
+        """Report each step once `advance` let its delay pass."""
+        start = dt_util.utcnow().isoformat()
+        for delay, changes in script:
+            if delay:
+                await advance(delay)
+            now = dt_util.utcnow().isoformat()
+            for key, reported in changes.items():
+                value = {NOW: now, RUN_START: start}.get(reported, reported)
+                if key == "vacuum":
+                    self.set_vacuum(value)
+                else:
+                    self.set(key, value)
 
     def segment_commands(self) -> list[dict[str, Any]]:
         """The `app_segment_clean` parameters sent so far."""

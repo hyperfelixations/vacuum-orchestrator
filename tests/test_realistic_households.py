@@ -3,7 +3,7 @@
 The homes come from `tests/realistic`; see dev doc "Testarchitektur".
 """
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
 
 import pytest
@@ -27,7 +27,7 @@ from tests.realistic import (
     single_roborock,
     two_robots,
 )
-from tests.realistic.roborock import ROLES
+from tests.realistic.roborock import ROLES, Step, mop_run, vacuum_run
 from tests.test_configuration_api import call
 from tests.test_runtime import MemoryBackend
 
@@ -179,13 +179,7 @@ async def test_a_job_cleans_the_segments_of_its_areas_and_completes(
     await hass.async_block_till_done()
     assert robot.segment_commands() == [{"segments": [16, 17], "repeat": 1}]
 
-    async def advance(seconds: float) -> None:
-        # VOI observes the new state first, then time passes.
-        await hass.async_block_till_done()
-        freezer.tick(timedelta(seconds=seconds))
-        async_fire_time_changed(hass)
-        await hass.async_block_till_done()
-
+    advance = _advancer(hass, freezer)
     robot.clean()
     await advance(5)
     assert (await call(hass, "get_job", job_id=job))["state"] == "running"
@@ -210,3 +204,56 @@ async def test_a_job_cleans_the_segments_of_its_areas_and_completes(
         "Flur": quality,
         "Wohnzimmer": None,
     }
+
+
+def _advancer(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> Callable[[float], Awaitable[None]]:
+    async def advance(seconds: float) -> None:
+        # VOI observes the new state first, then time passes.
+        await hass.async_block_till_done()
+        freezer.tick(timedelta(seconds=seconds))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+    return advance
+
+
+@pytest.mark.parametrize(
+    ("mode", "script"),
+    [
+        pytest.param("vacuum", vacuum_run(2), id="vacuum"),
+        pytest.param("mop", mop_run(3), id="mop with washes between sections"),
+        pytest.param("mop", mop_run(1, prewash=220), id="mop after a long wash"),
+    ],
+)
+async def test_a_typical_run_keeps_its_job_running_and_completes_once(
+    hass: HomeAssistant,
+    install,
+    freezer: FrozenDateTimeFactory,
+    mode: str,
+    script: tuple[Step, ...],
+) -> None:
+    """Washes at the dock, the run flag and the dock's last report are no end."""
+    home = await install(single_roborock)
+    robot = home.roborock
+    areas = [home.areas["Küche"], home.areas["Flur"]]
+    await call(hass, "release_room", areas=areas, kind="permanent")
+    job = (await call(hass, "create_job", areas=areas, mode=mode, start=True))["job_id"]
+    await hass.async_block_till_done()
+    assert robot.segment_commands() == [{"segments": [16, 17], "repeat": 1}]
+    advance = _advancer(hass, freezer)
+    states: list[str] = []
+
+    async def watch(seconds: float) -> None:
+        await advance(seconds)
+        states.append((await call(hass, "get_job", job_id=job))["state"])
+
+    await robot.play(script, watch)
+    await advance(60)
+
+    assert set(states) == {"running"}
+    detail = await call(hass, "get_job", job_id=job)
+    assert (detail["state"], detail["completion"]["notes"]) == ("completed", [])
+    (saugi,) = (await _robots(hass)).values()
+    assert saugi["activity"] == {"phase": "docked", "external": False}

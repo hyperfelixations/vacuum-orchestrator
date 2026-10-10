@@ -9,7 +9,7 @@ from .dispatching import RobotObservation
 from .execution import ExecutionAttempt
 from .faults import interrupting
 from .planning import DispatchAssignment, WorkUnit
-from .types import AttemptState, RobotAvailabilityState
+from .types import AttemptState, RobotAvailabilityState, RobotPhase
 
 
 class MonitorAction(StrEnum):
@@ -38,9 +38,7 @@ class MonitorDecision:
 def next_deadline(attempt: ExecutionAttempt) -> datetime | None:
     """Return a persisted attempt's next deadline without polling devices."""
     if attempt.state is AttemptState.COMMAND_SENT:
-        return (attempt.command_boundary_at or attempt.prepared_at) + timedelta(
-            seconds=attempt.policy.start_seconds
-        )
+        return attempt.start_deadline
     if attempt.state is AttemptState.CANCEL_PENDING:
         limit = _cancel_limit(attempt)
         settled_from = _stop_settling_since(attempt)
@@ -115,7 +113,10 @@ def evaluate_observation(
             return MonitorDecision(MonitorAction.ATTENTION, "robot_connection_lost")
         return _evaluate_cancel(attempt, observation, observed_at, now)
     if attempt.state is AttemptState.COMMAND_SENT:
-        if now >= (next_deadline(attempt) or now):
+        preparing = _preparing(observation)
+        if preparing and attempt.preparing_since is None:
+            attempt = replace(attempt, preparing_since=observed_at)
+        if now >= attempt.start_deadline:
             # A robot proven to rest never started; see dev doc "Unterbrechungen".
             if stopped and not lost:
                 return MonitorDecision(MonitorAction.FAIL, "start_not_observed")
@@ -126,7 +127,10 @@ def evaluate_observation(
             return MonitorDecision(MonitorAction.WAIT, "robot_connection_lost")
         if observation.cleaning_active is True:
             return MonitorDecision(MonitorAction.START, "cleaning_start_observed")
-        return MonitorDecision(MonitorAction.WAIT, "awaiting_cleaning_start")
+        return MonitorDecision(
+            MonitorAction.WAIT,
+            "preparing_cleaning" if preparing else "awaiting_cleaning_start",
+        )
     if now >= (attempt.observed_start_at or attempt.prepared_at) + timedelta(
         seconds=attempt.policy.run_seconds
     ):
@@ -218,11 +222,21 @@ def record_observation(
         and operation not in attempt.observed_operations
         else attempt.observed_operations,
         lost_since=(attempt.lost_since or observed_at) if lost else None,
+        preparing_since=attempt.preparing_since
+        or (observed_at if not started and _preparing(observation) else None),
         gap_since=None
         if cleaning
         else (attempt.gap_since or observed_at)
         if lost and started
         else attempt.gap_since,
+    )
+
+
+def _preparing(observation: RobotObservation) -> bool:
+    """Return whether the robot works at its dock, as before mopping."""
+    return (
+        observation.phase is RobotPhase.STATION
+        and observation.state is RobotAvailabilityState.BUSY
     )
 
 

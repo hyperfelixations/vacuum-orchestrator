@@ -514,6 +514,7 @@ def test_run_observations_round_trip_and_are_optional_in_older_snapshots() -> No
                 observed_operations=(OperationKind.VACUUM, OperationKind.MOP),
                 lost_since=NOW,
                 gap_since=NOW,
+                preparing_since=NOW,
                 policy=replace(sent.attempts["attempt"].policy, connection_seconds=120),
             )
         },
@@ -521,12 +522,16 @@ def test_run_observations_round_trip_and_are_optional_in_older_snapshots() -> No
     data = encode_orchestrator_state(changed)
     assert decode_orchestrator_state(data) == changed
     stored = data["attempts"]["attempt"]
-    for name in ("observed_operations", "lost_since", "gap_since"):
+    for name in ("observed_operations", "lost_since", "gap_since", "preparing_since"):
         del stored[name]
     del stored["policy"]["connection_seconds"]
     older = decode_orchestrator_state(data).attempts["attempt"]
     assert older.observed_operations == ()
-    assert (older.lost_since, older.gap_since) == (None, None)
+    assert (older.lost_since, older.gap_since, older.preparing_since) == (
+        None,
+        None,
+        None,
+    )
     assert older.policy.connection_seconds == 600
 
 

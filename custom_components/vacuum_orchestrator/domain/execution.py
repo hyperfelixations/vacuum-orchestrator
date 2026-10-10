@@ -75,6 +75,20 @@ class ExecutionAttempt:
     # Observation gaps; see dev doc "Unterbrechungen".
     lost_since: datetime | None = None
     gap_since: datetime | None = None
+    # Station work after the command, before cleaning; same dev doc section.
+    preparing_since: datetime | None = None
+
+    @property
+    def start_deadline(self) -> datetime:
+        """Return when a sent command stops waiting; station work extends it."""
+        boundary = self.command_boundary_at or self.prepared_at
+        deadline = boundary + timedelta(seconds=self.policy.start_seconds)
+        if self.preparing_since is None:
+            return deadline
+        return max(
+            deadline,
+            self.preparing_since + timedelta(seconds=self.policy.return_seconds),
+        )
 
     @property
     def fault_deadline(self) -> datetime | None:

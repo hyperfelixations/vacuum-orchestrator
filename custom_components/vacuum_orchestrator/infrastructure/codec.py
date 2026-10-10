@@ -1141,6 +1141,7 @@ def _encode_attempt(attempt: ExecutionAttempt) -> JsonObject:
         "observed_operations": [item.value for item in attempt.observed_operations],
         "lost_since": _encode_optional_datetime(attempt.lost_since),
         "gap_since": _encode_optional_datetime(attempt.gap_since),
+        "preparing_since": _encode_optional_datetime(attempt.preparing_since),
     }
 
 
@@ -1183,6 +1184,7 @@ def _decode_attempt(data: JsonObject) -> ExecutionAttempt:
         ),
         _decode_optional_datetime(data.get("lost_since")),
         _decode_optional_datetime(data.get("gap_since")),
+        _decode_optional_datetime(data.get("preparing_since")),
     )
 
 

@@ -82,6 +82,7 @@ def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
                 "fault_since": time(attempt.fault_since),
                 "lost_since": time(attempt.lost_since),
                 "gap_since": time(attempt.gap_since),
+                "preparing_since": time(attempt.preparing_since),
                 "observed_operations": [
                     item.value for item in attempt.observed_operations
                 ],
