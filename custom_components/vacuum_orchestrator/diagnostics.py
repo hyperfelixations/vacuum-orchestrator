@@ -1,6 +1,7 @@
 """Anonymized diagnostics built exclusively from allowlisted read models."""
 
 import re
+from datetime import datetime
 from itertools import islice
 from typing import Any
 
@@ -9,11 +10,14 @@ from homeassistant.core import HomeAssistant
 
 from .adapters.public_values import ADAPTER_VALUES
 from .const import API_VERSION, INTEGRATION_VERSION, STORE_VERSION
-from .infrastructure.telemetry import LoggingSink
+from .domain.monitoring import next_deadline
+from .infrastructure.telemetry import DIAGNOSTIC_VERSION, LoggingSink
 from .runtime import TELEMETRY_KEY, VacuumOrchestratorRuntime, async_get_registry
 
 # Vendor segment IDs carry no names; HA area IDs do and are pseudonymized.
 _SEGMENT = re.compile(r"\d+(?:_\d+)?")
+# Most recent attempts in an export.
+_ATTEMPTS = 100
 
 
 def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
@@ -24,9 +28,19 @@ def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
     anonymize = sanitizer.pseudonym
 
     state = core.state
-    traces = [sanitizer.sanitize(record) for record in core.trace.snapshot()]
+    records = core.trace.snapshot()
+    traces = [sanitizer.sanitize(record) for record in records]
+
+    def code(value: str | None) -> Any:
+        return sanitizer.sanitize({"reason": value}).get("reason")
+
+    def time(value: datetime | None) -> str | None:
+        return value.isoformat() if value else None
+
+    attempts = list(state.attempts.values())[-_ATTEMPTS:]
     return {
         "version": INTEGRATION_VERSION,
+        "diagnostic_version": DIAGNOSTIC_VERSION,
         "api_version": API_VERSION,
         "store_version": STORE_VERSION,
         "commit_id": state.commit_id,
@@ -37,20 +51,46 @@ def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
             "recorded": core.trace.sequence,
             "retained": len(traces),
             "dropped": core.trace.sequence - len(traces),
+            "capacity": core.trace.capacity,
+            "first_sequence": records[0]["sequence"] if records else None,
+            "last_sequence": records[-1]["sequence"] if records else None,
         },
         "mode": state.mode.value,
         "needs_attention": state.needs_attention,
         "totals": {"jobs": len(state.jobs), "rooms": len(state.room_registry.rooms)},
         "export_limit": 500,
+        "attempts": [
+            {
+                "attempt_id": anonymize(attempt.attempt_id),
+                "job_id": anonymize(attempt.job_id),
+                "robot_id": anonymize(attempt.robot_id),
+                "state": attempt.state.value,
+                "failure_code": code(attempt.failure_code),
+                "recovery_resolution": attempt.recovery_resolution.value
+                if attempt.recovery_resolution
+                else None,
+                "completion_quality": attempt.completion_quality.value
+                if attempt.completion_quality
+                else None,
+                "prepared_at": time(attempt.prepared_at),
+                "command_boundary_at": time(attempt.command_boundary_at),
+                "observed_start_at": time(attempt.observed_start_at),
+                "terminal_observed_at": time(attempt.terminal_observed_at),
+                "last_observation_at": time(attempt.last_observation_at),
+                "deadline_at": time(next_deadline(attempt)),
+                "recovery_trigger": sanitizer.sanitize(trigger)
+                if (trigger := core.recovery_trigger(attempt.attempt_id))
+                else None,
+            }
+            for attempt in attempts
+        ],
         "jobs": [
             {
                 "job_id": anonymize(job.job_id),
                 "state": job.state.value,
                 "mode": job.intent.mode.value,
                 "room_ids": [anonymize(item.area_id) for item in job.intent.areas],
-                "failure_code": sanitizer.sanitize({"reason": job.failure_code}).get(
-                    "reason"
-                ),
+                "failure_code": code(job.failure_code),
             }
             for job in islice(state.jobs.values(), 500)
         ],

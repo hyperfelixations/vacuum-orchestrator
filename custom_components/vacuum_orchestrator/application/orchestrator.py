@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from contextvars import ContextVar
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import Any, cast
@@ -31,7 +32,7 @@ from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun
 from ..domain.faults import blocking
 from ..domain.holds import HoldPurpose, JobHold, lease_end
 from ..domain.intents import UNSET, JobIntent, JobIntentPatch, TargetRef
-from ..domain.monitoring import next_deadline
+from ..domain.monitoring import MonitorAction, next_deadline
 from ..domain.permissions import require, returnable
 from ..domain.planning import DispatchAssignment, ExecutionPlan, Planner, WorkUnit
 from ..domain.progress import Progress, job_progress
@@ -61,10 +62,11 @@ from .robot_session import RobotCommandTicket, RobotSession
 from .room_readiness import RequirementReader, evaluate_room_readiness
 from .room_service import RoomService
 from .template_service import TemplateService
-from .tracing import ObservationTrace, TraceEvent, TraceRecorder
+from .tracing import ObservationTrace, TraceEvent, TraceRecord, TraceRecorder
 from .waiting import awaiting_release, explain_waiting
 
 Clock = Callable[[], datetime]
+_RECOVERY_TRIGGERS = 20
 IdFactory = Callable[[], str]
 StateReader = Callable[[tuple[str, ...]], Mapping[str, str | None]]
 StateListener = Callable[[], None]
@@ -214,6 +216,8 @@ class VacuumOrchestrator:
         self._observations: dict[str, RobotObservation] = {}
         # When each robot's current device faults were first observed.
         self._fault_since: dict[str, datetime] = {}
+        # The observation that sent an attempt into recovery, newest last.
+        self._recovery_triggers: OrderedDict[str, TraceRecord] = OrderedDict()
         self.rooms = RoomService(self._mutate, lambda: self.state, clock, id_factory)
         self.templates = TemplateService(self._mutate, clock, id_factory)
         self.runs = QueueRunService(self._mutate, clock, id_factory)
@@ -1072,7 +1076,7 @@ class VacuumOrchestrator:
         previous = state.attempts[lease.attempt_id] if lease else None
         current = result.state.attempts.get(lease.attempt_id) if lease else None
         deadline = next_deadline(current) if current else None
-        self.trace.record(
+        record = self.trace.record(
             TraceEvent.OBSERVATION,
             self._clock(),
             robot_id=robot_id,
@@ -1113,6 +1117,19 @@ class VacuumOrchestrator:
                 else None,
             ),
         )
+        if (
+            previous is not None
+            and result.decision is not None
+            and result.decision.action is MonitorAction.ATTENTION
+        ):
+            self._recovery_triggers[previous.attempt_id] = record
+            while len(self._recovery_triggers) > _RECOVERY_TRIGGERS:
+                self._recovery_triggers.popitem(last=False)
+
+    def recovery_trigger(self, attempt_id: str) -> Mapping[str, Any] | None:
+        """Return the observation that sent an attempt into recovery, if kept."""
+        record = self._recovery_triggers.get(attempt_id)
+        return asdict(record) if record is not None else None
 
     async def async_record_robot_run(self, attempt_id: str, run: RobotRun) -> None:
         """Correlate physical evidence, complete the unit, and schedule follow-up."""

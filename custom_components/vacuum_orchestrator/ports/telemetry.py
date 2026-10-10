@@ -34,7 +34,7 @@ class TelemetrySink(Protocol):
 
 
 adapter_reporter: ContextVar[
-    Callable[[TelemetryEvent, str, str | None], None] | None
+    Callable[[TelemetryEvent, str, str | None], object] | None
 ] = ContextVar("voi_adapter_reporter", default=None)
 
 

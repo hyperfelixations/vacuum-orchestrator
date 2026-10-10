@@ -127,7 +127,7 @@ class TraceRecorder:
         operation: str | None = None,
         error: Exception | None = None,
         observation: ObservationTrace | None = None,
-    ) -> None:
+    ) -> TraceRecord:
         """Append only normalized values chosen by the application."""
         self.sequence += 1
         if reason is None and isinstance(error, OrchestratorError):
@@ -172,6 +172,12 @@ class TraceRecorder:
                 self.sink.emit(asdict(record))
             except Exception:
                 self.sink_failures += 1
+        return record
+
+    @property
+    def capacity(self) -> int:
+        """Return how many records the ring keeps."""
+        return self._records.maxlen or 0
 
     def snapshot(
         self, job_id: str | None = None

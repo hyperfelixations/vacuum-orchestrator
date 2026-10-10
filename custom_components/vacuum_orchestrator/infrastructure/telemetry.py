@@ -30,6 +30,8 @@ from ..domain.types import (
 from ..ports.telemetry import Scalar, TelemetryEvent
 
 _LOGGER = logging.getLogger(__name__)
+# Schema of sanitized records and diagnostic exports.
+DIAGNOSTIC_VERSION = 2
 # Own error codes: the `exceptions` keys, kept equal to the raised codes by
 # tests/test_error_translations.py.
 ERROR_CODES = frozenset(
@@ -264,7 +266,7 @@ class LoggingSink:
 
     def sanitize(self, record: Mapping[str, Scalar]) -> dict[str, Scalar]:
         """Render only known fields; unknown text is never copied into an export."""
-        result: dict[str, Scalar] = {"diagnostic_version": 1}
+        result: dict[str, Scalar] = {"diagnostic_version": DIAGNOSTIC_VERSION}
         observation = record.get("event") == TelemetryEvent.OBSERVATION
         for key, value in record.items():
             if key in _FLAGS:

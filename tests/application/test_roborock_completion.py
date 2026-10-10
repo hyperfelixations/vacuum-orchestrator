@@ -3,8 +3,11 @@
 The observation sequence mirrors a field run with synthetic identities.
 """
 
+from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from datetime import timedelta
+from types import SimpleNamespace
+from typing import cast
 
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
@@ -13,9 +16,11 @@ from homeassistant.util import dt as dt_util
 from custom_components.vacuum_orchestrator.adapters.public_values import (
     ADAPTER_VALUES,
 )
+from custom_components.vacuum_orchestrator.adapters.roborock import RoborockAdapter
 from custom_components.vacuum_orchestrator.application.orchestrator import (
     VacuumOrchestrator,
 )
+from custom_components.vacuum_orchestrator.diagnostics import build_diagnostics
 from custom_components.vacuum_orchestrator.domain.completion import CompletionQuality
 from custom_components.vacuum_orchestrator.domain.intents import JobIntent, TargetRef
 from custom_components.vacuum_orchestrator.domain.queue import OrchestratorState
@@ -37,6 +42,7 @@ from custom_components.vacuum_orchestrator.infrastructure.critical_repository im
 from custom_components.vacuum_orchestrator.infrastructure.telemetry import (
     LoggingSink,
 )
+from custom_components.vacuum_orchestrator.runtime import VacuumOrchestratorRuntime
 from tests.adapters.test_roborock import setup_robot, simulate_settings
 from tests.application.test_orchestrator import NOW, IdFactory, RecordingBackend
 
@@ -68,9 +74,10 @@ async def _core(backend: RecordingBackend, adapter: object) -> VacuumOrchestrato
     return core
 
 
-async def test_a_run_that_returns_home_with_another_mode_setting_completes(
+async def _started(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
-) -> None:
+) -> tuple[VacuumOrchestrator, str, RecordingBackend, RoborockAdapter]:
+    """Start a vacuum job in the kitchen with a real Roborock adapter."""
     freezer.move_to(NOW)
     adapter, _inventory, calls = setup_robot(hass)
     await adapter.async_refresh_maps()
@@ -95,21 +102,40 @@ async def test_a_run_that_returns_home_with_another_mode_setting_completes(
         JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM)
     )
     assert calls
+    return core, job_id, backend, adapter
 
+
+def _observer(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, core: VacuumOrchestrator
+) -> Callable[..., Awaitable[None]]:
     async def observe(status: str, in_cleaning: str, seconds: float = 1) -> None:
         freezer.tick(timedelta(seconds=seconds))
         hass.states.async_set("sensor.status", status)
         hass.states.async_set("binary_sensor.in_cleaning", in_cleaning)
         await core.async_process_robot_observation("robot")
 
+    return observe
+
+
+def _set_mode(hass: HomeAssistant, option: str) -> None:
+    mode = hass.states.get("select.cleaning_mode")
+    assert mode is not None
+    hass.states.async_set("select.cleaning_mode", option, mode.attributes)
+
+
+async def test_a_run_that_returns_home_with_another_mode_setting_completes(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    core, job_id, backend, adapter = await _started(hass, freezer)
+    observe = _observer(hass, freezer, core)
+
     def attempt():
         return next(iter(core.state.attempts.values()))
 
     await observe("segment_cleaning", "on")
     assert attempt().state is AttemptState.START_CONFIRMED
-    mode = hass.states.get("select.cleaning_mode")
-    assert mode is not None and mode.state == "vacuum"
-    hass.states.async_set("select.cleaning_mode", "vac_and_mop", mode.attributes)
+    assert hass.states.get("select.cleaning_mode").state == "vacuum"
+    _set_mode(hass, "vac_and_mop")
 
     await observe("returning_home", "off", seconds=870)
     assert core.state.jobs[job_id].state is JobState.RUNNING
@@ -142,3 +168,41 @@ async def test_a_run_that_returns_home_with_another_mode_setting_completes(
 
     reloaded = await _core(backend, adapter)
     assert reloaded.state.jobs[job_id].state is JobState.COMPLETED
+
+
+async def test_a_recovery_export_shows_its_cause_and_triggering_observation(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    core, job_id, _backend, _adapter = await _started(hass, freezer)
+    observe = _observer(hass, freezer, core)
+    await observe("segment_cleaning", "on")
+    _set_mode(hass, "mop")
+    await observe("segment_cleaning", "on", seconds=60)
+    assert core.state.jobs[job_id].state is JobState.NEEDS_ATTENTION
+    await observe("charging", "off", seconds=600)
+    await core.async_resolve_recovery("robot")
+
+    export = build_diagnostics(
+        cast(VacuumOrchestratorRuntime, SimpleNamespace(orchestrator=core))
+    )
+
+    (attempt,) = export["attempts"]
+    assert (
+        attempt["state"],
+        attempt["failure_code"],
+        attempt["recovery_resolution"],
+    ) == ("failed", "observed_mode_mismatch", "verified_stopped")
+    trigger = attempt["recovery_trigger"]
+    assert (
+        trigger["phase"],
+        trigger["cleaning_active"],
+        trigger["observed_operation"],
+        trigger["operation"],
+        trigger["monitor_action"],
+        trigger["monitor_reason"],
+    ) == ("cleaning", True, "mop", "vacuum", "attention", "observed_mode_mismatch")
+    window = export["trace_window"]
+    assert window["capacity"] == 512 and window["first_sequence"] == 1
+    assert window["last_sequence"] == window["recorded"]
+    assert export["diagnostic_version"] == 2
+    assert "kitchen" not in str(export["attempts"])

@@ -437,7 +437,11 @@ proof for external runs. A last-cleaned timestamp alone is not enough.
    problem. Disable it afterwards to download the captured logs.
 3. Download the integration's **diagnostics before restarting or reloading it**.
    Diagnostics include a recent internal trace; that trace is limited to 512
-   entries and is cleared when the integration runtime is replaced.
+   entries and is cleared when the integration runtime is replaced. For every
+   robot observation the trace shows what the robot reported (activity phase,
+   mode setting, faults, completion evidence) and what VOI decided. The
+   download also lists recent cleaning attempts with their cause and, for a
+   recovery, the observation that triggered it.
 4. For a blocked job, also collect the response from `get_job_execution`.
 5. Review attachments for personal information before sharing them in an issue.
 
@@ -447,6 +451,12 @@ A command returning successfully does not by itself mean cleaning completed.
 Include the diagnostic download from the same runtime: it uses the same anonymous
 references as VOI's structured log messages. Repeated unchanged observations are
 summarized, and the diagnostic download reports how much of the trace was retained.
+
+The diagnostics download and the `get_trace` action serve different purposes.
+The download is one complete, anonymized snapshot made for sharing. `get_trace`
+is a normal query: it returns the same trace with real job, robot and room IDs,
+page by page, and the trace can change between pages. Prefer the download for
+bug reports.
 
 VOI's structured messages omit names, notes, raw device data and exception messages.
 References change after a reload or restart. Normal action responses and messages
