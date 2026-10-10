@@ -361,7 +361,12 @@ class RuntimeController:
                     for robot_id, adapter in core.adapters.items()
                 ),
                 tuple(
-                    (robot_id, observation.faults, observation.at_dock)
+                    (
+                        robot_id,
+                        observation.faults,
+                        observation.at_dock,
+                        observation.phase,
+                    )
                     for robot_id, observation in core.latest_observations.items()
                 ),
                 tuple(self._names.items()),

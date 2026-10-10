@@ -965,6 +965,19 @@ class OrchestratorState:
             },
         )
 
+    def open_external_run(self, source_robot_id: str) -> RobotRun | None:
+        """Return the robot's external run that has not ended yet."""
+        return next(
+            (
+                run
+                for run in reversed(tuple(self.robot_runs.values()))
+                if run.source is CleaningSource.EXTERNAL
+                and run.source_robot_id == source_robot_id
+                and run.observed_end is None
+            ),
+            None,
+        )
+
     def next_pending_unit(self, job: Job) -> WorkUnit:
         """Return the first dependency-satisfied unit of a planned job."""
         plan = self._plan_for_job(job)

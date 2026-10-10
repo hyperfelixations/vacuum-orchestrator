@@ -25,6 +25,8 @@ async def test_a_fixed_fault_lets_the_run_go_on_and_complete(
     core, job_id, backend, adapter = await _started(hass, freezer)
     observe = _observer(hass, freezer, core)
     await observe("segment_cleaning", "on")
+    # A run VOI started is never an external one.
+    assert core.state.open_external_run(adapter.profile.source_robot_id) is None
 
     hass.states.async_set("sensor.error", JAMMED)
     await observe("paused", "on", seconds=60)

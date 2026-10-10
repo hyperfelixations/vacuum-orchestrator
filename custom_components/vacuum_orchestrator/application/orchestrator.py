@@ -110,7 +110,7 @@ SCOPE_FIELDS: Mapping[str, tuple[str, ...]] = MappingProxyType(
             "blocked_robots",
         ),
         "rooms": ("room_registry",),
-        "robots": ("robot_leases", "blocked_robots"),
+        "robots": ("robot_leases", "blocked_robots", "robot_runs"),
         "templates": ("templates",),
     }
 )

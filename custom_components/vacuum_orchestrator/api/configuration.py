@@ -34,7 +34,13 @@ from ..domain.permissions import robot_actions, room_actions, template_actions
 from ..domain.queue import MAX_START_DELAY_SECONDS
 from ..domain.releases import GrantRequest, ReleaseKind
 from ..domain.templates import JobTemplate
-from ..domain.types import ROUTE_LADDER, VACUUM_LADDER, WATER_LADDER, SettingsPolicy
+from ..domain.types import (
+    ROUTE_LADDER,
+    VACUUM_LADDER,
+    WATER_LADDER,
+    RobotPhase,
+    SettingsPolicy,
+)
 from ..ha_context import request_context
 from ..ports.entities import EntityReferences
 from ..room_configuration import (
@@ -499,6 +505,14 @@ def query_configuration(
                 ],
                 **present_maps(adapter.maps() if adapter else RobotMaps()),
                 "active": leased,
+                "activity": {
+                    "phase": observation.phase.value
+                    if observation
+                    else RobotPhase.UNKNOWN.value,
+                    "external": profile is not None
+                    and core.state.open_external_run(profile.source_robot_id)
+                    is not None,
+                },
                 "faults": []
                 if observation is None
                 else [

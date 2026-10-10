@@ -442,7 +442,8 @@ may be recorded as **derived** completion. **Confirmed** means stronger evidence
 is available. The room keeps the most recent effective result and the most recent
 confirmed result separately. An error, connection loss or timeout is not success.
 
-Cleaning started from a manufacturer's app appears in history, but room values
+Cleaning started from a manufacturer's app appears in history, and the robot
+shows it as external activity until it ends; VOI creates no job for it. Room values
 change only when the room, mode and successful completion are all proven. The
 current Home Assistant observation paths normally cannot provide that complete
 proof for external runs. A last-cleaned timestamp alone is not enough.

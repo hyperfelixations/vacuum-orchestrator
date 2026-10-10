@@ -21,16 +21,7 @@ def apply_external_observation(
     id_factory: Callable[[], str],
 ) -> OrchestratorState:
     """Keep uncertain external runs in history without advancing room timestamps."""
-    pending = next(
-        (
-            run
-            for run in reversed(tuple(state.robot_runs.values()))
-            if run.source is CleaningSource.EXTERNAL
-            and run.source_robot_id == observation.source_robot_id
-            and run.observed_end is None
-        ),
-        None,
-    )
+    pending = state.open_external_run(observation.source_robot_id)
     observed_at = observation.observed_at or now
     if observed_at > now or (
         pending is not None
