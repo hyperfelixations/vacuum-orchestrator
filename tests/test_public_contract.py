@@ -35,16 +35,34 @@ async def test_v4_consumer_fixture_retains_existing_fields_and_values(hass):
     subset(expected, connection.results[0][1])
 
 
-async def test_all_actions_have_descriptions_and_valid_selectors(hass):
+async def test_all_actions_are_translated_with_icons_and_valid_selectors(hass):
     await async_setup_actions(hass)
-    services = yaml.safe_load(
-        (ROOT / "custom_components" / DOMAIN / "services.yaml").read_text()
-    )
+    integration = ROOT / "custom_components" / DOMAIN
+    services = yaml.safe_load((integration / "services.yaml").read_text())
     assert set(services) == set(hass.services.async_services()[DOMAIN])
-    for name, service in services.items():
-        assert service["name"] and service["description"], name
-        for field in service.get("fields", {}).values():
-            validate_selector(field["selector"])
+    icons = json.loads((integration / "icons.json").read_text(encoding="utf-8"))
+    assert set(icons["services"]) == set(services)
+    for language in ("strings.json", "translations/de.json"):
+        strings = json.loads((integration / language).read_text(encoding="utf-8"))
+        assert set(strings["services"]) == set(services), language
+        for name, entry in services.items():
+            # Texts live only in the translations; see dev doc "Actions".
+            service = entry or {}
+            assert service.keys() <= {"fields"}, name
+            text = strings["services"][name]
+            assert text["name"] and text["description"], name
+            fields = service.get("fields", {})
+            assert set(text.get("fields", {})) == set(fields), name
+            for key, field in fields.items():
+                assert field.keys() <= {"required", "default", "advanced", "selector"}
+                label = text["fields"][key]
+                assert label["name"] and label["description"], (name, key)
+                validate_selector(field["selector"])
+                select = field["selector"].get("select", {})
+                if "translation_key" in select:
+                    options = strings["selector"][select["translation_key"]]
+                    assert set(options["options"]) == set(select["options"])
+                    assert all(options["options"].values())
 
 
 def test_distribution_metadata_and_translations_are_consistent():

@@ -1,0 +1,139 @@
+{
+  "services": {
+    "create_job": {
+      "service": "mdi:playlist-plus"
+    },
+    "update_job": {
+      "service": "mdi:playlist-edit"
+    },
+    "delete_job": {
+      "service": "mdi:playlist-remove"
+    },
+    "move_job": {
+      "service": "mdi:swap-vertical"
+    },
+    "start_job": {
+      "service": "mdi:play"
+    },
+    "run_queue": {
+      "service": "mdi:playlist-play"
+    },
+    "pause_queue": {
+      "service": "mdi:pause"
+    },
+    "resume_queue": {
+      "service": "mdi:play-pause"
+    },
+    "end_queue": {
+      "service": "mdi:stop"
+    },
+    "cancel_job": {
+      "service": "mdi:cancel"
+    },
+    "return_robot": {
+      "service": "mdi:home-import-outline"
+    },
+    "retry_job": {
+      "service": "mdi:restart"
+    },
+    "correct_job": {
+      "service": "mdi:clipboard-check-outline"
+    },
+    "get_queue": {
+      "service": "mdi:format-list-numbered"
+    },
+    "get_job": {
+      "service": "mdi:file-document-outline"
+    },
+    "configure_queue": {
+      "service": "mdi:timer-cog-outline"
+    },
+    "configure_job_defaults": {
+      "service": "mdi:tune"
+    },
+    "create_room": {
+      "service": "mdi:floor-plan"
+    },
+    "update_room": {
+      "service": "mdi:pencil"
+    },
+    "disable_room": {
+      "service": "mdi:close-circle-outline"
+    },
+    "enable_room": {
+      "service": "mdi:check-circle-outline"
+    },
+    "release_room": {
+      "service": "mdi:lock-open-variant"
+    },
+    "revoke_room": {
+      "service": "mdi:lock"
+    },
+    "add_robot": {
+      "service": "mdi:robot-vacuum"
+    },
+    "configure_robot": {
+      "service": "mdi:cog"
+    },
+    "remove_robot": {
+      "service": "mdi:delete"
+    },
+    "rename_robot": {
+      "service": "mdi:rename-box"
+    },
+    "resolve_recovery": {
+      "service": "mdi:lifebuoy"
+    },
+    "save_template": {
+      "service": "mdi:content-save"
+    },
+    "save_job_as_template": {
+      "service": "mdi:content-save-outline"
+    },
+    "remove_template": {
+      "service": "mdi:delete-outline"
+    },
+    "create_job_from_template": {
+      "service": "mdi:file-document-plus-outline"
+    },
+    "reset_template_demand": {
+      "service": "mdi:restore"
+    },
+    "get_rooms": {
+      "service": "mdi:view-list"
+    },
+    "get_robots": {
+      "service": "mdi:robot-vacuum-variant"
+    },
+    "get_robot_candidates": {
+      "service": "mdi:magnify"
+    },
+    "get_templates": {
+      "service": "mdi:file-document-multiple-outline"
+    },
+    "get_history": {
+      "service": "mdi:history"
+    },
+    "get_room": {
+      "service": "mdi:door"
+    },
+    "validate": {
+      "service": "mdi:check-all"
+    },
+    "get_trace": {
+      "service": "mdi:timeline-text-outline"
+    },
+    "get_diagnostics": {
+      "service": "mdi:stethoscope"
+    },
+    "get_setup": {
+      "service": "mdi:clipboard-list-outline"
+    },
+    "get_job_execution": {
+      "service": "mdi:help-circle-outline"
+    },
+    "preview_job": {
+      "service": "mdi:eye-outline"
+    }
+  }
+}

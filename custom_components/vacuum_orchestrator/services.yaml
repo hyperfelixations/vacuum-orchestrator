@@ -1,43 +1,32 @@
 create_job:
-  name: Create job
-  description: Create a cleaning job and append it to the global queue. Omitted mode,
-    settings, passes and settings policy take the job defaults.
   fields:
     areas:
-      name: Areas
-      description: Home Assistant areas to clean, in this order. VOI room IDs are
-        accepted as well.
       selector:
         area:
           multiple: true
     rooms:
-      name: Rooms without area
-      description: VOI room IDs of rooms that have no Home Assistant area.
       selector:
         text:
           multiple: true
     all_rooms:
-      name: All rooms
-      description: Clean every active room instead of naming areas or rooms.
       selector:
         boolean: {}
     mode:
-      name: Cleaning mode
       selector:
         select:
+          translation_key: mode
           options:
           - vacuum
           - mop
           - vacuum_and_mop
           - vacuum_then_mop
     name:
-      name: Name
       selector:
         text: null
     vacuum_power:
-      name: Vacuum power
       selector: &id001
         select:
+          translation_key: vacuum_power
           options:
           - low
           - standard
@@ -45,300 +34,230 @@ create_job:
           - maximum
           - maximum_plus
     mop_intensity:
-      name: Mop intensity
       selector: &water_levels
         select:
+          translation_key: mop_intensity
           options:
           - low
           - medium
           - high
     mop_route:
-      name: Mop route
       selector:
         select:
+          translation_key: mop_route
           options:
           - fast
           - standard
           - deep
           - deep_plus
     passes:
-      name: Passes
       selector:
         number:
           min: 1
           max: 10
           mode: box
     reason:
-      name: Reason
       selector:
         text: null
     note:
-      name: Note
       selector:
         text:
           multiline: true
     dedupe_key:
-      name: Deduplication key
       selector:
         text: null
     required_on:
-      name: Required on
       selector:
         entity:
           multiple: true
     required_off:
-      name: Required off
       selector:
         entity:
           multiple: true
     settings_policy:
-      name: Settings policy
       selector:
         select:
+          translation_key: settings_policy
           options:
           - best_effort
           - strict
     start:
-      name: Start now
-      description: Create and start the job in one step. If it cannot start now,
-        nothing is created.
       default: false
       selector:
         boolean: {}
     robot_id:
-      name: Robot
-      description: Only with start; otherwise VOI chooses the robot. Its vacuum or
-        its robot ID.
       selector:
         entity:
           filter:
             domain: vacuum
 update_job:
-  name: Update job
-  description: Change only the supplied fields of a queued job.
   fields:
     job_id: &id002
-      name: Job ID
       required: true
       selector:
         text: null
     areas:
-      name: Areas
-      description: Home Assistant areas to clean, in this order. VOI room IDs are
-        accepted as well.
       selector:
         area:
           multiple: true
     rooms:
-      name: Rooms without area
-      description: VOI room IDs of rooms that have no Home Assistant area.
       selector:
         text:
           multiple: true
     all_rooms:
-      name: All rooms
-      description: Clean every active room instead of naming areas or rooms.
       selector:
         boolean: {}
     mode:
-      name: Cleaning mode
       selector:
         select:
+          translation_key: mode
           options:
           - vacuum
           - mop
           - vacuum_and_mop
           - vacuum_then_mop
     name:
-      name: Name
       selector:
         text: null
     vacuum_power:
-      name: Vacuum power
       selector: *id001
     mop_intensity:
-      name: Mop intensity
       selector: *water_levels
     mop_route:
-      name: Mop route
       selector:
         select:
+          translation_key: mop_route
           options:
           - fast
           - standard
           - deep
           - deep_plus
     passes:
-      name: Passes
       selector:
         number:
           min: 1
           max: 10
           mode: box
     reason:
-      name: Reason
       selector:
         text: null
     note:
-      name: Note
       selector:
         text:
           multiline: true
     dedupe_key:
-      name: Deduplication key
       selector:
         text: null
     required_on:
-      name: Required on
       selector:
         entity:
           multiple: true
     required_off:
-      name: Required off
       selector:
         entity:
           multiple: true
     settings_policy:
-      name: Settings policy
       selector:
         select:
+          translation_key: settings_policy
           options:
           - best_effort
           - strict
     hold_id:
-      name: Hold token
-      description: Only for the dashboard card, which passes the token of its edit or
-        delete protection. Automations leave it empty.
       advanced: true
       selector:
         text:
 delete_job:
-  name: Delete job
-  description: Delete a queued or terminal job.
   fields:
     job_id: *id002
     hold_id:
-      name: Hold token
-      description: Only for the dashboard card, which passes the token of its edit or
-        delete protection. Automations leave it empty.
       advanced: true
       selector:
         text:
 move_job:
-  name: Move job
-  description: Move a queued job up, down, to the top, or to the bottom.
   fields:
     job_id: *id002
     direction:
-      name: Direction
       required: true
       selector:
         select:
+          translation_key: direction
           options:
           - up
           - down
           - top
           - bottom
 start_job:
-  name: Start job
-  description: Start one queued job on the best robot or an optional selected robot.
   fields:
     job_id: *id002
     robot_id:
-      name: Robot
-      description: Its vacuum or its robot ID.
       selector:
         entity:
           filter:
             domain: vacuum
 run_queue:
-  name: Run queue
-  description: Enable automatic queue processing and dispatch safe jobs.
 pause_queue:
-  name: Pause queue
-  description: Prevent new automatic dispatches without interrupting active work.
 resume_queue:
-  name: Resume queue
-  description: Resume automatic queue processing and dispatch safe jobs.
 end_queue:
-  name: End queue
-  description: End the current queue run. Waiting jobs stay queued. With finish, started
-    jobs (including a pending mopping phase) complete first and the run then closes
-    without a grace period; with cancel, they are cancelled and the run closes now.
   fields:
     running_jobs:
-      name: Started jobs
       default: finish
       selector:
         select:
+          translation_key: running_jobs
           options:
           - finish
           - cancel
     after_cancel:
-      name: After cancelling
       default: stay
       selector:
         select:
+          translation_key: after_cancel
           options:
           - stay
           - return_to_dock
 cancel_job:
-  name: Cancel job
-  description: Cancel queued work or safely stop an active attempt. With return_to_dock
-    the robot then drives home; the cancel completes once it rests at the dock.
   fields:
     job_id: *id002
     after_cancel:
-      name: After cancelling
       default: stay
       selector:
         select:
+          translation_key: after_cancel
           options:
           - stay
           - return_to_dock
 return_robot:
-  name: Return robot to dock
-  description: Send a robot that is not running a job back to its dock.
   fields:
     robot_id:
-      name: Robot
-      description: Its vacuum or its robot ID.
       required: true
       selector:
         entity:
           filter:
             domain: vacuum
 retry_job:
-  name: Retry job
-  description: Create a new queued job from a terminal job.
   fields:
     job_id: *id002
 correct_job:
-  name: Correct job outcome
-  description: Record whether a finished job cleaned its rooms; room due times follow.
   fields:
     job_id: *id002
     outcome:
-      name: Outcome
       required: true
       selector:
         select:
+          translation_key: outcome
           options:
             - completed
             - failed
 get_queue:
-  name: Get queue
-  description: Return a bounded page from the global pending queue.
   fields:
     offset:
-      name: Offset
       default: 0
       selector: &id008
         number:
           min: 0
           mode: box
     limit:
-      name: Limit
       default: 50
       selector: &id009
         number:
@@ -346,333 +265,221 @@ get_queue:
           max: 100
           mode: box
 get_job:
-  name: Get job
-  description: Return one job including its complete public intent.
   fields:
     job_id: *id002
 configure_queue:
-  name: Configure queue
-  description: Set the idle grace period for future queue runs and the start delay
-    of new and edited jobs; give at least one.
   fields:
     grace_seconds:
-      name: Grace period
-      description: How long an idle run stays open, at most one day; blocked pending
-        jobs do not keep a run open.
       required: false
       selector:
         duration: {}
     start_delay_seconds:
-      name: Start delay
-      description: How long the queue waits, at most 10 minutes, before automatically
-        starting a job that was just added or edited. Starting a job directly skips
-        the delay.
       required: false
       selector:
         duration: {}
 configure_job_defaults:
-  name: Configure job defaults
-  description: Set the robot-neutral values new jobs receive when they name none;
-    existing jobs keep their values.
   fields:
     mode:
-      name: Cleaning mode
       selector:
         select:
+          translation_key: mode
           options:
           - vacuum
           - mop
           - vacuum_and_mop
           - vacuum_then_mop
     vacuum_power:
-      name: Vacuum power
       selector: *id001
     mop_intensity:
-      name: Mop intensity
       selector: *water_levels
     mop_route:
-      name: Mop route
       selector:
         select:
+          translation_key: mop_route
           options:
           - fast
           - standard
           - deep
           - deep_plus
     passes:
-      name: Passes
       selector:
         number:
           min: 1
           max: 10
           mode: box
     settings_policy:
-      name: Settings policy
       selector:
         select:
+          translation_key: settings_policy
           options:
           - best_effort
           - strict
 create_room:
-  name: Create room
-  description: Create a room, initially locked.
   fields:
     name:
-      name: Name
       required: true
       selector:
         text: {}
     area_id:
-      name: Home Assistant area ID
       required: false
       selector:
-        text: {}
+        area: {}
 update_room:
-  name: Update room
-  description: Update room name, bindings, requirements or due policy. Cleaning history
-    cannot be changed.
   fields:
     room_id: &id004
-      name: Room ID
       required: true
       selector:
         text: {}
     configuration:
-      name: Configuration
       required: true
       selector:
         object: {}
 disable_room:
-  name: Disable room
-  description: Exclude a room from new jobs while preserving history and preventing
-    automatic reimport.
   fields: &id005
     room_id: *id004
 enable_room:
-  name: Enable room
-  description: Make a disabled room available for new jobs again.
   fields: *id005
 release_room:
-  name: Release rooms
-  description: Allow new jobs in the rooms permanently, for exactly one started job,
-    for a duration, or until the current/next queue run ends.
   fields:
     areas:
-      name: Areas
-      description: Home Assistant areas of the rooms. VOI room IDs are accepted as
-        well.
       selector:
         area:
           multiple: true
     rooms:
-      name: Rooms without area
-      description: VOI room IDs of rooms that have no Home Assistant area.
       selector:
         text:
           multiple: true
     kind:
-      name: Release type
       required: true
       selector:
         select:
+          translation_key: kind
           options:
           - permanent
           - once
           - timed
           - queue_run
     duration_seconds:
-      name: Duration (timed only)
       selector:
         duration: {}
 revoke_room:
-  name: Revoke room releases
-  description: Block new jobs in the rooms. Already started jobs may finish all
-    phases.
   fields:
     areas:
-      name: Areas
-      description: Home Assistant areas of the rooms. VOI room IDs are accepted as
-        well.
       selector:
         area:
           multiple: true
     rooms:
-      name: Rooms without area
-      description: VOI room IDs of rooms that have no Home Assistant area.
       selector:
         text:
           multiple: true
 add_robot:
-  name: Add robot
-  description: Add a vacuum as a robot with the same defaults as automatic discovery;
-    change its settings afterwards with configure_robot.
   fields:
     entity_id:
-      name: Vacuum
       required: true
       selector:
         entity:
           filter:
             domain: vacuum
     name:
-      name: Name
-      description: Optional; without a name the robot follows the name of its vacuum
-        in Home Assistant.
       required: false
       selector:
         text: {}
 configure_robot:
-  name: Configure robot
-  description: Update an idle robot, its roles, targets, requirements and supported
-    preferences.
   fields:
     robot_id: &id006
-      name: Robot
-      description: Its vacuum or its robot ID.
       required: true
       selector:
         entity:
           filter:
             domain: vacuum
     configuration:
-      name: Configuration
       required: true
       selector:
         object: {}
 remove_robot:
-  name: Remove robot
-  description: Remove an idle profile and exclude it from automatic rediscovery.
   fields:
     robot_id: *id006
 rename_robot:
-  name: Rename robot
-  description: Give a robot a custom name, or leave the name empty to follow the
-    name of its vacuum in Home Assistant again.
   fields:
     robot_id: *id006
     name:
-      name: Name
       required: false
       selector:
         text: {}
 resolve_recovery:
-  name: Resolve recovery
-  description: Abandon uncertain work after a verified stop. Explicit confirmation
-    attests a physical stop, including a removed robot. Never marks cleaning successful.
   fields:
     robot_id: *id006
     confirm_stopped:
-      name: I verified that the robot is stopped
       default: false
       selector:
         boolean: {}
 save_template:
-  name: Save template
-  description: Create or replace a reusable job intent. Automatic rules generate at
-    most one demand per room and due episode.
   fields:
     template_id:
-      name: Template ID (omit to create)
       required: false
       selector:
         text: {}
     name:
-      name: Name
       required: true
       selector:
         text: {}
     intent:
-      name: Job intent
       required: true
       selector:
         object: {}
     enabled:
-      name: Enabled
       default: true
       selector:
         boolean: {}
     automatic:
-      name: Create jobs when due
       default: false
       selector:
         boolean: {}
 save_job_as_template:
-  name: Save job as template
-  description: Store a job's rooms, settings, title and note as a new enabled
-    template. The occasion and the deduplication key are not copied.
   fields:
     job_id:
-      name: Job ID
       required: true
       selector:
         text: {}
     name:
-      name: Name
       required: true
       selector:
         text: {}
     automatic:
-      name: Create jobs when due
       default: false
       selector:
         boolean: {}
 remove_template:
-  name: Remove template
-  description: Remove a template while preserving already created jobs.
   fields: &id007
     template_id:
-      name: Template ID
       required: true
       selector:
         text: {}
 create_job_from_template:
-  name: Create job from template
-  description: Append an independent snapshot of the template intent to the queue.
   fields: *id007
 reset_template_demand:
-  name: Reset template demand
-  description: Allow one new automatic demand per due room after a failed or cancelled
-    demand. This does not start the queue.
   fields: *id007
 get_rooms:
-  name: Get rooms
-  description: Return a bounded page of canonical rooms and due/release state.
   fields: &id010
     offset: &id011
-      name: Offset
       default: 0
       selector: *id008
     limit: &id012
-      name: Limit
       default: 50
       selector: *id009
 get_robots:
-  name: Get robots
-  description: Return profiles, configuration and effective capabilities.
   fields: *id010
 get_robot_candidates:
-  name: Get robot candidates
-  description: Discover registered vacuum entities and related roles.
   fields: *id010
 get_templates:
-  name: Get templates
-  description: Return reusable intents and demand suppression.
   fields: *id010
 get_history:
-  name: Get history
-  description: Return normalized cleaning runs and completion quality.
   fields: *id010
 get_room:
-  name: Get room
-  description: Return room bindings, requirements, releases and cleaning evidence.
   fields: *id005
 validate:
-  name: Validate
-  description: Check the input of a command without applying it; returns every
-    field error with its path.
   fields:
     command:
-      name: Command
       required: true
       selector:
         select:
@@ -689,113 +496,82 @@ validate:
           - configure_robot
           - rename_robot
     data:
-      name: Data
       required: true
       selector:
         object: {}
 get_trace:
-  name: Get trace
-  description: Return bounded diagnostic events with sequence numbers.
   fields:
     offset: *id011
     limit: *id012
     job_id:
-      name: Job ID
       required: false
       selector:
         text: {}
 get_diagnostics:
-  name: Get diagnostics
-  description: Return a bounded, anonymized diagnostic export.
 get_setup:
-  name: Get setup
-  description: Return the facts of each setup assistant step and whether it was
-    finished.
 get_job_execution:
-  name: Explain job execution
-  description: Return current per-robot and per-operation blockers, resolved settings
-    and attempt history without dispatching.
   fields:
     job_id:
-      name: Job ID
       required: true
       selector:
         text: {}
 preview_job:
-  name: Preview job
-  description: Resolve a job draft against the job defaults and robots without creating
-    it. Returns the selectable settings, the values to preselect and whether the job
-    could start now.
   fields:
     areas:
-      name: Areas
-      description: Home Assistant areas to clean, in this order. VOI room IDs are
-        accepted as well.
       selector:
         area:
           multiple: true
     rooms:
-      name: Rooms without area
-      description: VOI room IDs of rooms that have no Home Assistant area.
       selector:
         text:
           multiple: true
     all_rooms:
-      name: All rooms
-      description: Clean every active room instead of naming areas or rooms.
       selector:
         boolean: {}
     mode:
-      name: Cleaning mode
       selector:
         select:
+          translation_key: mode
           options:
           - vacuum
           - mop
           - vacuum_and_mop
           - vacuum_then_mop
     vacuum_power:
-      name: Vacuum power
       selector: *id001
     mop_intensity:
-      name: Mop intensity
       selector: *water_levels
     mop_route:
-      name: Mop route
       selector:
         select:
+          translation_key: mop_route
           options:
           - fast
           - standard
           - deep
           - deep_plus
     passes:
-      name: Passes
       selector:
         number:
           min: 1
           max: 10
           mode: box
     settings_policy:
-      name: Settings policy
       selector:
         select:
+          translation_key: settings_policy
           options:
           - best_effort
           - strict
     required_on:
-      name: Required on
       selector:
         entity:
           multiple: true
     required_off:
-      name: Required off
       selector:
         entity:
           multiple: true
     robot_id:
-      name: Robot
-      description: Its vacuum or its robot ID.
       selector:
         entity:
           filter:

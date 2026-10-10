@@ -940,5 +940,821 @@
     "work_unit_state_ledger_mismatch": {
       "message": "Stored data is inconsistent: work step states do not match the plans"
     }
+  },
+  "services": {
+    "create_job": {
+      "name": "Create job",
+      "description": "Adds a cleaning job to the end of the queue. Values you leave out come from the job defaults.",
+      "fields": {
+        "areas": {
+          "name": "Areas",
+          "description": "Home Assistant areas to clean, in this order. VOI room IDs are accepted as well."
+        },
+        "rooms": {
+          "name": "Rooms without area",
+          "description": "VOI room IDs of rooms that have no Home Assistant area."
+        },
+        "all_rooms": {
+          "name": "All rooms",
+          "description": "Cleans every active room instead of the named areas and rooms."
+        },
+        "mode": {
+          "name": "Cleaning mode",
+          "description": "Vacuum, mop, both together, or vacuum first and then mop."
+        },
+        "name": {
+          "name": "Title",
+          "description": "Optional title of the job."
+        },
+        "vacuum_power": {
+          "name": "Vacuum power",
+          "description": "Requested suction level; each robot uses the nearest level it offers unless the settings policy is strict."
+        },
+        "mop_intensity": {
+          "name": "Water amount",
+          "description": "Requested amount of water for mopping."
+        },
+        "mop_route": {
+          "name": "Mop route",
+          "description": "Requested mopping pattern."
+        },
+        "passes": {
+          "name": "Passes",
+          "description": "How often the robot cleans each room, 1 to 10."
+        },
+        "reason": {
+          "name": "Occasion",
+          "description": "Optional occasion of the job, for example a visit."
+        },
+        "note": {
+          "name": "Note",
+          "description": "Optional note on the job."
+        },
+        "dedupe_key": {
+          "name": "Deduplication key",
+          "description": "Rejects the job while another waiting job has the same key."
+        },
+        "required_on": {
+          "name": "Must be on",
+          "description": "Entities that must be on before the job may start, for example an open door contact."
+        },
+        "required_off": {
+          "name": "Must be off",
+          "description": "Entities that must be off before the job may start."
+        },
+        "settings_policy": {
+          "name": "Settings policy",
+          "description": "Best effort uses the nearest setting a robot offers; strict starts only on a robot that offers every requested value."
+        },
+        "start": {
+          "name": "Start now",
+          "description": "Creates and starts the job in one step. If it cannot start now, nothing is created."
+        },
+        "robot_id": {
+          "name": "Robot",
+          "description": "Only with Start now; otherwise VOI chooses the robot. The robot's vacuum entity or robot ID."
+        }
+      }
+    },
+    "update_job": {
+      "name": "Update job",
+      "description": "Changes only the given fields of a waiting job.",
+      "fields": {
+        "job_id": {
+          "name": "Job ID",
+          "description": "ID of the job, from get_queue or the response of create_job."
+        },
+        "areas": {
+          "name": "Areas",
+          "description": "Home Assistant areas to clean, in this order. VOI room IDs are accepted as well."
+        },
+        "rooms": {
+          "name": "Rooms without area",
+          "description": "VOI room IDs of rooms that have no Home Assistant area."
+        },
+        "all_rooms": {
+          "name": "All rooms",
+          "description": "Cleans every active room instead of the named areas and rooms."
+        },
+        "mode": {
+          "name": "Cleaning mode",
+          "description": "Vacuum, mop, both together, or vacuum first and then mop."
+        },
+        "name": {
+          "name": "Title",
+          "description": "Optional title of the job."
+        },
+        "vacuum_power": {
+          "name": "Vacuum power",
+          "description": "Requested suction level; each robot uses the nearest level it offers unless the settings policy is strict."
+        },
+        "mop_intensity": {
+          "name": "Water amount",
+          "description": "Requested amount of water for mopping."
+        },
+        "mop_route": {
+          "name": "Mop route",
+          "description": "Requested mopping pattern."
+        },
+        "passes": {
+          "name": "Passes",
+          "description": "How often the robot cleans each room, 1 to 10."
+        },
+        "reason": {
+          "name": "Occasion",
+          "description": "Optional occasion of the job, for example a visit."
+        },
+        "note": {
+          "name": "Note",
+          "description": "Optional note on the job."
+        },
+        "dedupe_key": {
+          "name": "Deduplication key",
+          "description": "Rejects the job while another waiting job has the same key."
+        },
+        "required_on": {
+          "name": "Must be on",
+          "description": "Entities that must be on before the job may start, for example an open door contact."
+        },
+        "required_off": {
+          "name": "Must be off",
+          "description": "Entities that must be off before the job may start."
+        },
+        "settings_policy": {
+          "name": "Settings policy",
+          "description": "Best effort uses the nearest setting a robot offers; strict starts only on a robot that offers every requested value."
+        },
+        "hold_id": {
+          "name": "Hold token",
+          "description": "Only for the dashboard card, which passes the token of its edit or delete protection. Automations leave it empty."
+        }
+      }
+    },
+    "delete_job": {
+      "name": "Delete job",
+      "description": "Deletes a waiting or finished job.",
+      "fields": {
+        "job_id": {
+          "name": "Job ID",
+          "description": "ID of the job, from get_queue or the response of create_job."
+        },
+        "hold_id": {
+          "name": "Hold token",
+          "description": "Only for the dashboard card, which passes the token of its edit or delete protection. Automations leave it empty."
+        }
+      }
+    },
+    "move_job": {
+      "name": "Move job",
+      "description": "Moves a waiting job up, down, to the top or to the bottom of the queue.",
+      "fields": {
+        "job_id": {
+          "name": "Job ID",
+          "description": "ID of the job, from get_queue or the response of create_job."
+        },
+        "direction": {
+          "name": "Direction",
+          "description": "Where the job moves in the queue."
+        }
+      }
+    },
+    "start_job": {
+      "name": "Start job",
+      "description": "Starts a waiting job now, on the best robot or on the robot you choose.",
+      "fields": {
+        "job_id": {
+          "name": "Job ID",
+          "description": "ID of the job, from get_queue or the response of create_job."
+        },
+        "robot_id": {
+          "name": "Robot",
+          "description": "Optional; otherwise VOI chooses the robot. The robot's vacuum entity or robot ID."
+        }
+      }
+    },
+    "run_queue": {
+      "name": "Run queue",
+      "description": "Starts processing the queue: waiting jobs start as soon as they can."
+    },
+    "pause_queue": {
+      "name": "Pause queue",
+      "description": "Starts no new jobs; started jobs continue."
+    },
+    "resume_queue": {
+      "name": "Resume queue",
+      "description": "Continues processing the paused queue."
+    },
+    "end_queue": {
+      "name": "End queue run",
+      "description": "Ends the current queue run; waiting jobs stay in the queue. Started jobs either finish first or are cancelled.",
+      "fields": {
+        "running_jobs": {
+          "name": "Started jobs",
+          "description": "Finish lets started jobs complete, including a pending mopping phase, and then closes the run without a grace period; cancel stops them and closes the run now."
+        },
+        "after_cancel": {
+          "name": "After cancelling",
+          "description": "Whether a stopped robot stays where it is or returns to its dock."
+        }
+      }
+    },
+    "cancel_job": {
+      "name": "Cancel job",
+      "description": "Cancels a waiting job or safely stops a running one. With return to dock, the cancel completes once the robot rests at its dock.",
+      "fields": {
+        "job_id": {
+          "name": "Job ID",
+          "description": "ID of the job, from get_queue or the response of create_job."
+        },
+        "after_cancel": {
+          "name": "After cancelling",
+          "description": "Whether a stopped robot stays where it is or returns to its dock."
+        }
+      }
+    },
+    "return_robot": {
+      "name": "Return robot to dock",
+      "description": "Sends a robot without a running job back to its dock.",
+      "fields": {
+        "robot_id": {
+          "name": "Robot",
+          "description": "The robot's vacuum entity or robot ID."
+        }
+      }
+    },
+    "retry_job": {
+      "name": "Retry job",
+      "description": "Adds a new job with the rooms and settings of a finished job to the queue.",
+      "fields": {
+        "job_id": {
+          "name": "Job ID",
+          "description": "ID of the job, from get_queue or the response of create_job."
+        }
+      }
+    },
+    "correct_job": {
+      "name": "Correct job outcome",
+      "description": "Records whether a finished job cleaned its rooms; the rooms' due times follow.",
+      "fields": {
+        "job_id": {
+          "name": "Job ID",
+          "description": "ID of the job, from get_queue or the response of create_job."
+        },
+        "outcome": {
+          "name": "Outcome",
+          "description": "Completed records the job's rooms as cleaned; failed removes the cleanings the job recorded."
+        }
+      }
+    },
+    "get_queue": {
+      "name": "Get queue",
+      "description": "Returns a page of the waiting jobs and the state of the queue.",
+      "fields": {
+        "offset": {
+          "name": "Offset",
+          "description": "Number of entries to skip."
+        },
+        "limit": {
+          "name": "Limit",
+          "description": "Maximum number of entries, at most 100."
+        }
+      }
+    },
+    "get_job": {
+      "name": "Get job",
+      "description": "Returns one job with its state, rooms and settings.",
+      "fields": {
+        "job_id": {
+          "name": "Job ID",
+          "description": "ID of the job, from get_queue or the response of create_job."
+        }
+      }
+    },
+    "configure_queue": {
+      "name": "Configure queue",
+      "description": "Sets the grace period of future queue runs and the start delay of new and edited jobs; give at least one.",
+      "fields": {
+        "grace_seconds": {
+          "name": "Grace period",
+          "description": "How long a queue run without work stays open, at most one day. Blocked waiting jobs do not keep it open."
+        },
+        "start_delay_seconds": {
+          "name": "Start delay",
+          "description": "How long the queue waits before it starts a job that was just added or edited, at most 10 minutes. Starting a job directly skips the delay."
+        }
+      }
+    },
+    "configure_job_defaults": {
+      "name": "Configure job defaults",
+      "description": "Sets the values new jobs get when they name none; existing jobs keep theirs.",
+      "fields": {
+        "mode": {
+          "name": "Cleaning mode",
+          "description": "Cleaning mode of new jobs that name none."
+        },
+        "vacuum_power": {
+          "name": "Vacuum power",
+          "description": "Suction level of new jobs that name none."
+        },
+        "mop_intensity": {
+          "name": "Water amount",
+          "description": "Water amount of new jobs that name none."
+        },
+        "mop_route": {
+          "name": "Mop route",
+          "description": "Mop route of new jobs that name none."
+        },
+        "passes": {
+          "name": "Passes",
+          "description": "Passes of new jobs that name none, 1 to 10."
+        },
+        "settings_policy": {
+          "name": "Settings policy",
+          "description": "Settings policy of new jobs that name none."
+        }
+      }
+    },
+    "create_room": {
+      "name": "Create room",
+      "description": "Creates a room; it starts locked.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Display name of the room."
+        },
+        "area_id": {
+          "name": "Area",
+          "description": "Optional Home Assistant area of the room."
+        }
+      }
+    },
+    "update_room": {
+      "name": "Update room",
+      "description": "Changes a room's name, area, robot bindings, conditions or due policy. The cleaning history stays unchanged.",
+      "fields": {
+        "room_id": {
+          "name": "Room ID",
+          "description": "ID of the room from get_rooms; the ID of its Home Assistant area is accepted as well."
+        },
+        "configuration": {
+          "name": "Configuration",
+          "description": "Fields to change: name, area_id, floor_id, enabled, follow_area_name, bindings, requirements or due_policy."
+        }
+      }
+    },
+    "disable_room": {
+      "name": "Disable room",
+      "description": "Excludes a room from new jobs; its history stays and it is not imported again.",
+      "fields": {
+        "room_id": {
+          "name": "Room ID",
+          "description": "ID of the room from get_rooms; the ID of its Home Assistant area is accepted as well."
+        }
+      }
+    },
+    "enable_room": {
+      "name": "Enable room",
+      "description": "Makes a disabled room available for new jobs again.",
+      "fields": {
+        "room_id": {
+          "name": "Room ID",
+          "description": "ID of the room from get_rooms; the ID of its Home Assistant area is accepted as well."
+        }
+      }
+    },
+    "release_room": {
+      "name": "Release rooms",
+      "description": "Allows jobs to start in the rooms: until revoked, for the next job, for a duration or for the queue run.",
+      "fields": {
+        "areas": {
+          "name": "Areas",
+          "description": "Home Assistant areas of the rooms. VOI room IDs are accepted as well."
+        },
+        "rooms": {
+          "name": "Rooms without area",
+          "description": "VOI room IDs of rooms that have no Home Assistant area."
+        },
+        "kind": {
+          "name": "Release type",
+          "description": "How long the release lasts; the same for all named rooms."
+        },
+        "duration_seconds": {
+          "name": "Duration",
+          "description": "Only for a release for a duration."
+        }
+      }
+    },
+    "revoke_room": {
+      "name": "Lock rooms",
+      "description": "Stops new jobs from starting in the rooms; started jobs may finish all their phases.",
+      "fields": {
+        "areas": {
+          "name": "Areas",
+          "description": "Home Assistant areas of the rooms. VOI room IDs are accepted as well."
+        },
+        "rooms": {
+          "name": "Rooms without area",
+          "description": "VOI room IDs of rooms that have no Home Assistant area."
+        }
+      }
+    },
+    "add_robot": {
+      "name": "Add robot",
+      "description": "Adds a vacuum as a robot with the defaults of automatic discovery; change details with Configure robot.",
+      "fields": {
+        "entity_id": {
+          "name": "Vacuum",
+          "description": "The vacuum entity of the robot."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Optional; without a name the robot follows the name of its vacuum in Home Assistant."
+        }
+      }
+    },
+    "configure_robot": {
+      "name": "Configure robot",
+      "description": "Changes the profile of an idle robot: roles, targets, conditions and supported settings.",
+      "fields": {
+        "robot_id": {
+          "name": "Robot",
+          "description": "The robot's vacuum entity or robot ID."
+        },
+        "configuration": {
+          "name": "Configuration",
+          "description": "Profile fields to change, for example fixed_mode, minimum_battery, roles or target_areas."
+        }
+      }
+    },
+    "remove_robot": {
+      "name": "Remove robot",
+      "description": "Removes an idle robot; automatic discovery does not add it again.",
+      "fields": {
+        "robot_id": {
+          "name": "Robot",
+          "description": "The robot's vacuum entity or robot ID."
+        }
+      }
+    },
+    "rename_robot": {
+      "name": "Rename robot",
+      "description": "Gives a robot its own name, or lets it follow the name of its vacuum in Home Assistant again.",
+      "fields": {
+        "robot_id": {
+          "name": "Robot",
+          "description": "The robot's vacuum entity or robot ID."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Leave empty to follow the name of the vacuum in Home Assistant again."
+        }
+      }
+    },
+    "resolve_recovery": {
+      "name": "Free robot",
+      "description": "Gives up the uncertain work of a robot once it has stopped. Confirming the stop also frees a removed robot. Never records a cleaning as successful.",
+      "fields": {
+        "robot_id": {
+          "name": "Robot",
+          "description": "The robot's vacuum entity or robot ID."
+        },
+        "confirm_stopped": {
+          "name": "I verified that the robot is stopped",
+          "description": "Confirms a physical stop, also for a removed robot. Without it, VOI must observe the stop itself."
+        }
+      }
+    },
+    "save_template": {
+      "name": "Save template",
+      "description": "Creates or replaces a reusable job. An automatic template creates at most one job per room and due period.",
+      "fields": {
+        "template_id": {
+          "name": "Template ID",
+          "description": "Leave empty to create a template; with an ID, that template is replaced."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Display name of the template."
+        },
+        "intent": {
+          "name": "Job",
+          "description": "Fields of create_job without start and robot, for example areas and mode."
+        },
+        "enabled": {
+          "name": "Enabled",
+          "description": "A disabled template creates no automatic jobs."
+        },
+        "automatic": {
+          "name": "Create jobs when due",
+          "description": "Creates a job when one of its rooms becomes due."
+        }
+      }
+    },
+    "save_job_as_template": {
+      "name": "Save job as template",
+      "description": "Stores a job's rooms, settings, title and note as a new enabled template; occasion and deduplication key are not copied.",
+      "fields": {
+        "job_id": {
+          "name": "Job ID",
+          "description": "ID of the job, from get_queue or the response of create_job."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Display name of the template."
+        },
+        "automatic": {
+          "name": "Create jobs when due",
+          "description": "Creates a job when one of its rooms becomes due."
+        }
+      }
+    },
+    "remove_template": {
+      "name": "Remove template",
+      "description": "Removes a template; jobs created from it stay.",
+      "fields": {
+        "template_id": {
+          "name": "Template ID",
+          "description": "ID of the template from get_templates."
+        }
+      }
+    },
+    "create_job_from_template": {
+      "name": "Create job from template",
+      "description": "Adds an independent copy of the template to the queue.",
+      "fields": {
+        "template_id": {
+          "name": "Template ID",
+          "description": "ID of the template from get_templates."
+        }
+      }
+    },
+    "reset_template_demand": {
+      "name": "Reset template demand",
+      "description": "Lets an automatic template create a job again for due rooms whose job failed or was cancelled. Does not start the queue.",
+      "fields": {
+        "template_id": {
+          "name": "Template ID",
+          "description": "ID of the template from get_templates."
+        }
+      }
+    },
+    "get_rooms": {
+      "name": "Get rooms",
+      "description": "Returns a page of rooms with release, due and reach information.",
+      "fields": {
+        "offset": {
+          "name": "Offset",
+          "description": "Number of entries to skip."
+        },
+        "limit": {
+          "name": "Limit",
+          "description": "Maximum number of entries, at most 100."
+        }
+      }
+    },
+    "get_robots": {
+      "name": "Get robots",
+      "description": "Returns a page of robots with configuration, capabilities and state.",
+      "fields": {
+        "offset": {
+          "name": "Offset",
+          "description": "Number of entries to skip."
+        },
+        "limit": {
+          "name": "Limit",
+          "description": "Maximum number of entries, at most 100."
+        }
+      }
+    },
+    "get_robot_candidates": {
+      "name": "Get robot candidates",
+      "description": "Returns the registered vacuums with their detected roles.",
+      "fields": {
+        "offset": {
+          "name": "Offset",
+          "description": "Number of entries to skip."
+        },
+        "limit": {
+          "name": "Limit",
+          "description": "Maximum number of entries, at most 100."
+        }
+      }
+    },
+    "get_templates": {
+      "name": "Get templates",
+      "description": "Returns a page of templates and their automatic demand.",
+      "fields": {
+        "offset": {
+          "name": "Offset",
+          "description": "Number of entries to skip."
+        },
+        "limit": {
+          "name": "Limit",
+          "description": "Maximum number of entries, at most 100."
+        }
+      }
+    },
+    "get_history": {
+      "name": "Get history",
+      "description": "Returns a page of recorded cleaning runs and how well their success is proven.",
+      "fields": {
+        "offset": {
+          "name": "Offset",
+          "description": "Number of entries to skip."
+        },
+        "limit": {
+          "name": "Limit",
+          "description": "Maximum number of entries, at most 100."
+        }
+      }
+    },
+    "get_room": {
+      "name": "Get room",
+      "description": "Returns one room with bindings, conditions, release and cleaning evidence.",
+      "fields": {
+        "room_id": {
+          "name": "Room ID",
+          "description": "ID of the room from get_rooms; the ID of its Home Assistant area is accepted as well."
+        }
+      }
+    },
+    "validate": {
+      "name": "Validate input",
+      "description": "Checks the input of a command without applying it and returns every field error with its path.",
+      "fields": {
+        "command": {
+          "name": "Command",
+          "description": "The command whose input is checked."
+        },
+        "data": {
+          "name": "Data",
+          "description": "The input as the command expects it."
+        }
+      }
+    },
+    "get_trace": {
+      "name": "Get trace",
+      "description": "Returns recent diagnostic events and stored incidents.",
+      "fields": {
+        "offset": {
+          "name": "Offset",
+          "description": "Number of entries to skip."
+        },
+        "limit": {
+          "name": "Limit",
+          "description": "Maximum number of entries, at most 100."
+        },
+        "job_id": {
+          "name": "Job ID",
+          "description": "Optional; only events and incidents of this job."
+        }
+      }
+    },
+    "get_diagnostics": {
+      "name": "Get diagnostics",
+      "description": "Returns a bounded, anonymized diagnostic export."
+    },
+    "get_setup": {
+      "name": "Get setup",
+      "description": "Returns the facts of each setup assistant step and whether setup was finished."
+    },
+    "get_job_execution": {
+      "name": "Explain job execution",
+      "description": "Explains per robot and operation what blocks a job, which settings it would get, and its attempts so far.",
+      "fields": {
+        "job_id": {
+          "name": "Job ID",
+          "description": "ID of the job, from get_queue or the response of create_job."
+        }
+      }
+    },
+    "preview_job": {
+      "name": "Preview job",
+      "description": "Evaluates a job draft without creating it: the offered settings, the values to preselect and whether it could start now.",
+      "fields": {
+        "areas": {
+          "name": "Areas",
+          "description": "Home Assistant areas to clean, in this order. VOI room IDs are accepted as well."
+        },
+        "rooms": {
+          "name": "Rooms without area",
+          "description": "VOI room IDs of rooms that have no Home Assistant area."
+        },
+        "all_rooms": {
+          "name": "All rooms",
+          "description": "Cleans every active room instead of the named areas and rooms."
+        },
+        "mode": {
+          "name": "Cleaning mode",
+          "description": "Vacuum, mop, both together, or vacuum first and then mop."
+        },
+        "vacuum_power": {
+          "name": "Vacuum power",
+          "description": "Requested suction level; each robot uses the nearest level it offers unless the settings policy is strict."
+        },
+        "mop_intensity": {
+          "name": "Water amount",
+          "description": "Requested amount of water for mopping."
+        },
+        "mop_route": {
+          "name": "Mop route",
+          "description": "Requested mopping pattern."
+        },
+        "passes": {
+          "name": "Passes",
+          "description": "How often the robot cleans each room, 1 to 10."
+        },
+        "settings_policy": {
+          "name": "Settings policy",
+          "description": "Best effort uses the nearest setting a robot offers; strict starts only on a robot that offers every requested value."
+        },
+        "required_on": {
+          "name": "Must be on",
+          "description": "Entities that must be on before the job may start, for example an open door contact."
+        },
+        "required_off": {
+          "name": "Must be off",
+          "description": "Entities that must be off before the job may start."
+        },
+        "robot_id": {
+          "name": "Robot",
+          "description": "Optional; checks the start on this robot. The robot's vacuum entity or robot ID."
+        }
+      }
+    }
+  },
+  "selector": {
+    "mode": {
+      "options": {
+        "vacuum": "Vacuum",
+        "mop": "Mop",
+        "vacuum_and_mop": "Vacuum and mop together",
+        "vacuum_then_mop": "Vacuum, then mop"
+      }
+    },
+    "vacuum_power": {
+      "options": {
+        "low": "Low",
+        "standard": "Standard",
+        "high": "High",
+        "maximum": "Maximum",
+        "maximum_plus": "Maximum+"
+      }
+    },
+    "mop_intensity": {
+      "options": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      }
+    },
+    "mop_route": {
+      "options": {
+        "fast": "Fast",
+        "standard": "Standard",
+        "deep": "Deep",
+        "deep_plus": "Deep+"
+      }
+    },
+    "settings_policy": {
+      "options": {
+        "best_effort": "Best effort",
+        "strict": "Strict"
+      }
+    },
+    "direction": {
+      "options": {
+        "up": "Up",
+        "down": "Down",
+        "top": "To the top",
+        "bottom": "To the bottom"
+      }
+    },
+    "running_jobs": {
+      "options": {
+        "finish": "Finish",
+        "cancel": "Cancel"
+      }
+    },
+    "after_cancel": {
+      "options": {
+        "stay": "Stay",
+        "return_to_dock": "Return to dock"
+      }
+    },
+    "outcome": {
+      "options": {
+        "completed": "Completed",
+        "failed": "Failed"
+      }
+    },
+    "kind": {
+      "options": {
+        "permanent": "Until revoked",
+        "once": "For the next job",
+        "timed": "For a duration",
+        "queue_run": "For this queue run"
+      }
+    }
   }
 }

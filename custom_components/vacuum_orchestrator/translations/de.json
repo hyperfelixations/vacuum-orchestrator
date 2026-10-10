@@ -940,5 +940,821 @@
     "work_unit_state_ledger_mismatch": {
       "message": "Gespeicherte Daten sind inkonsistent: Zustände der Arbeitsschritte passen nicht zu den Plänen"
     }
+  },
+  "services": {
+    "create_job": {
+      "name": "Auftrag anlegen",
+      "description": "Fügt einen Reinigungsauftrag am Ende der Warteschlange hinzu. Nicht angegebene Werte kommen aus den Auftragsvorgaben.",
+      "fields": {
+        "areas": {
+          "name": "Bereiche",
+          "description": "Zu reinigende Home-Assistant-Bereiche in dieser Reihenfolge. VOI-Raum-IDs werden ebenfalls angenommen."
+        },
+        "rooms": {
+          "name": "Räume ohne Bereich",
+          "description": "VOI-Raum-IDs von Räumen ohne Home-Assistant-Bereich."
+        },
+        "all_rooms": {
+          "name": "Alle Räume",
+          "description": "Reinigt alle aktiven Räume statt der genannten Bereiche und Räume."
+        },
+        "mode": {
+          "name": "Reinigungsmodus",
+          "description": "Saugen, Wischen, beides gleichzeitig oder erst saugen, dann wischen."
+        },
+        "name": {
+          "name": "Titel",
+          "description": "Optionaler Titel des Auftrags."
+        },
+        "vacuum_power": {
+          "name": "Saugkraft",
+          "description": "Gewünschte Saugkraft; jeder Roboter nutzt die nächstliegende Stufe, die er anbietet, außer bei strenger Einstellungsregel."
+        },
+        "mop_intensity": {
+          "name": "Wassermenge",
+          "description": "Gewünschte Wassermenge beim Wischen."
+        },
+        "mop_route": {
+          "name": "Wischroute",
+          "description": "Gewünschte Wischroute."
+        },
+        "passes": {
+          "name": "Durchgänge",
+          "description": "Wie oft der Roboter jeden Raum reinigt, 1 bis 10."
+        },
+        "reason": {
+          "name": "Anlass",
+          "description": "Optionaler Anlass des Auftrags, zum Beispiel Besuch."
+        },
+        "note": {
+          "name": "Notiz",
+          "description": "Optionale Notiz zum Auftrag."
+        },
+        "dedupe_key": {
+          "name": "Duplikatschlüssel",
+          "description": "Lehnt den Auftrag ab, solange ein anderer wartender Auftrag denselben Schlüssel hat."
+        },
+        "required_on": {
+          "name": "Muss an sein",
+          "description": "Entitäten, die vor dem Start an sein müssen, zum Beispiel ein offener Türkontakt."
+        },
+        "required_off": {
+          "name": "Muss aus sein",
+          "description": "Entitäten, die vor dem Start aus sein müssen."
+        },
+        "settings_policy": {
+          "name": "Einstellungsregel",
+          "description": "„Bestmöglich“ nutzt die nächstliegende Einstellung eines Roboters; „Streng“ startet nur auf einem Roboter, der jeden gewünschten Wert anbietet."
+        },
+        "start": {
+          "name": "Sofort starten",
+          "description": "Legt den Auftrag an und startet ihn in einem Schritt. Kann er jetzt nicht starten, wird nichts angelegt."
+        },
+        "robot_id": {
+          "name": "Roboter",
+          "description": "Nur mit „Sofort starten“; sonst wählt VOI den Roboter. Saugroboter-Entität oder Roboter-ID des Roboters."
+        }
+      }
+    },
+    "update_job": {
+      "name": "Auftrag ändern",
+      "description": "Ändert nur die angegebenen Felder eines wartenden Auftrags.",
+      "fields": {
+        "job_id": {
+          "name": "Auftrags-ID",
+          "description": "ID des Auftrags, aus get_queue oder der Antwort von create_job."
+        },
+        "areas": {
+          "name": "Bereiche",
+          "description": "Zu reinigende Home-Assistant-Bereiche in dieser Reihenfolge. VOI-Raum-IDs werden ebenfalls angenommen."
+        },
+        "rooms": {
+          "name": "Räume ohne Bereich",
+          "description": "VOI-Raum-IDs von Räumen ohne Home-Assistant-Bereich."
+        },
+        "all_rooms": {
+          "name": "Alle Räume",
+          "description": "Reinigt alle aktiven Räume statt der genannten Bereiche und Räume."
+        },
+        "mode": {
+          "name": "Reinigungsmodus",
+          "description": "Saugen, Wischen, beides gleichzeitig oder erst saugen, dann wischen."
+        },
+        "name": {
+          "name": "Titel",
+          "description": "Optionaler Titel des Auftrags."
+        },
+        "vacuum_power": {
+          "name": "Saugkraft",
+          "description": "Gewünschte Saugkraft; jeder Roboter nutzt die nächstliegende Stufe, die er anbietet, außer bei strenger Einstellungsregel."
+        },
+        "mop_intensity": {
+          "name": "Wassermenge",
+          "description": "Gewünschte Wassermenge beim Wischen."
+        },
+        "mop_route": {
+          "name": "Wischroute",
+          "description": "Gewünschte Wischroute."
+        },
+        "passes": {
+          "name": "Durchgänge",
+          "description": "Wie oft der Roboter jeden Raum reinigt, 1 bis 10."
+        },
+        "reason": {
+          "name": "Anlass",
+          "description": "Optionaler Anlass des Auftrags, zum Beispiel Besuch."
+        },
+        "note": {
+          "name": "Notiz",
+          "description": "Optionale Notiz zum Auftrag."
+        },
+        "dedupe_key": {
+          "name": "Duplikatschlüssel",
+          "description": "Lehnt den Auftrag ab, solange ein anderer wartender Auftrag denselben Schlüssel hat."
+        },
+        "required_on": {
+          "name": "Muss an sein",
+          "description": "Entitäten, die vor dem Start an sein müssen, zum Beispiel ein offener Türkontakt."
+        },
+        "required_off": {
+          "name": "Muss aus sein",
+          "description": "Entitäten, die vor dem Start aus sein müssen."
+        },
+        "settings_policy": {
+          "name": "Einstellungsregel",
+          "description": "„Bestmöglich“ nutzt die nächstliegende Einstellung eines Roboters; „Streng“ startet nur auf einem Roboter, der jeden gewünschten Wert anbietet."
+        },
+        "hold_id": {
+          "name": "Schutzkennung",
+          "description": "Nur für die Dashboard-Karte, die damit ihren Bearbeitungs- oder Löschschutz übergibt. Automationen lassen sie leer."
+        }
+      }
+    },
+    "delete_job": {
+      "name": "Auftrag löschen",
+      "description": "Löscht einen wartenden oder beendeten Auftrag.",
+      "fields": {
+        "job_id": {
+          "name": "Auftrags-ID",
+          "description": "ID des Auftrags, aus get_queue oder der Antwort von create_job."
+        },
+        "hold_id": {
+          "name": "Schutzkennung",
+          "description": "Nur für die Dashboard-Karte, die damit ihren Bearbeitungs- oder Löschschutz übergibt. Automationen lassen sie leer."
+        }
+      }
+    },
+    "move_job": {
+      "name": "Auftrag verschieben",
+      "description": "Verschiebt einen wartenden Auftrag in der Warteschlange nach oben, nach unten, an den Anfang oder ans Ende.",
+      "fields": {
+        "job_id": {
+          "name": "Auftrags-ID",
+          "description": "ID des Auftrags, aus get_queue oder der Antwort von create_job."
+        },
+        "direction": {
+          "name": "Richtung",
+          "description": "Wohin der Auftrag in der Warteschlange rückt."
+        }
+      }
+    },
+    "start_job": {
+      "name": "Auftrag starten",
+      "description": "Startet einen wartenden Auftrag sofort, auf dem besten oder dem gewählten Roboter.",
+      "fields": {
+        "job_id": {
+          "name": "Auftrags-ID",
+          "description": "ID des Auftrags, aus get_queue oder der Antwort von create_job."
+        },
+        "robot_id": {
+          "name": "Roboter",
+          "description": "Optional; sonst wählt VOI den Roboter. Saugroboter-Entität oder Roboter-ID des Roboters."
+        }
+      }
+    },
+    "run_queue": {
+      "name": "Warteschlange starten",
+      "description": "Startet die Abarbeitung der Warteschlange: Wartende Aufträge starten, sobald sie können."
+    },
+    "pause_queue": {
+      "name": "Warteschlange pausieren",
+      "description": "Startet keine neuen Aufträge; gestartete Aufträge laufen weiter."
+    },
+    "resume_queue": {
+      "name": "Warteschlange fortsetzen",
+      "description": "Setzt die Abarbeitung der pausierten Warteschlange fort."
+    },
+    "end_queue": {
+      "name": "Warteschlangenlauf beenden",
+      "description": "Beendet den aktuellen Warteschlangenlauf; wartende Aufträge bleiben in der Warteschlange. Gestartete Aufträge werden zuerst abgeschlossen oder abgebrochen.",
+      "fields": {
+        "running_jobs": {
+          "name": "Gestartete Aufträge",
+          "description": "„Abschließen“ lässt gestartete Aufträge samt ausstehender Wischphase fertig werden und beendet den Lauf dann ohne Nachlaufzeit; „Abbrechen“ stoppt sie und beendet den Lauf sofort."
+        },
+        "after_cancel": {
+          "name": "Nach dem Abbruch",
+          "description": "Ob ein gestoppter Roboter stehen bleibt oder zur Station zurückfährt."
+        }
+      }
+    },
+    "cancel_job": {
+      "name": "Auftrag abbrechen",
+      "description": "Bricht einen wartenden Auftrag ab oder stoppt einen laufenden sicher. Mit Rückkehr zur Station ist der Abbruch abgeschlossen, sobald der Roboter in der Station steht.",
+      "fields": {
+        "job_id": {
+          "name": "Auftrags-ID",
+          "description": "ID des Auftrags, aus get_queue oder der Antwort von create_job."
+        },
+        "after_cancel": {
+          "name": "Nach dem Abbruch",
+          "description": "Ob ein gestoppter Roboter stehen bleibt oder zur Station zurückfährt."
+        }
+      }
+    },
+    "return_robot": {
+      "name": "Roboter zur Station schicken",
+      "description": "Schickt einen Roboter ohne laufenden Auftrag zurück zur Station.",
+      "fields": {
+        "robot_id": {
+          "name": "Roboter",
+          "description": "Saugroboter-Entität oder Roboter-ID des Roboters."
+        }
+      }
+    },
+    "retry_job": {
+      "name": "Auftrag wiederholen",
+      "description": "Reiht einen neuen Auftrag mit den Räumen und Einstellungen eines beendeten Auftrags ein.",
+      "fields": {
+        "job_id": {
+          "name": "Auftrags-ID",
+          "description": "ID des Auftrags, aus get_queue oder der Antwort von create_job."
+        }
+      }
+    },
+    "correct_job": {
+      "name": "Auftragsergebnis korrigieren",
+      "description": "Hält fest, ob ein beendeter Auftrag seine Räume gereinigt hat; die Fälligkeit der Räume folgt.",
+      "fields": {
+        "job_id": {
+          "name": "Auftrags-ID",
+          "description": "ID des Auftrags, aus get_queue oder der Antwort von create_job."
+        },
+        "outcome": {
+          "name": "Ergebnis",
+          "description": "„Erfolgreich“ verbucht die Räume des Auftrags als gereinigt; „Fehlgeschlagen“ entfernt die vom Auftrag verbuchten Reinigungen."
+        }
+      }
+    },
+    "get_queue": {
+      "name": "Warteschlange abrufen",
+      "description": "Liefert eine Seite der wartenden Aufträge und den Zustand der Warteschlange.",
+      "fields": {
+        "offset": {
+          "name": "Versatz",
+          "description": "Anzahl der zu überspringenden Einträge."
+        },
+        "limit": {
+          "name": "Anzahl",
+          "description": "Höchstzahl der Einträge, höchstens 100."
+        }
+      }
+    },
+    "get_job": {
+      "name": "Auftrag abrufen",
+      "description": "Liefert einen Auftrag mit Zustand, Räumen und Einstellungen.",
+      "fields": {
+        "job_id": {
+          "name": "Auftrags-ID",
+          "description": "ID des Auftrags, aus get_queue oder der Antwort von create_job."
+        }
+      }
+    },
+    "configure_queue": {
+      "name": "Warteschlange einstellen",
+      "description": "Legt die Nachlaufzeit künftiger Warteschlangenläufe und die Startverzögerung neuer und bearbeiteter Aufträge fest; mindestens eines angeben.",
+      "fields": {
+        "grace_seconds": {
+          "name": "Nachlaufzeit",
+          "description": "Wie lange ein Warteschlangenlauf ohne Arbeit offen bleibt, höchstens einen Tag. Blockierte wartende Aufträge halten ihn nicht offen."
+        },
+        "start_delay_seconds": {
+          "name": "Startverzögerung",
+          "description": "Wie lange die Warteschlange wartet, bevor sie einen eben angelegten oder bearbeiteten Auftrag startet; höchstens 10 Minuten. Ein direkter Start überspringt die Verzögerung."
+        }
+      }
+    },
+    "configure_job_defaults": {
+      "name": "Auftragsvorgaben einstellen",
+      "description": "Legt die Werte fest, die neue Aufträge ohne eigene Angabe erhalten; bestehende Aufträge behalten ihre.",
+      "fields": {
+        "mode": {
+          "name": "Reinigungsmodus",
+          "description": "Reinigungsmodus neuer Aufträge ohne eigene Angabe."
+        },
+        "vacuum_power": {
+          "name": "Saugkraft",
+          "description": "Saugkraft neuer Aufträge ohne eigene Angabe."
+        },
+        "mop_intensity": {
+          "name": "Wassermenge",
+          "description": "Wassermenge neuer Aufträge ohne eigene Angabe."
+        },
+        "mop_route": {
+          "name": "Wischroute",
+          "description": "Wischroute neuer Aufträge ohne eigene Angabe."
+        },
+        "passes": {
+          "name": "Durchgänge",
+          "description": "Durchgänge neuer Aufträge ohne eigene Angabe, 1 bis 10."
+        },
+        "settings_policy": {
+          "name": "Einstellungsregel",
+          "description": "Einstellungsregel neuer Aufträge ohne eigene Angabe."
+        }
+      }
+    },
+    "create_room": {
+      "name": "Raum anlegen",
+      "description": "Legt einen Raum an; er ist zunächst gesperrt.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Anzeigename des Raums."
+        },
+        "area_id": {
+          "name": "Bereich",
+          "description": "Optionaler Home-Assistant-Bereich des Raums."
+        }
+      }
+    },
+    "update_room": {
+      "name": "Raum ändern",
+      "description": "Ändert Name, Bereich, Roboterzuordnungen, Bedingungen oder Fälligkeitsregel eines Raums. Der Reinigungsverlauf bleibt unverändert.",
+      "fields": {
+        "room_id": {
+          "name": "Raum-ID",
+          "description": "ID des Raums aus get_rooms; die ID seines Home-Assistant-Bereichs wird ebenfalls angenommen."
+        },
+        "configuration": {
+          "name": "Konfiguration",
+          "description": "Zu ändernde Felder: name, area_id, floor_id, enabled, follow_area_name, bindings, requirements oder due_policy."
+        }
+      }
+    },
+    "disable_room": {
+      "name": "Raum deaktivieren",
+      "description": "Schließt einen Raum von neuen Aufträgen aus; sein Verlauf bleibt erhalten und er wird nicht erneut importiert.",
+      "fields": {
+        "room_id": {
+          "name": "Raum-ID",
+          "description": "ID des Raums aus get_rooms; die ID seines Home-Assistant-Bereichs wird ebenfalls angenommen."
+        }
+      }
+    },
+    "enable_room": {
+      "name": "Raum aktivieren",
+      "description": "Macht einen deaktivierten Raum wieder für neue Aufträge verfügbar.",
+      "fields": {
+        "room_id": {
+          "name": "Raum-ID",
+          "description": "ID des Raums aus get_rooms; die ID seines Home-Assistant-Bereichs wird ebenfalls angenommen."
+        }
+      }
+    },
+    "release_room": {
+      "name": "Räume freigeben",
+      "description": "Erlaubt Aufträgen den Start in den Räumen: bis zur Sperre, für den nächsten Auftrag, für eine Dauer oder für den Warteschlangenlauf.",
+      "fields": {
+        "areas": {
+          "name": "Bereiche",
+          "description": "Home-Assistant-Bereiche der Räume. VOI-Raum-IDs werden ebenfalls angenommen."
+        },
+        "rooms": {
+          "name": "Räume ohne Bereich",
+          "description": "VOI-Raum-IDs von Räumen ohne Home-Assistant-Bereich."
+        },
+        "kind": {
+          "name": "Freigabeart",
+          "description": "Wie lange die Freigabe gilt; gleich für alle genannten Räume."
+        },
+        "duration_seconds": {
+          "name": "Dauer",
+          "description": "Nur für eine Freigabe für eine Dauer."
+        }
+      }
+    },
+    "revoke_room": {
+      "name": "Räume sperren",
+      "description": "Verhindert neue Starts in den Räumen; gestartete Aufträge dürfen alle ihre Phasen beenden.",
+      "fields": {
+        "areas": {
+          "name": "Bereiche",
+          "description": "Home-Assistant-Bereiche der Räume. VOI-Raum-IDs werden ebenfalls angenommen."
+        },
+        "rooms": {
+          "name": "Räume ohne Bereich",
+          "description": "VOI-Raum-IDs von Räumen ohne Home-Assistant-Bereich."
+        }
+      }
+    },
+    "add_robot": {
+      "name": "Roboter hinzufügen",
+      "description": "Fügt einen Saugroboter mit den Vorgaben der automatischen Erkennung als Roboter hinzu; Details über „Roboter konfigurieren“ ändern.",
+      "fields": {
+        "entity_id": {
+          "name": "Saugroboter",
+          "description": "Die Saugroboter-Entität des Roboters."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Optional; ohne Namen folgt der Roboter dem Namen seines Saugroboters in Home Assistant."
+        }
+      }
+    },
+    "configure_robot": {
+      "name": "Roboter konfigurieren",
+      "description": "Ändert das Profil eines freien Roboters: Rollen, Ziele, Bedingungen und unterstützte Einstellungen.",
+      "fields": {
+        "robot_id": {
+          "name": "Roboter",
+          "description": "Saugroboter-Entität oder Roboter-ID des Roboters."
+        },
+        "configuration": {
+          "name": "Konfiguration",
+          "description": "Zu ändernde Profilfelder, zum Beispiel fixed_mode, minimum_battery, roles oder target_areas."
+        }
+      }
+    },
+    "remove_robot": {
+      "name": "Roboter entfernen",
+      "description": "Entfernt einen freien Roboter; die automatische Erkennung fügt ihn nicht erneut hinzu.",
+      "fields": {
+        "robot_id": {
+          "name": "Roboter",
+          "description": "Saugroboter-Entität oder Roboter-ID des Roboters."
+        }
+      }
+    },
+    "rename_robot": {
+      "name": "Roboter umbenennen",
+      "description": "Gibt einem Roboter einen eigenen Namen oder lässt ihn wieder dem Namen seines Saugroboters in Home Assistant folgen.",
+      "fields": {
+        "robot_id": {
+          "name": "Roboter",
+          "description": "Saugroboter-Entität oder Roboter-ID des Roboters."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Leer lassen, um wieder dem Namen des Saugroboters in Home Assistant zu folgen."
+        }
+      }
+    },
+    "resolve_recovery": {
+      "name": "Roboter freigeben",
+      "description": "Gibt die unklare Arbeit eines Roboters auf, sobald er steht. Eine Bestätigung des Stillstands gibt auch einen entfernten Roboter frei. Verbucht nie eine Reinigung als erfolgreich.",
+      "fields": {
+        "robot_id": {
+          "name": "Roboter",
+          "description": "Saugroboter-Entität oder Roboter-ID des Roboters."
+        },
+        "confirm_stopped": {
+          "name": "Ich habe geprüft, dass der Roboter steht",
+          "description": "Bestätigt einen physischen Stillstand, auch bei einem entfernten Roboter. Ohne Bestätigung muss VOI den Stillstand selbst beobachten."
+        }
+      }
+    },
+    "save_template": {
+      "name": "Vorlage speichern",
+      "description": "Legt eine wiederverwendbare Auftragsvorlage an oder ersetzt sie. Eine automatische Vorlage legt je Raum und Fälligkeit höchstens einen Auftrag an.",
+      "fields": {
+        "template_id": {
+          "name": "Vorlagen-ID",
+          "description": "Leer lassen, um eine Vorlage anzulegen; mit ID wird diese Vorlage ersetzt."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Anzeigename der Vorlage."
+        },
+        "intent": {
+          "name": "Auftrag",
+          "description": "Felder von create_job ohne Start und Roboter, zum Beispiel areas und mode."
+        },
+        "enabled": {
+          "name": "Aktiviert",
+          "description": "Eine deaktivierte Vorlage legt keine automatischen Aufträge an."
+        },
+        "automatic": {
+          "name": "Bei Fälligkeit Aufträge anlegen",
+          "description": "Legt einen Auftrag an, sobald einer ihrer Räume fällig wird."
+        }
+      }
+    },
+    "save_job_as_template": {
+      "name": "Auftrag als Vorlage speichern",
+      "description": "Speichert Räume, Einstellungen, Titel und Notiz eines Auftrags als neue aktivierte Vorlage; Anlass und Duplikatschlüssel werden nicht übernommen.",
+      "fields": {
+        "job_id": {
+          "name": "Auftrags-ID",
+          "description": "ID des Auftrags, aus get_queue oder der Antwort von create_job."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Anzeigename der Vorlage."
+        },
+        "automatic": {
+          "name": "Bei Fälligkeit Aufträge anlegen",
+          "description": "Legt einen Auftrag an, sobald einer ihrer Räume fällig wird."
+        }
+      }
+    },
+    "remove_template": {
+      "name": "Vorlage entfernen",
+      "description": "Entfernt eine Vorlage; daraus angelegte Aufträge bleiben.",
+      "fields": {
+        "template_id": {
+          "name": "Vorlagen-ID",
+          "description": "ID der Vorlage aus get_templates."
+        }
+      }
+    },
+    "create_job_from_template": {
+      "name": "Auftrag aus Vorlage anlegen",
+      "description": "Reiht eine unabhängige Kopie der Vorlage in die Warteschlange ein.",
+      "fields": {
+        "template_id": {
+          "name": "Vorlagen-ID",
+          "description": "ID der Vorlage aus get_templates."
+        }
+      }
+    },
+    "reset_template_demand": {
+      "name": "Vorlagenbedarf zurücksetzen",
+      "description": "Erlaubt einer automatischen Vorlage, für fällige Räume mit fehlgeschlagenem oder abgebrochenem Auftrag erneut einen anzulegen. Startet die Warteschlange nicht.",
+      "fields": {
+        "template_id": {
+          "name": "Vorlagen-ID",
+          "description": "ID der Vorlage aus get_templates."
+        }
+      }
+    },
+    "get_rooms": {
+      "name": "Räume abrufen",
+      "description": "Liefert eine Seite der Räume mit Freigabe, Fälligkeit und Erreichbarkeit.",
+      "fields": {
+        "offset": {
+          "name": "Versatz",
+          "description": "Anzahl der zu überspringenden Einträge."
+        },
+        "limit": {
+          "name": "Anzahl",
+          "description": "Höchstzahl der Einträge, höchstens 100."
+        }
+      }
+    },
+    "get_robots": {
+      "name": "Roboter abrufen",
+      "description": "Liefert eine Seite der Roboter mit Konfiguration, Fähigkeiten und Zustand.",
+      "fields": {
+        "offset": {
+          "name": "Versatz",
+          "description": "Anzahl der zu überspringenden Einträge."
+        },
+        "limit": {
+          "name": "Anzahl",
+          "description": "Höchstzahl der Einträge, höchstens 100."
+        }
+      }
+    },
+    "get_robot_candidates": {
+      "name": "Roboterkandidaten abrufen",
+      "description": "Liefert die registrierten Saugroboter mit ihren erkannten Rollen.",
+      "fields": {
+        "offset": {
+          "name": "Versatz",
+          "description": "Anzahl der zu überspringenden Einträge."
+        },
+        "limit": {
+          "name": "Anzahl",
+          "description": "Höchstzahl der Einträge, höchstens 100."
+        }
+      }
+    },
+    "get_templates": {
+      "name": "Vorlagen abrufen",
+      "description": "Liefert eine Seite der Vorlagen und ihren automatischen Bedarf.",
+      "fields": {
+        "offset": {
+          "name": "Versatz",
+          "description": "Anzahl der zu überspringenden Einträge."
+        },
+        "limit": {
+          "name": "Anzahl",
+          "description": "Höchstzahl der Einträge, höchstens 100."
+        }
+      }
+    },
+    "get_history": {
+      "name": "Verlauf abrufen",
+      "description": "Liefert eine Seite der erfassten Reinigungsläufe und wie gut ihr Erfolg belegt ist.",
+      "fields": {
+        "offset": {
+          "name": "Versatz",
+          "description": "Anzahl der zu überspringenden Einträge."
+        },
+        "limit": {
+          "name": "Anzahl",
+          "description": "Höchstzahl der Einträge, höchstens 100."
+        }
+      }
+    },
+    "get_room": {
+      "name": "Raum abrufen",
+      "description": "Liefert einen Raum mit Zuordnungen, Bedingungen, Freigabe und Reinigungsbelegen.",
+      "fields": {
+        "room_id": {
+          "name": "Raum-ID",
+          "description": "ID des Raums aus get_rooms; die ID seines Home-Assistant-Bereichs wird ebenfalls angenommen."
+        }
+      }
+    },
+    "validate": {
+      "name": "Eingabe prüfen",
+      "description": "Prüft die Eingabe eines Befehls, ohne ihn auszuführen, und liefert jeden Feldfehler mit seinem Pfad.",
+      "fields": {
+        "command": {
+          "name": "Befehl",
+          "description": "Der Befehl, dessen Eingabe geprüft wird."
+        },
+        "data": {
+          "name": "Daten",
+          "description": "Die Eingabe so, wie der Befehl sie erwartet."
+        }
+      }
+    },
+    "get_trace": {
+      "name": "Ablaufprotokoll abrufen",
+      "description": "Liefert die letzten Diagnoseereignisse und gespeicherte Vorfälle.",
+      "fields": {
+        "offset": {
+          "name": "Versatz",
+          "description": "Anzahl der zu überspringenden Einträge."
+        },
+        "limit": {
+          "name": "Anzahl",
+          "description": "Höchstzahl der Einträge, höchstens 100."
+        },
+        "job_id": {
+          "name": "Auftrags-ID",
+          "description": "Optional; nur Ereignisse und Vorfälle dieses Auftrags."
+        }
+      }
+    },
+    "get_diagnostics": {
+      "name": "Diagnose abrufen",
+      "description": "Liefert einen begrenzten, anonymisierten Diagnoseexport."
+    },
+    "get_setup": {
+      "name": "Einrichtung abrufen",
+      "description": "Liefert die Angaben jedes Schritts des Einrichtungsassistenten und ob die Einrichtung abgeschlossen wurde."
+    },
+    "get_job_execution": {
+      "name": "Auftragsausführung erklären",
+      "description": "Erklärt je Roboter und Vorgang, was einen Auftrag blockiert, welche Einstellungen er erhielte und seine bisherigen Versuche.",
+      "fields": {
+        "job_id": {
+          "name": "Auftrags-ID",
+          "description": "ID des Auftrags, aus get_queue oder der Antwort von create_job."
+        }
+      }
+    },
+    "preview_job": {
+      "name": "Auftragsvorschau",
+      "description": "Bewertet einen Auftragsentwurf, ohne ihn anzulegen: angebotene Einstellungen, vorzuwählende Werte und ob er jetzt starten könnte.",
+      "fields": {
+        "areas": {
+          "name": "Bereiche",
+          "description": "Zu reinigende Home-Assistant-Bereiche in dieser Reihenfolge. VOI-Raum-IDs werden ebenfalls angenommen."
+        },
+        "rooms": {
+          "name": "Räume ohne Bereich",
+          "description": "VOI-Raum-IDs von Räumen ohne Home-Assistant-Bereich."
+        },
+        "all_rooms": {
+          "name": "Alle Räume",
+          "description": "Reinigt alle aktiven Räume statt der genannten Bereiche und Räume."
+        },
+        "mode": {
+          "name": "Reinigungsmodus",
+          "description": "Saugen, Wischen, beides gleichzeitig oder erst saugen, dann wischen."
+        },
+        "vacuum_power": {
+          "name": "Saugkraft",
+          "description": "Gewünschte Saugkraft; jeder Roboter nutzt die nächstliegende Stufe, die er anbietet, außer bei strenger Einstellungsregel."
+        },
+        "mop_intensity": {
+          "name": "Wassermenge",
+          "description": "Gewünschte Wassermenge beim Wischen."
+        },
+        "mop_route": {
+          "name": "Wischroute",
+          "description": "Gewünschte Wischroute."
+        },
+        "passes": {
+          "name": "Durchgänge",
+          "description": "Wie oft der Roboter jeden Raum reinigt, 1 bis 10."
+        },
+        "settings_policy": {
+          "name": "Einstellungsregel",
+          "description": "„Bestmöglich“ nutzt die nächstliegende Einstellung eines Roboters; „Streng“ startet nur auf einem Roboter, der jeden gewünschten Wert anbietet."
+        },
+        "required_on": {
+          "name": "Muss an sein",
+          "description": "Entitäten, die vor dem Start an sein müssen, zum Beispiel ein offener Türkontakt."
+        },
+        "required_off": {
+          "name": "Muss aus sein",
+          "description": "Entitäten, die vor dem Start aus sein müssen."
+        },
+        "robot_id": {
+          "name": "Roboter",
+          "description": "Optional; prüft den Start auf diesem Roboter. Saugroboter-Entität oder Roboter-ID des Roboters."
+        }
+      }
+    }
+  },
+  "selector": {
+    "mode": {
+      "options": {
+        "vacuum": "Saugen",
+        "mop": "Wischen",
+        "vacuum_and_mop": "Saugen und Wischen gleichzeitig",
+        "vacuum_then_mop": "Erst saugen, dann wischen"
+      }
+    },
+    "vacuum_power": {
+      "options": {
+        "low": "Niedrig",
+        "standard": "Standard",
+        "high": "Hoch",
+        "maximum": "Maximal",
+        "maximum_plus": "Maximal+"
+      }
+    },
+    "mop_intensity": {
+      "options": {
+        "low": "Niedrig",
+        "medium": "Mittel",
+        "high": "Hoch"
+      }
+    },
+    "mop_route": {
+      "options": {
+        "fast": "Schnell",
+        "standard": "Standard",
+        "deep": "Gründlich",
+        "deep_plus": "Gründlich+"
+      }
+    },
+    "settings_policy": {
+      "options": {
+        "best_effort": "Bestmöglich",
+        "strict": "Streng"
+      }
+    },
+    "direction": {
+      "options": {
+        "up": "Nach oben",
+        "down": "Nach unten",
+        "top": "An den Anfang",
+        "bottom": "Ans Ende"
+      }
+    },
+    "running_jobs": {
+      "options": {
+        "finish": "Abschließen",
+        "cancel": "Abbrechen"
+      }
+    },
+    "after_cancel": {
+      "options": {
+        "stay": "Stehen bleiben",
+        "return_to_dock": "Zur Station zurückkehren"
+      }
+    },
+    "outcome": {
+      "options": {
+        "completed": "Erfolgreich",
+        "failed": "Fehlgeschlagen"
+      }
+    },
+    "kind": {
+      "options": {
+        "permanent": "Bis zur Sperre",
+        "once": "Für den nächsten Auftrag",
+        "timed": "Für eine Dauer",
+        "queue_run": "Für diesen Warteschlangenlauf"
+      }
+    }
   }
 }

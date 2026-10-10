@@ -75,7 +75,7 @@ def duration_seconds(value: object) -> float:
     return float(cv.time_period(value).total_seconds())
 
 
-# Room selection; see dev doc "Jobvertrag".
+# Room selection; see dev doc "Actions".
 SELECTION_FIELDS: dict[Any, Any] = {
     probatio.Optional(ATTR_AREAS): references,
     probatio.Optional(ATTR_ROOMS): references,
