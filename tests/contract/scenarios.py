@@ -16,6 +16,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.vacuum_orchestrator.const import CONF_INSTALLATION_ID, DOMAIN
 from tests.contract.recorder import Session, action
 from tests.realistic import Household, busy, single_roborock
+from tests.realistic import roborock as roborock_runs
 
 
 @dataclass
@@ -226,6 +227,36 @@ async def device_fault(stage: Stage) -> None:
     await session.read()
 
 
+async def mop_run(stage: Stage) -> None:
+    """Saugi mops kitchen and hall as a Roborock does: the dock washes the mop
+    before, between and after the rooms, and its clean water runs out as Saugi
+    starts. The job keeps running with the empty tank as attention, completes
+    once after the last wash and leaves the attention."""
+    session, robot = stage.session, stage.home.roborock
+    await stage.open()
+    await stage.release("Küche", "Flur")
+    await session.action(
+        "create_job", areas=stage.areas("Küche", "Flur"), mode="mop", start=True
+    )
+
+    async def reported(changes: dict[str, str]) -> None:
+        await session.home(
+            "Saugi reports " + ", ".join(f"{k} {v}" for k, v in changes.items())
+        )
+        # The card at each wash, the empty tank and the return to the dock.
+        if "dock_error" in changes or changes.get("status") in {
+            "washing_the_mop",
+            "charging",
+        }:
+            await session.read()
+
+    await robot.play(
+        roborock_runs.mop_run(2, empty_tank="during"), session.advance, reported
+    )
+    await session.advance(60)
+    await session.read()
+
+
 async def attention(stage: Stage) -> None:
     """The station reports a full dirty water tank while Saugi rests: VOI asks
     for attention at once; a mop job waits for the robot, a vacuum job starts."""
@@ -300,6 +331,7 @@ SCENARIOS: dict[str, Scenario] = {
     "reload": Scenario(single_roborock, reload),
     "delayed_answer": Scenario(single_roborock, delayed_answer),
     "device_fault": Scenario(single_roborock, device_fault),
+    "mop_run": Scenario(single_roborock, mop_run),
     "attention": Scenario(single_roborock, attention),
     "external_run": Scenario(busy, external_run),
     "recovery": Scenario(single_roborock, recovery),

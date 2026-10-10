@@ -569,20 +569,25 @@ class RoborockV1:
         self.set_vacuum("docked")
 
     async def play(
-        self, script: tuple[Step, ...], advance: Callable[[float], Awaitable[None]]
+        self,
+        script: tuple[Step, ...],
+        advance: Callable[[float], Awaitable[None]],
+        reported: Callable[[dict[str, str]], Awaitable[None]] | None = None,
     ) -> None:
-        """Report each step once `advance` let its delay pass."""
+        """Report each step once `advance` let its delay pass, then `reported`."""
         start = dt_util.utcnow().isoformat()
         for delay, changes in script:
             if delay:
                 await advance(delay)
             now = dt_util.utcnow().isoformat()
-            for key, reported in changes.items():
-                value = {NOW: now, RUN_START: start}.get(reported, reported)
+            for key, reported_value in changes.items():
+                value = {NOW: now, RUN_START: start}.get(reported_value, reported_value)
                 if key == "vacuum":
                     self.set_vacuum(value)
                 else:
                     self.set(key, value)
+            if reported is not None:
+                await reported(changes)
 
     def segment_commands(self) -> list[dict[str, Any]]:
         """The `app_segment_clean` parameters sent so far."""
