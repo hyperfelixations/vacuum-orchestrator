@@ -16,6 +16,10 @@ from custom_components.vacuum_orchestrator.domain.holds import (
     JobHold,
     lease_end,
 )
+from custom_components.vacuum_orchestrator.domain.incidents import (
+    Incident,
+    ObservationTrace,
+)
 from custom_components.vacuum_orchestrator.domain.intents import (
     CleaningPreferences,
     JobIntent,
@@ -535,6 +539,29 @@ def test_a_correction_round_trips_and_is_optional_in_older_snapshots() -> None:
     assert decode_orchestrator_state(data) == corrected
     del data["jobs"]["job"]["corrected_at"]
     assert decode_orchestrator_state(data).jobs["job"].corrected_at is None
+
+
+def test_incidents_round_trip_and_are_optional_in_older_snapshots() -> None:
+    incident = Incident(
+        "attempt",
+        "job",
+        "robot",
+        NOW,
+        "busy",
+        "segment_cleaning",
+        "vacuum",
+        ObservationTrace(
+            phase="cleaning", cleaning_active=True, faults="e:general:robot"
+        ),
+    )
+    state = _state().record_incident(incident)
+    data = encode_orchestrator_state(state)
+    assert decode_orchestrator_state(data) == state
+    data["incidents"][0]["observation"]["cleaning_active"] = "yes"
+    with pytest.raises(StorageIntegrityError, match="invalid_incident"):
+        decode_orchestrator_state(data)
+    del data["incidents"]
+    assert decode_orchestrator_state(data).incidents == ()
 
 
 def test_setup_completion_round_trips_and_is_optional_in_older_snapshots() -> None:

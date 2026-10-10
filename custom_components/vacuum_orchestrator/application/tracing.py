@@ -9,37 +9,13 @@ from datetime import datetime
 from uuid import uuid4
 
 from ..domain.errors import OrchestratorError
+from ..domain.incidents import Incident, ObservationTrace
 from ..ports.telemetry import TelemetryEvent as TraceEvent
 from ..ports.telemetry import TelemetrySink
 
-__all__ = ["ObservationTrace", "TraceEvent", "TraceRecorder"]
+__all__ = ["ObservationTrace", "TraceEvent", "TraceRecorder", "incident_record"]
 
 _request_id: ContextVar[str | None] = ContextVar("voi_trace_request", default=None)
-
-
-@dataclass(frozen=True, slots=True)
-class ObservationTrace:
-    """Monitor inputs and decision of one observation.
-
-    `faults` lists `code:scope:source` entries separated by commas. See dev doc
-    "Strukturierte HA-Protokollierung".
-    """
-
-    observed_at: str | None = None
-    phase: str | None = None
-    cleaning_active: bool | None = None
-    normal_end: bool | None = None
-    at_dock: bool | None = None
-    completion_confirmed: bool | None = None
-    observed_operation: str | None = None
-    completed_operation: str | None = None
-    faults: str | None = None
-    targets: str | None = None
-    previous_state: str | None = None
-    monitor_action: str | None = None
-    monitor_reason: str | None = None
-    deadline_at: str | None = None
-    terminal_observed_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,3 +164,18 @@ class TraceRecorder:
             for item in self._records
             if job_id is None or item.job_id == job_id
         ]
+
+
+def incident_record(incident: Incident) -> dict[str, str | bool | None]:
+    """Render a kept incident in the shape of its observation trace record."""
+    return {
+        "event": TraceEvent.OBSERVATION.value,
+        "timestamp": incident.recorded_at.isoformat(),
+        "attempt_id": incident.attempt_id,
+        "job_id": incident.job_id,
+        "robot_id": incident.robot_id,
+        "state": incident.state,
+        "reason": incident.reason,
+        "operation": incident.operation,
+        **asdict(incident.observation),
+    }

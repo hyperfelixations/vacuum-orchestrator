@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from contextvars import ContextVar
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import Any, cast
@@ -31,8 +30,9 @@ from ..domain.errors import (
 from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun
 from ..domain.faults import Fault, blocking
 from ..domain.holds import HoldPurpose, JobHold, lease_end
+from ..domain.incidents import Incident, marks_incident
 from ..domain.intents import UNSET, JobIntent, JobIntentPatch, TargetRef
-from ..domain.monitoring import MonitorAction, next_deadline
+from ..domain.monitoring import next_deadline
 from ..domain.permissions import require, returnable
 from ..domain.planning import DispatchAssignment, ExecutionPlan, Planner, WorkUnit
 from ..domain.progress import Progress, job_progress
@@ -63,11 +63,10 @@ from .robot_session import RobotCommandTicket, RobotSession
 from .room_readiness import RequirementReader, evaluate_room_readiness
 from .room_service import RoomService
 from .template_service import TemplateService
-from .tracing import ObservationTrace, TraceEvent, TraceRecord, TraceRecorder
+from .tracing import ObservationTrace, TraceEvent, TraceRecorder
 from .waiting import awaiting_release, explain_waiting
 
 Clock = Callable[[], datetime]
-_RECOVERY_TRIGGERS = 20
 IdFactory = Callable[[], str]
 StateReader = Callable[[tuple[str, ...]], Mapping[str, str | None]]
 StateListener = Callable[[], None]
@@ -99,6 +98,7 @@ SCOPE_FIELDS: Mapping[str, tuple[str, ...]] = MappingProxyType(
             "robot_runs",
             "correlations",
             "job_holds",
+            "incidents",
         ),
         "queue": (
             "queue",
@@ -219,7 +219,6 @@ class VacuumOrchestrator:
         # When each robot's current device faults were first observed.
         self._fault_since: dict[str, dict[str, datetime]] = {}
         # The observation that sent an attempt into recovery, newest last.
-        self._recovery_triggers: OrderedDict[str, TraceRecord] = OrderedDict()
         self.rooms = RoomService(self._mutate, lambda: self.state, clock, id_factory)
         self.templates = TemplateService(self._mutate, clock, id_factory)
         self.runs = QueueRunService(self._mutate, clock, id_factory)
@@ -1129,10 +1128,27 @@ class VacuumOrchestrator:
                     )
                 )
             )
-            self._trace_observation(robot_id, observation, state, result)
+            trace = self._trace_observation(robot_id, observation, state, result)
             candidate = result.state
             if candidate is state:
                 return
+            if lease is not None and marks_incident(
+                state.attempts[lease.attempt_id],
+                candidate.attempts[lease.attempt_id],
+                candidate.correlations.get(lease.attempt_id),
+            ):
+                candidate = candidate.record_incident(
+                    Incident(
+                        lease.attempt_id,
+                        state.attempts[lease.attempt_id].job_id,
+                        robot_id,
+                        self._clock(),
+                        observation.state.value,
+                        observation.reason,
+                        result.operation.value if result.operation else None,
+                        trace,
+                    )
+                )
             await self._commit_locked(state, candidate)
             if lease is not None:
                 session = self._sessions.get(lease.source_robot_id)
@@ -1155,13 +1171,42 @@ class VacuumOrchestrator:
         observation: RobotObservation,
         state: OrchestratorState,
         result: ObservationResult,
-    ) -> None:
+    ) -> ObservationTrace:
         """Record the monitor inputs and the decision actually applied."""
         lease = state.robot_leases.get(observation.source_robot_id)
         previous = state.attempts[lease.attempt_id] if lease else None
         current = result.state.attempts.get(lease.attempt_id) if lease else None
         deadline = next_deadline(current) if current else None
-        record = self.trace.record(
+        trace = ObservationTrace(
+            observed_at=observation.observed_at.isoformat()
+            if observation.observed_at
+            else None,
+            phase=observation.phase.value,
+            cleaning_active=observation.cleaning_active,
+            normal_end=observation.normal_end,
+            at_dock=observation.at_dock,
+            completion_confirmed=observation.completion_confirmed,
+            observed_operation=observation.observed_operation.value
+            if observation.observed_operation
+            else None,
+            completed_operation=observation.completed_operation.value
+            if observation.completed_operation
+            else None,
+            faults=",".join(
+                f"{fault.code}:{fault.scope.value}:{fault.source.value}"
+                for fault in observation.faults
+            )
+            or None,
+            targets=result.targets,
+            previous_state=previous.state.value if previous else None,
+            monitor_action=result.decision.action.value if result.decision else None,
+            monitor_reason=result.decision.reason if result.decision else None,
+            deadline_at=deadline.isoformat() if deadline else None,
+            terminal_observed_at=current.terminal_observed_at.isoformat()
+            if current and current.terminal_observed_at
+            else None,
+        )
+        self.trace.record(
             TraceEvent.OBSERVATION,
             self._clock(),
             robot_id=robot_id,
@@ -1170,51 +1215,9 @@ class VacuumOrchestrator:
             state=observation.state.value,
             reason=observation.reason,
             operation=result.operation.value if result.operation else None,
-            observation=ObservationTrace(
-                observed_at=observation.observed_at.isoformat()
-                if observation.observed_at
-                else None,
-                phase=observation.phase.value,
-                cleaning_active=observation.cleaning_active,
-                normal_end=observation.normal_end,
-                at_dock=observation.at_dock,
-                completion_confirmed=observation.completion_confirmed,
-                observed_operation=observation.observed_operation.value
-                if observation.observed_operation
-                else None,
-                completed_operation=observation.completed_operation.value
-                if observation.completed_operation
-                else None,
-                faults=",".join(
-                    f"{fault.code}:{fault.scope.value}:{fault.source.value}"
-                    for fault in observation.faults
-                )
-                or None,
-                targets=result.targets,
-                previous_state=previous.state.value if previous else None,
-                monitor_action=result.decision.action.value
-                if result.decision
-                else None,
-                monitor_reason=result.decision.reason if result.decision else None,
-                deadline_at=deadline.isoformat() if deadline else None,
-                terminal_observed_at=current.terminal_observed_at.isoformat()
-                if current and current.terminal_observed_at
-                else None,
-            ),
+            observation=trace,
         )
-        if (
-            previous is not None
-            and result.decision is not None
-            and result.decision.action is MonitorAction.ATTENTION
-        ):
-            self._recovery_triggers[previous.attempt_id] = record
-            while len(self._recovery_triggers) > _RECOVERY_TRIGGERS:
-                self._recovery_triggers.popitem(last=False)
-
-    def recovery_trigger(self, attempt_id: str) -> Mapping[str, Any] | None:
-        """Return the observation that sent an attempt into recovery, if kept."""
-        record = self._recovery_triggers.get(attempt_id)
-        return asdict(record) if record is not None else None
+        return trace
 
     async def async_record_robot_run(self, attempt_id: str, run: RobotRun) -> None:
         """Correlate physical evidence, complete the unit, and schedule follow-up."""

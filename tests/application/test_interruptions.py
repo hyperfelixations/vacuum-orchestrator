@@ -127,7 +127,15 @@ async def test_a_robot_that_rests_at_the_start_deadline_fails_and_is_free(
 
     job = core.state.jobs[job_id]
     assert (job.state, job.failure_code) == (JobState.FAILED, "start_not_observed")
+    (incident,) = core.state.incidents
+    assert (incident.observation.monitor_reason, incident.state) == (
+        "start_not_observed",
+        "available",
+    )
     assert not core.state.robot_leases
     assert not core.state.blocked_robots
     retry = await core.async_retry_job(job_id)
     assert core.state.jobs[retry].state is not JobState.FAILED
+    # Deleting a job drops its incidents with its attempts.
+    await core.async_delete_job(job_id)
+    assert core.state.incidents == ()

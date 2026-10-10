@@ -388,6 +388,9 @@
     "invalid_correction_outcome": {
       "message": "Eine Korrektur lautet erfolgreich oder fehlgeschlagen"
     },
+    "invalid_incident": {
+      "message": "Gespeicherte Daten sind ungültig: Ein Vorfall enthält einen unerwarteten Wert"
+    },
     "invalid_job_provenance": {
       "message": "Die gespeicherte Herkunft des Auftrags ist ungültig"
     },

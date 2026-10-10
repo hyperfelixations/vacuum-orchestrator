@@ -17,6 +17,7 @@ from .completion import (
 from .errors import ConflictError, ValidationError
 from .execution import ExecutionAttempt, RobotLease, RobotRun, RunCorrelation
 from .holds import JobHold
+from .incidents import INCIDENT_LIMIT, Incident
 from .intents import JobIntent, JobIntentPatch
 from .job_defaults import JobDefaults
 from .permissions import (
@@ -118,6 +119,8 @@ class OrchestratorState:
     start_delay_seconds: float = START_DELAY_SECONDS
     job_holds: Mapping[str, JobHold] = field(default_factory=dict)
     setup_completed_at: datetime | None = None
+    # Oldest first; see dev doc "Vorfälle".
+    incidents: tuple[Incident, ...] = ()
 
     def __post_init__(self) -> None:
         seconds(self.queue_grace_seconds)
@@ -324,7 +327,20 @@ class OrchestratorState:
                 for key, value in self.robot_runs.items()
                 if key not in removed_run_ids - retained_run_ids
             },
+            incidents=tuple(
+                item for item in self.incidents if item.attempt_id not in attempt_ids
+            ),
         )
+
+    def record_incident(self, incident: Incident) -> OrchestratorState:
+        """Keep an incident in the same commit as its transition.
+
+        One per attempt, the latest `INCIDENT_LIMIT`; see dev doc "Vorfälle".
+        """
+        kept = tuple(
+            item for item in self.incidents if item.attempt_id != incident.attempt_id
+        )
+        return replace(self, incidents=(*kept, incident)[-INCIDENT_LIMIT:])
 
     def move_job(self, job_id: str, direction: MoveDirection) -> OrchestratorState:
         """Move one queued job by a simple relative or absolute direction."""

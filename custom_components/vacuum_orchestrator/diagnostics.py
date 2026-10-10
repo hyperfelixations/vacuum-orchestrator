@@ -9,6 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .adapters.public_values import ADAPTER_VALUES
+from .application.tracing import incident_record
 from .const import API_VERSION, INTEGRATION_VERSION, STORE_VERSION
 from .domain.monitoring import next_deadline
 from .infrastructure.telemetry import DIAGNOSTIC_VERSION, LoggingSink
@@ -28,6 +29,7 @@ def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
     anonymize = sanitizer.pseudonym
 
     state = core.state
+    incidents = {item.attempt_id: item for item in state.incidents}
     records = core.trace.snapshot()
     traces = [sanitizer.sanitize(record) for record in records]
 
@@ -84,8 +86,8 @@ def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
                     item.value for item in attempt.observed_operations
                 ],
                 "deadline_at": time(next_deadline(attempt)),
-                "recovery_trigger": sanitizer.sanitize(trigger)
-                if (trigger := core.recovery_trigger(attempt.attempt_id))
+                "incident": sanitizer.sanitize(incident_record(incident))
+                if (incident := incidents.get(attempt.attempt_id))
                 else None,
             }
             for attempt in attempts

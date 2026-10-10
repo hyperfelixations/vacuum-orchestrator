@@ -31,7 +31,7 @@ from ..ports.telemetry import Scalar, TelemetryEvent
 
 _LOGGER = logging.getLogger(__name__)
 # Schema of sanitized records and diagnostic exports.
-DIAGNOSTIC_VERSION = 2
+DIAGNOSTIC_VERSION = 3
 # Own error codes: the `exceptions` keys, kept equal to the raised codes by
 # tests/test_error_translations.py.
 ERROR_CODES = frozenset(

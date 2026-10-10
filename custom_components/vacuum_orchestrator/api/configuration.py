@@ -17,6 +17,7 @@ from homeassistant.helpers import config_validation as cv
 from ..adapters.discovery import discover_robots
 from ..application.explanation import explain_job
 from ..application.preview import JobPreview, preview_draft
+from ..application.tracing import incident_record
 from ..configuration import configure_robot, require_idle_robot, robot_name
 from ..const import API_VERSION, DOMAIN
 from ..diagnostics import build_diagnostics
@@ -387,9 +388,18 @@ def query_configuration(
     if name == "get_setup":
         return present_setup(core.setup())
     if name == "get_trace":
-        records = core.trace.snapshot(data.get("job_id"))
+        job_id = data.get("job_id")
+        records = core.trace.snapshot(job_id)
         result = page(list(reversed(records)), data, "records")
-        result.update(runtime_id=core.runtime_id, trace_sequence=core.trace.sequence)
+        result.update(
+            runtime_id=core.runtime_id,
+            trace_sequence=core.trace.sequence,
+            incidents=[
+                incident_record(item)
+                for item in reversed(core.state.incidents)
+                if job_id is None or item.job_id == job_id
+            ],
+        )
         return result
     if name == "get_history":
         runs = sorted(

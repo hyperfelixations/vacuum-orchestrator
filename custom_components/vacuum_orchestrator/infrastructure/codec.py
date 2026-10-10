@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict, fields, replace
 from typing import Any, cast
 
 from ..domain.completion import CleaningSource, CompletionQuality
@@ -15,6 +15,7 @@ from ..domain.execution import (
     RunCorrelation,
 )
 from ..domain.holds import HoldPurpose, JobHold
+from ..domain.incidents import Incident, ObservationTrace
 from ..domain.intents import (
     CleaningPreferences,
     JobIntent,
@@ -148,6 +149,7 @@ def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
         "queue_grace_seconds": state.queue_grace_seconds,
         "start_delay_seconds": state.start_delay_seconds,
         "setup_completed_at": _encode_optional_datetime(state.setup_completed_at),
+        "incidents": [_encode_incident(item) for item in state.incidents],
         "job_holds": {
             key: {
                 "hold_id": hold.hold_id,
@@ -242,6 +244,10 @@ def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
             start_delay_seconds=_number(data["start_delay_seconds"]),
             setup_completed_at=_decode_optional_datetime(
                 data.get("setup_completed_at")
+            ),
+            incidents=tuple(
+                _decode_incident(item)
+                for item in _object_list(data.get("incidents", []))
             ),
             job_holds={
                 key: _decode_hold(_object(value))
@@ -1177,6 +1183,40 @@ def _decode_attempt(data: JsonObject) -> ExecutionAttempt:
         ),
         _decode_optional_datetime(data.get("lost_since")),
         _decode_optional_datetime(data.get("gap_since")),
+    )
+
+
+def _encode_incident(incident: Incident) -> JsonObject:
+    return {
+        "attempt_id": incident.attempt_id,
+        "job_id": incident.job_id,
+        "robot_id": incident.robot_id,
+        "recorded_at": _encode_datetime(incident.recorded_at),
+        "state": incident.state,
+        "reason": incident.reason,
+        "operation": incident.operation,
+        "observation": asdict(incident.observation),
+    }
+
+
+def _decode_incident(data: JsonObject) -> Incident:
+    observation = _object(data["observation"])
+    values: dict[str, str | bool | None] = {}
+    for item in fields(ObservationTrace):
+        value = observation.get(item.name)
+        expected = bool if item.type == bool | None else str
+        if value is not None and not isinstance(value, expected):
+            raise StorageIntegrityError("invalid_incident")
+        values[item.name] = value
+    return Incident(
+        _str(data["attempt_id"]),
+        _str(data["job_id"]),
+        _str(data["robot_id"]),
+        _decode_datetime(data["recorded_at"]),
+        _str(data["state"]),
+        _optional_str(data["reason"]),
+        _optional_str(data["operation"]),
+        ObservationTrace(**values),  # type: ignore[arg-type]
     )
 
 

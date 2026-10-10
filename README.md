@@ -485,7 +485,9 @@ proof for external runs. A last-cleaned timestamp alone is not enough.
    robot observation the trace shows what the robot reported (activity phase,
    mode setting, faults, completion evidence) and what VOI decided. The
    download also lists recent cleaning attempts with their cause and, for a
-   recovery, the observation that triggered it.
+   recovery, a failure or a completion with a note, the observation behind it.
+   VOI keeps the last 20 of these observations across restarts; `get_trace`
+   with a `job_id` returns those of one job.
 4. For a blocked job, also collect the response from `get_job_execution`.
 5. Review attachments for personal information before sharing them in an issue.
 

@@ -16,6 +16,10 @@ from custom_components.vacuum_orchestrator.application.tracing import (
 from custom_components.vacuum_orchestrator.diagnostics import (
     async_get_config_entry_diagnostics,
 )
+from custom_components.vacuum_orchestrator.domain.incidents import (
+    Incident,
+    ObservationTrace,
+)
 from custom_components.vacuum_orchestrator.domain.intents import JobIntent, TargetRef
 from custom_components.vacuum_orchestrator.domain.rooms import RoomBinding
 from custom_components.vacuum_orchestrator.domain.types import CleaningMode
@@ -47,6 +51,31 @@ async def test_diagnostics_and_trace_queries_are_bounded_and_sanitized(hass, req
     assert export["jobs"][0]["job_id"] == transitions[0]["job_id"]
     trace = await call(hass, "get_trace", job_id=job, limit=1)
     assert trace["records"][0]["job_id"] == job
+    assert trace["incidents"] == []
+    for attempt_id, job_id in (("attempt", job), ("other-attempt", "other-job")):
+        incident = Incident(
+            attempt_id,
+            job_id,
+            "robot",
+            datetime(2026, 9, 1, tzinfo=UTC),
+            "busy",
+            None,
+            "vacuum",
+            ObservationTrace(phase="cleaning", monitor_reason="run_timeout"),
+        )
+        # Incidents ride along with a transition; this one stands alone.
+        await core._mutate(
+            lambda state, item=incident: replace(
+                state.record_incident(item), commit_id=state.commit_id + 1
+            )
+        )
+    (kept,) = (await call(hass, "get_trace", job_id=job))["incidents"]
+    assert (kept["event"], kept["attempt_id"], kept["monitor_reason"]) == (
+        "robot_observation",
+        "attempt",
+        "run_timeout",
+    )
+    assert len((await call(hass, "get_trace"))["incidents"]) == 2
     assert (await call(hass, "get_diagnostics"))["jobs"][0]["state"] == "queued"
     assert not (await call(hass, "get_history"))["runs"]
 

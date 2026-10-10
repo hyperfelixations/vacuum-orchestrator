@@ -162,6 +162,7 @@ async def test_a_run_that_returns_home_with_another_mode_setting_completes(
 
     assert core.state.jobs[job_id].state is JobState.COMPLETED
     assert attempt().completion_quality is CompletionQuality.DERIVED
+    assert core.state.incidents == ()
     # A setting changed after cleaning is no deviation of the run.
     assert attempt().observed_operations == (OperationKind.VACUUM,)
     assert present_job_view(core, core.state.jobs[job_id])["completion"] == {
@@ -229,12 +230,17 @@ async def test_a_run_switched_to_another_operation_completes_without_a_receipt(
     assert core.state.completion(job_id) is not None
     assert core.state.completion(job_id).notes == ("mode_changed",)
     assert not core.state.robot_leases
+    (incident,) = core.state.incidents
+    assert (incident.job_id, incident.observation.monitor_action) == (
+        job_id,
+        "complete",
+    )
 
 
 async def test_a_recovery_export_shows_its_cause_and_triggering_observation(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
-    core, job_id, _backend, _adapter = await _started(hass, freezer)
+    core, job_id, backend, adapter = await _started(hass, freezer)
     observe = _observer(hass, freezer, core)
     await observe("segment_cleaning", "on")
     hass.states.async_set("sensor.error", "main_brush_jammed")
@@ -244,6 +250,9 @@ async def test_a_recovery_export_shows_its_cause_and_triggering_observation(
     hass.states.async_set("sensor.error", "none")
     await observe("charging", "off", seconds=600)
     await core.async_resolve_recovery("robot")
+    # The incident is part of the stored state and survives a restart.
+    await core.async_shutdown()
+    core = await _core(backend, adapter)
 
     export = build_diagnostics(
         cast(VacuumOrchestratorRuntime, SimpleNamespace(orchestrator=core))
@@ -255,17 +264,27 @@ async def test_a_recovery_export_shows_its_cause_and_triggering_observation(
         attempt["failure_code"],
         attempt["recovery_resolution"],
     ) == ("failed", "robot_fault_timeout", "verified_stopped")
-    trigger = attempt["recovery_trigger"]
+    incident = attempt["incident"]
     assert (
-        trigger["phase"],
-        trigger["cleaning_active"],
-        trigger["observed_operation"],
-        trigger["operation"],
-        trigger["monitor_action"],
-        trigger["monitor_reason"],
-    ) == ("cleaning", True, "vacuum", "vacuum", "attention", "robot_fault_timeout")
+        incident["phase"],
+        incident["cleaning_active"],
+        incident["observed_operation"],
+        incident["operation"],
+        incident["monitor_action"],
+        incident["monitor_reason"],
+        incident["faults"],
+    ) == (
+        "cleaning",
+        True,
+        "vacuum",
+        "vacuum",
+        "attention",
+        "robot_fault_timeout",
+        "main_brush_jammed:vacuum:robot",
+    )
+    assert incident["job_id"] == attempt["job_id"]
     window = export["trace_window"]
     assert window["capacity"] == 512 and window["first_sequence"] == 1
     assert window["last_sequence"] == window["recorded"]
-    assert export["diagnostic_version"] == 2
+    assert export["diagnostic_version"] == 3
     assert "kitchen" not in str(export["attempts"])

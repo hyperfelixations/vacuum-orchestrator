@@ -388,6 +388,9 @@
     "invalid_correction_outcome": {
       "message": "A correction is either completed or failed"
     },
+    "invalid_incident": {
+      "message": "Stored data is invalid: an incident has an unexpected value"
+    },
     "invalid_job_provenance": {
       "message": "The stored job origin is invalid"
     },
