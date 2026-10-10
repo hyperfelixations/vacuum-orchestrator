@@ -2,7 +2,7 @@
   "provenance": {
     "format": 2,
     "api_version": 4,
-    "voi_commit": "5a09a04",
+    "voi_commit": "97bd3cc",
     "ha_version": "2026.10.0",
     "frozen_now": "2026-03-14T09:26:53.589793+00:00"
   },
@@ -25,7 +25,6 @@
         "auth",
         "config",
         "http",
-        "vacuum_orchestrator",
         "websocket_api"
       ],
       "version": "2026.10.0"
@@ -320,53 +319,7 @@
       ]
     },
     "services": {
-      "vacuum_orchestrator": [
-        "add_robot",
-        "cancel_job",
-        "configure_job_defaults",
-        "configure_queue",
-        "configure_robot",
-        "correct_job",
-        "create_job",
-        "create_job_from_template",
-        "create_room",
-        "delete_job",
-        "disable_room",
-        "enable_room",
-        "end_queue",
-        "get_diagnostics",
-        "get_history",
-        "get_job",
-        "get_job_execution",
-        "get_queue",
-        "get_robot_candidates",
-        "get_robots",
-        "get_room",
-        "get_rooms",
-        "get_setup",
-        "get_templates",
-        "get_trace",
-        "move_job",
-        "pause_queue",
-        "preview_job",
-        "release_room",
-        "remove_robot",
-        "remove_template",
-        "rename_robot",
-        "reset_template_demand",
-        "resolve_recovery",
-        "resume_queue",
-        "retry_job",
-        "return_robot",
-        "revoke_room",
-        "run_queue",
-        "save_job_as_template",
-        "save_template",
-        "start_job",
-        "update_job",
-        "update_room",
-        "validate"
-      ]
+      "vacuum_orchestrator": []
     },
     "states": {
       "binary_sensor.saugi_cleaning": {
@@ -892,6 +845,55 @@
               "en": "Needs attention"
             }
           ]
+        },
+        "services": {
+          "vacuum_orchestrator": [
+            "add_robot",
+            "cancel_job",
+            "configure_job_defaults",
+            "configure_queue",
+            "configure_robot",
+            "correct_job",
+            "create_job",
+            "create_job_from_template",
+            "create_room",
+            "delete_job",
+            "disable_room",
+            "enable_room",
+            "end_queue",
+            "get_diagnostics",
+            "get_history",
+            "get_job",
+            "get_job_execution",
+            "get_queue",
+            "get_robot_candidates",
+            "get_robots",
+            "get_room",
+            "get_rooms",
+            "get_setup",
+            "get_templates",
+            "get_trace",
+            "move_job",
+            "pause_queue",
+            "preview_job",
+            "release_room",
+            "remove_robot",
+            "remove_template",
+            "rename_robot",
+            "reset_template_demand",
+            "resolve_recovery",
+            "resume_queue",
+            "retry_job",
+            "return_robot",
+            "revoke_room",
+            "run_queue",
+            "save_job_as_template",
+            "save_template",
+            "start_job",
+            "update_job",
+            "update_room",
+            "validate"
+          ]
         }
       }
     },
@@ -912,74 +914,6 @@
     {
       "send": {
         "id": 2,
-        "type": "vacuum_orchestrator/queue/get",
-        "offset": 0,
-        "limit": 1
-      }
-    },
-    {
-      "receive": {
-        "id": 2,
-        "type": "result",
-        "success": true,
-        "result": {
-          "api_version": 4,
-          "integration_version": "0.1.1",
-          "commit_id": 1,
-          "queue_revision": 0,
-          "mode": "idle",
-          "needs_attention": false,
-          "active_count": 0,
-          "attention_count": 0,
-          "attention": [],
-          "recovery_targets": [],
-          "queue_grace_seconds": 900,
-          "start_delay_seconds": 5.0,
-          "job_defaults": {
-            "mode": "vacuum",
-            "vacuum_power": "standard",
-            "mop_intensity": "medium",
-            "mop_route": "standard",
-            "passes": 1,
-            "settings_policy": "best_effort",
-            "configured": false
-          },
-          "queue_run": null,
-          "actions": {
-            "run": {
-              "available": true,
-              "reason": null,
-              "detail": null
-            },
-            "pause": {
-              "available": false,
-              "reason": "queue_not_running",
-              "detail": null
-            },
-            "resume": {
-              "available": false,
-              "reason": "queue_not_running",
-              "detail": null
-            },
-            "end": {
-              "available": false,
-              "reason": "queue_not_running",
-              "detail": null
-            }
-          },
-          "total": 0,
-          "offset": 0,
-          "limit": 1,
-          "jobs": [],
-          "runtime_id": "00000000-0000-4000-8000-000000000001",
-          "runtime_sequence": 3,
-          "server_time": "2026-03-14T09:26:53.589793+00:00"
-        }
-      }
-    },
-    {
-      "send": {
-        "id": 3,
         "type": "frontend/get_translations",
         "language": "en",
         "category": "exceptions",
@@ -990,7 +924,7 @@
     },
     {
       "receive": {
-        "id": 3,
+        "id": 2,
         "type": "result",
         "success": true,
         "result": {
@@ -1282,7 +1216,7 @@
     },
     {
       "send": {
-        "id": 4,
+        "id": 3,
         "type": "frontend/get_translations",
         "language": "de",
         "category": "exceptions",
@@ -1293,7 +1227,7 @@
     },
     {
       "receive": {
-        "id": 4,
+        "id": 3,
         "type": "result",
         "success": true,
         "result": {
@@ -1580,6 +1514,77 @@
             "component.vacuum_orchestrator.exceptions.vacuum_unavailable.message": "Die Saugroboter-Entität ist nicht verfügbar oder wird nicht unterstützt",
             "component.vacuum_orchestrator.exceptions.work_unit_state_ledger_mismatch.message": "Gespeicherte Daten sind inkonsistent: Zustände der Arbeitsschritte passen nicht zu den Plänen"
           }
+        }
+      }
+    },
+    {
+      "mark": "The card opens"
+    },
+    {
+      "send": {
+        "id": 4,
+        "type": "vacuum_orchestrator/queue/get",
+        "offset": 0,
+        "limit": 1
+      }
+    },
+    {
+      "receive": {
+        "id": 4,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "integration_version": "0.1.1",
+          "commit_id": 1,
+          "queue_revision": 0,
+          "mode": "idle",
+          "needs_attention": false,
+          "active_count": 0,
+          "attention_count": 0,
+          "attention": [],
+          "recovery_targets": [],
+          "queue_grace_seconds": 900,
+          "start_delay_seconds": 5.0,
+          "job_defaults": {
+            "mode": "vacuum",
+            "vacuum_power": "standard",
+            "mop_intensity": "medium",
+            "mop_route": "standard",
+            "passes": 1,
+            "settings_policy": "best_effort",
+            "configured": false
+          },
+          "queue_run": null,
+          "actions": {
+            "run": {
+              "available": true,
+              "reason": null,
+              "detail": null
+            },
+            "pause": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "resume": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "end": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            }
+          },
+          "total": 0,
+          "offset": 0,
+          "limit": 1,
+          "jobs": [],
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 3,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
         }
       }
     },

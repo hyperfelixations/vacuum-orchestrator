@@ -9,10 +9,14 @@ import json
 import pytest
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
-from homeassistant.setup import async_setup_component
+from homeassistant.helpers.translation import (
+    _async_get_translations_cache as translation_cache,
+)
+from homeassistant.helpers.translation import (
+    _TranslationsCacheData as TranslationsCacheData,
+)
 from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 
-from custom_components.vacuum_orchestrator.const import DOMAIN
 from tests.contract.recorder import (
     RECORDINGS,
     Session,
@@ -29,7 +33,6 @@ from tests.test_runtime import MemoryBackend
 async def test_recording_matches_the_integration(
     hass: HomeAssistant,
     hass_ws_client: WebSocketGenerator,
-    enable_custom_integrations: None,
     monkeypatch: pytest.MonkeyPatch,
     freezer: FrozenDateTimeFactory,
     request: pytest.FixtureRequest,
@@ -42,8 +45,13 @@ async def test_recording_matches_the_integration(
         MemoryBackend,
     )
     scenario = SCENARIOS[name]
+    if scenario.installed:
+        request.getfixturevalue("enable_custom_integrations")
+    else:
+        # HA's test plugin shares loaded translations between tests; a home
+        # without the integration has none of its texts.
+        translation_cache(hass).cache_data = TranslationsCacheData({}, {})
     home = scenario.household(hass)
-    assert await async_setup_component(hass, DOMAIN, {})
     await serve_frontend_messages(hass)
     session = await Session.connect(hass, hass_ws_client, freezer)
     await scenario.run(Stage(hass, home, session, entry()))

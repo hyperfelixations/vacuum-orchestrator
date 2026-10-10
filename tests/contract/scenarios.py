@@ -15,7 +15,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.vacuum_orchestrator.const import CONF_INSTALLATION_ID, DOMAIN
 from tests.contract.recorder import Session, action
-from tests.realistic import Household, busy, single_roborock
+from tests.realistic import Household, busy, no_robot, single_roborock, two_robots
 from tests.realistic import roborock as roborock_runs
 
 
@@ -38,9 +38,8 @@ class Stage:
         """Load the integration, then open the card: subscribe, check and read."""
         await self.load()
         await self.session.request({"type": f"{DOMAIN}/subscribe"})
-        await self.session.probe()
         await self.session.read_static()
-        await self.session.read()
+        await self.session.mark("The card opens")
 
     async def rooms(self) -> dict[str, str]:
         """VOI room IDs by area name, as the card reads them."""
@@ -67,6 +66,8 @@ class Scenario:
 
     household: Callable[[HomeAssistant], Household]
     run: Callable[[Stage], Awaitable[None]]
+    # Whether HA finds the integration among its custom integrations.
+    installed: bool = True
 
     @property
     def description(self) -> str:
@@ -84,17 +85,33 @@ def _job_id(frame: dict[str, Any]) -> str:
     return str(frame["result"]["response"]["job_id"])
 
 
-async def setup(stage: Stage) -> None:
-    """First installation: the card waits for the integration, which finds the
-    Roborock and imports the areas as locked rooms; the assistant renames the
-    robot, sets the start delay and completes the setup. Each command's view
-    event arrives before its result."""
+def _result(frame: dict[str, Any]) -> Any:
+    assert frame["success"], frame
+    return frame["result"]
+
+
+async def not_installed(stage: Stage) -> None:
+    """The card on a dashboard before the integration is installed: HA knows
+    no such integration."""
     session = stage.session
-    await session.request({"type": f"{DOMAIN}/subscribe"})
-    await stage.load()
-    await session.probe()
     await session.read_static()
-    await session.read()
+    assert not (await session.read_manifest())["success"]
+    await session.mark("Vacuum Orchestrator is not installed")
+
+
+async def setup(stage: Stage) -> None:
+    """First installation: the card finds the integration installed but not
+    set up. Once the user adds it, VOI finds the Roborock and imports the areas
+    as locked rooms; the assistant renames the robot, sets the start delay and
+    completes the setup. Each command's view event arrives before its result."""
+    session = stage.session
+    await session.read_static()
+    _result(await session.read_manifest())
+    await session.mark("Vacuum Orchestrator is installed but not set up")
+    await stage.load()
+    await session.home("The user adds Vacuum Orchestrator")
+    await session.request({"type": f"{DOMAIN}/subscribe"})
+    await session.probe()
     (robot,) = (await session.collection("get_robots"))["robots"]
     await session.command(
         "rename_robot", robot_id=robot["robot_id"], name="Saugi unten"
@@ -315,8 +332,131 @@ async def recovery(stage: Stage) -> None:
     await session.read()
 
 
+async def showcase(stage: Stage) -> None:
+    """A lived-in home: earlier Saugi finished one job, one was cancelled and
+    one never started; two templates are saved. Then the rooms are released in
+    every way and the queue runs: Saugi cleans the hall while a job waits for
+    the locked bathroom and two wait for the robot."""
+    session, robot = stage.session, stage.home.roborock
+    await stage.open()
+    await session.command("complete_setup")
+    await session.command(
+        "save_template", name="Wochenputz", intent={"all_rooms": True}
+    )
+    kitchen_template = _result(
+        await session.command(
+            "save_template",
+            name="Küche wischen",
+            intent={"areas": stage.areas("Küche"), "mode": "mop"},
+        )
+    )["template_id"]
+    await stage.release("Küche", "Flur", "Wohnzimmer")
+    await session.action("create_job", areas=stage.areas("Küche"), start=True)
+    robot.clean()
+    await session.home("Saugi vacuums the kitchen")
+    await session.advance(600)
+    robot.return_home()
+    await session.home("Saugi drives home from the kitchen")
+    await session.advance(60)
+    robot.dock_after_run()
+    await session.home("Saugi charges after the kitchen")
+    await session.advance(900)
+    hall = _job_id(
+        await session.action(
+            "create_job", areas=stage.areas("Flur"), mode="mop", start=True
+        )
+    )
+    robot.clean()
+    await session.home("Saugi mops the hall")
+    await session.advance(120)
+    await session.action("cancel_job", job_id=hall, after_cancel="return_to_dock")
+    robot.return_home()
+    await session.home("Saugi stops and drives home")
+    await session.advance(60)
+    robot.dock_after_run()
+    await session.home("Saugi charges after the cancel")
+    await session.advance(900)
+    await session.action("create_job", areas=stage.areas("Wohnzimmer"), start=True)
+    await session.advance(240)
+    await session.advance(3600)
+    await session.read_history()
+    await session.mark("A quiet afternoon")
+    rooms = await stage.rooms()
+    await session.command(
+        "release_rooms",
+        grants=[
+            {"room": rooms["Flur"], "kind": "timed", "duration_seconds": 14400},
+            {"room": rooms["Wohnzimmer"], "kind": "once"},
+        ],
+    )
+    await session.action("run_queue")
+    running = _job_id(await session.action("create_job", areas=stage.areas("Flur")))
+    await session.action(
+        "create_job", areas=stage.areas("Bad"), mode="mop", reason="Besuch kommt"
+    )
+    await session.action(
+        "create_job",
+        areas=stage.areas("Wohnzimmer"),
+        name="Wohnzimmer gründlich",
+        passes=2,
+    )
+    await session.command("create_job_from_template", template_id=kitchen_template)
+    await session.advance(5)
+    robot.clean()
+    await session.home("Saugi cleans the hall")
+    await session.advance(240)
+    await session.read_job(running)
+    await session.read_history()
+    await session.read_diagnostics()
+    await session.mark("A busy afternoon")
+
+
+async def queue_end(stage: Stage) -> None:
+    """The queue runs without work and waits; a job starts, the user ends the
+    queue and it closes once Saugi finished the started job, leaving the next
+    job waiting."""
+    session, robot = stage.session, stage.home.roborock
+    await stage.open()
+    await session.command("complete_setup")
+    await stage.release("Küche", "Flur")
+    await session.action("run_queue")
+    await session.advance(60)
+    await session.mark("The queue waits for work")
+    await session.action("create_job", areas=stage.areas("Küche"))
+    await session.advance(5)
+    robot.clean()
+    await session.home("Saugi cleans the kitchen")
+    await session.action("create_job", areas=stage.areas("Flur"))
+    await session.action("end_queue")
+    await session.mark("The queue ends after the started job")
+    await session.advance(300)
+    robot.return_home()
+    await session.home("Saugi drives home")
+    await session.advance(60)
+    robot.dock_after_run()
+    await session.home("Saugi charges at its dock")
+    await session.advance(60)
+    await session.mark("The queue has ended")
+
+
+async def robot_choice(stage: Stage) -> None:
+    """Saugi and Flitzi both reach the kitchen: a waiting job can start on
+    either, so the card asks which robot starts it."""
+    session = stage.session
+    await stage.open()
+    await session.command("complete_setup")
+    await stage.release("Küche", "Flur", "Wohnzimmer", "Bad")
+    job = _job_id(await session.action("create_job", areas=stage.areas("Küche")))
+    await session.read_job(job)
+    await session.mark("Either robot can start the kitchen")
+
+
 SCENARIOS: dict[str, Scenario] = {
+    "not_installed": Scenario(no_robot, not_installed, installed=False),
     "setup": Scenario(single_roborock, setup),
+    "showcase": Scenario(single_roborock, showcase),
+    "queue_end": Scenario(single_roborock, queue_end),
+    "robot_choice": Scenario(two_robots, robot_choice),
     "start_delay": Scenario(single_roborock, start_delay),
     "job_hold": Scenario(single_roborock, job_hold),
     "reload": Scenario(single_roborock, reload),

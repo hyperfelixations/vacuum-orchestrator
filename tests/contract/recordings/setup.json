@@ -2,12 +2,12 @@
   "provenance": {
     "format": 2,
     "api_version": 4,
-    "voi_commit": "5a09a04",
+    "voi_commit": "97bd3cc",
     "ha_version": "2026.10.0",
     "frozen_now": "2026-03-14T09:26:53.589793+00:00"
   },
   "scenario": "setup",
-  "description": "First installation: the card waits for the integration, which finds the Roborock and imports the areas as locked rooms; the assistant renames the robot, sets the start delay and completes the setup. Each command's view event arrives before its result.",
+  "description": "First installation: the card finds the integration installed but not set up. Once the user adds it, VOI finds the Roborock and imports the areas as locked rooms; the assistant renames the robot, sets the start delay and completes the setup. Each command's view event arrives before its result.",
   "home": {
     "areas": {
       "Küche": "kuche",
@@ -25,7 +25,6 @@
         "auth",
         "config",
         "http",
-        "vacuum_orchestrator",
         "websocket_api"
       ],
       "version": "2026.10.0"
@@ -320,53 +319,7 @@
       ]
     },
     "services": {
-      "vacuum_orchestrator": [
-        "add_robot",
-        "cancel_job",
-        "configure_job_defaults",
-        "configure_queue",
-        "configure_robot",
-        "correct_job",
-        "create_job",
-        "create_job_from_template",
-        "create_room",
-        "delete_job",
-        "disable_room",
-        "enable_room",
-        "end_queue",
-        "get_diagnostics",
-        "get_history",
-        "get_job",
-        "get_job_execution",
-        "get_queue",
-        "get_robot_candidates",
-        "get_robots",
-        "get_room",
-        "get_rooms",
-        "get_setup",
-        "get_templates",
-        "get_trace",
-        "move_job",
-        "pause_queue",
-        "preview_job",
-        "release_room",
-        "remove_robot",
-        "remove_template",
-        "rename_robot",
-        "reset_template_demand",
-        "resolve_recovery",
-        "resume_queue",
-        "retry_job",
-        "return_robot",
-        "revoke_room",
-        "run_queue",
-        "save_job_as_template",
-        "save_template",
-        "start_job",
-        "update_job",
-        "update_room",
-        "validate"
-      ]
+      "vacuum_orchestrator": []
     },
     "states": {
       "binary_sensor.saugi_cleaning": {
@@ -557,7 +510,12 @@
     {
       "send": {
         "id": 1,
-        "type": "vacuum_orchestrator/subscribe"
+        "type": "frontend/get_translations",
+        "language": "en",
+        "category": "exceptions",
+        "integration": [
+          "vacuum_orchestrator"
+        ]
       }
     },
     {
@@ -565,68 +523,634 @@
         "id": 1,
         "type": "result",
         "success": true,
-        "result": null
-      }
-    },
-    {
-      "receive": {
-        "id": 1,
-        "type": "event",
-        "event": {
-          "api_version": 4,
-          "loaded": false
+        "result": {
+          "resources": {
+            "component.vacuum_orchestrator.exceptions.active_attempt_missing.message": "The active job has no execution attempt",
+            "component.vacuum_orchestrator.exceptions.active_job_attempt_mismatch.message": "Stored data is inconsistent: an active job references an invalid attempt",
+            "component.vacuum_orchestrator.exceptions.admission_scope_changed.message": "The rooms admitted for this job changed",
+            "component.vacuum_orchestrator.exceptions.all_rooms_with_selection.message": "Choose either all rooms or areas and rooms, not both",
+            "component.vacuum_orchestrator.exceptions.already_configured.message": "This robot is already configured",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_mop_route.message": "Stored legacy data has conflicting mop routes",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_operation_sequence.message": "Stored legacy data has an ambiguous operation sequence",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_pass_count.message": "Stored legacy data has conflicting pass counts",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_pass_scope.message": "Stored legacy data has conflicting pass scopes",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_vacuum_level.message": "Stored legacy data has conflicting suction levels",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_vendor_extension.message": "Stored legacy data has conflicting vendor extensions",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_water_level.message": "Stored legacy data has conflicting water levels",
+            "component.vacuum_orchestrator.exceptions.ambiguous_map_inventory.message": "The robot reports the same map more than once",
+            "component.vacuum_orchestrator.exceptions.ambiguous_mode_mapping.message": "Several cleaning modes map to the same robot option",
+            "component.vacuum_orchestrator.exceptions.ambiguous_room_alias.message": "The room reference matches more than one room",
+            "component.vacuum_orchestrator.exceptions.assigned_robot_missing.message": "The robot assigned to this job is no longer configured",
+            "component.vacuum_orchestrator.exceptions.assignment_room_mapping_invalid.message": "The robot assignment does not cover the job's rooms consistently",
+            "component.vacuum_orchestrator.exceptions.assignment_work_unit_mismatch.message": "The robot assignment belongs to a different work step",
+            "component.vacuum_orchestrator.exceptions.atomic_writes_required.message": "The storage backend does not guarantee atomic writes",
+            "component.vacuum_orchestrator.exceptions.attempt_command_not_sent.message": "The cleaning command for this attempt has not been sent",
+            "component.vacuum_orchestrator.exceptions.attempt_lease_missing.message": "The robot reservation for this attempt is missing",
+            "component.vacuum_orchestrator.exceptions.attempt_ledger_reference_mismatch.message": "Stored data is inconsistent: an attempt references unknown data",
+            "component.vacuum_orchestrator.exceptions.attempt_not_awaiting_start.message": "The attempt is not waiting for a cleaning start",
+            "component.vacuum_orchestrator.exceptions.attempt_not_completable.message": "The attempt cannot be completed in its current state",
+            "component.vacuum_orchestrator.exceptions.attempt_not_prepared.message": "The attempt is no longer being prepared",
+            "component.vacuum_orchestrator.exceptions.attempt_ownership_conflict.message": "The attempt no longer belongs to this job",
+            "component.vacuum_orchestrator.exceptions.battery_below_minimum.message": "The robot's battery is below the configured minimum",
+            "component.vacuum_orchestrator.exceptions.cancel_not_requested.message": "No cancellation was requested for this job",
+            "component.vacuum_orchestrator.exceptions.capabilities_changed.message": "The robot's capabilities changed since the job was planned",
+            "component.vacuum_orchestrator.exceptions.capabilities_changed_before_dispatch.message": "The robot's capabilities changed before the start",
+            "component.vacuum_orchestrator.exceptions.cleaning_mode_conflicts_with_fixed_mode.message": "The robot's current cleaning mode conflicts with the requested mode",
+            "component.vacuum_orchestrator.exceptions.cleaning_mode_not_confirmed.message": "The robot did not confirm the requested cleaning mode",
+            "component.vacuum_orchestrator.exceptions.cleaning_projection_mismatch.message": "Stored room cleaning data does not match the cleaning records",
+            "component.vacuum_orchestrator.exceptions.completion_in_future.message": "A cleaning completion cannot lie in the future",
+            "component.vacuum_orchestrator.exceptions.config_entry_version_unsupported.message": "This configuration version cannot be migrated; remove the integration and set it up again",
+            "component.vacuum_orchestrator.exceptions.consumed_release_requires_job.message": "A used one-time release must reference its job",
+            "component.vacuum_orchestrator.exceptions.contradictory_state_requirement.message": "The same entity cannot be required both on and off",
+            "component.vacuum_orchestrator.exceptions.correlation_identity_mismatch.message": "The robot run evidence belongs to a different attempt",
+            "component.vacuum_orchestrator.exceptions.correlation_ledger_reference_mismatch.message": "Stored data is inconsistent: run evidence references unknown data",
+            "component.vacuum_orchestrator.exceptions.critical_commit_missing_after_save.message": "The saved state could not be read back",
+            "component.vacuum_orchestrator.exceptions.critical_commit_readback_mismatch.message": "The saved state differs from the intended state",
+            "component.vacuum_orchestrator.exceptions.critical_commit_semantic_mismatch.message": "The saved state does not decode to the intended state",
+            "component.vacuum_orchestrator.exceptions.critical_storage_state_uncertain.message": "The stored state is uncertain; reload the integration before making changes",
+            "component.vacuum_orchestrator.exceptions.critical_storage_unreadable.message": "The stored state cannot be read",
+            "component.vacuum_orchestrator.exceptions.dedupe_key_already_queued.message": "A waiting job with the same deduplication key already exists",
+            "component.vacuum_orchestrator.exceptions.due_requires_single_operation.message": "Due state is only available for vacuuming or mopping",
+            "component.vacuum_orchestrator.exceptions.duplicate_active_physical_robot.message": "Two active robot profiles refer to the same physical robot",
+            "component.vacuum_orchestrator.exceptions.duplicate_area.message": "The same room is listed more than once",
+            "component.vacuum_orchestrator.exceptions.duplicate_area_mapping.message": "Another room already uses this area",
+            "component.vacuum_orchestrator.exceptions.duplicate_physical_robot.message": "Several robot profiles refer to the same physical robot",
+            "component.vacuum_orchestrator.exceptions.duplicate_queue_job.message": "A job appears more than once in the queue",
+            "component.vacuum_orchestrator.exceptions.duplicate_room.message": "The same room appears more than once",
+            "component.vacuum_orchestrator.exceptions.duplicate_room_binding.message": "The room has more than one binding for the same robot and map",
+            "component.vacuum_orchestrator.exceptions.duplicate_work_unit_identity.message": "Stored data is inconsistent: a work step identifier is duplicated",
+            "component.vacuum_orchestrator.exceptions.empty_adapter_targets.message": "The robot assignment contains no cleaning targets",
+            "component.vacuum_orchestrator.exceptions.empty_allowed_operations.message": "At least one cleaning operation must be allowed",
+            "component.vacuum_orchestrator.exceptions.empty_capability_revision.message": "The robot capability snapshot has no revision",
+            "component.vacuum_orchestrator.exceptions.empty_dedupe_key.message": "The deduplication key cannot be empty",
+            "component.vacuum_orchestrator.exceptions.empty_installation_id.message": "The installation identifier cannot be empty",
+            "component.vacuum_orchestrator.exceptions.empty_job_update.message": "The update does not change any field",
+            "component.vacuum_orchestrator.exceptions.empty_map_context.message": "The map reference cannot be empty",
+            "component.vacuum_orchestrator.exceptions.empty_name.message": "The name cannot be empty",
+            "component.vacuum_orchestrator.exceptions.empty_note.message": "The note cannot be empty; omit it or set it to null",
+            "component.vacuum_orchestrator.exceptions.empty_reason.message": "The reason cannot be empty; omit it or set it to null",
+            "component.vacuum_orchestrator.exceptions.empty_target.message": "A room reference cannot be empty",
+            "component.vacuum_orchestrator.exceptions.entity_not_registered.message": "The vacuum entity is not in the entity registry",
+            "component.vacuum_orchestrator.exceptions.execution_identity_conflict.message": "The execution identifiers conflict with existing data",
+            "component.vacuum_orchestrator.exceptions.expected_boolean.message": "Stored data is invalid: a true/false value was expected",
+            "component.vacuum_orchestrator.exceptions.expected_finite_number.message": "Stored data is invalid: a finite number was expected",
+            "component.vacuum_orchestrator.exceptions.expected_integer.message": "Stored data is invalid: an integer was expected",
+            "component.vacuum_orchestrator.exceptions.expected_list.message": "Stored data is invalid: a list was expected",
+            "component.vacuum_orchestrator.exceptions.expected_object.message": "Stored data is invalid: an object was expected",
+            "component.vacuum_orchestrator.exceptions.expected_optional_string.message": "Stored data is invalid: text or null was expected",
+            "component.vacuum_orchestrator.exceptions.expected_pair.message": "Stored data is invalid: a key-value pair was expected",
+            "component.vacuum_orchestrator.exceptions.expected_pair_list.message": "Stored data is invalid: a list of key-value pairs was expected",
+            "component.vacuum_orchestrator.exceptions.expected_string.message": "Stored data is invalid: text was expected",
+            "component.vacuum_orchestrator.exceptions.expected_string_list.message": "Stored data is invalid: a list of texts was expected",
+            "component.vacuum_orchestrator.exceptions.external_receipt_requires_confirmation.message": "A cleaning record from outside Vacuum Orchestrator needs confirmed evidence",
+            "component.vacuum_orchestrator.exceptions.hold_expired.message": "The protection of this job has ended; reload and try again",
+            "component.vacuum_orchestrator.exceptions.inactive_job_has_active_attempt.message": "Stored data is inconsistent: a finished job still has an active attempt",
+            "component.vacuum_orchestrator.exceptions.installation_storage_ownership_mismatch.message": "The stored state belongs to a different installation",
+            "component.vacuum_orchestrator.exceptions.insufficient_completion_evidence.message": "The robot cannot report a reliable cleaning completion",
+            "component.vacuum_orchestrator.exceptions.insufficient_start_evidence.message": "The robot cannot report a reliable cleaning start",
+            "component.vacuum_orchestrator.exceptions.invalid_accepted_states.message": "The accepted states of a requirement are invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_adapter.message": "The robot adapter is not supported",
+            "component.vacuum_orchestrator.exceptions.invalid_battery_percentage.message": "The robot reported an invalid battery level",
+            "component.vacuum_orchestrator.exceptions.invalid_clean_percent.message": "The robot reported an invalid cleaning progress",
+            "component.vacuum_orchestrator.exceptions.invalid_cleaning_mode.message": "The cleaning mode is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_cleaning_projection.message": "The room's last-cleaning values are invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_confirmed_projection.message": "The room's last confirmed cleaning values are invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_duration.message": "The duration must be a finite number of seconds that is not negative",
+            "component.vacuum_orchestrator.exceptions.invalid_execution_attempt.message": "The execution attempt is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_execution_plan.message": "The execution plan is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_home_assistant_store_data.message": "The stored Home Assistant data has an invalid structure",
+            "component.vacuum_orchestrator.exceptions.invalid_home_assistant_store_wrapper.message": "The Home Assistant storage file has an invalid structure",
+            "component.vacuum_orchestrator.exceptions.invalid_identifier.message": "An identifier is empty, too long or has surrounding spaces",
+            "component.vacuum_orchestrator.exceptions.invalid_job_hold.message": "Stored data is invalid: a job protection does not match its job",
+            "component.vacuum_orchestrator.exceptions.invalid_correction_outcome.message": "A correction is either completed or failed",
+            "component.vacuum_orchestrator.exceptions.invalid_incident.message": "Stored data is invalid: an incident has an unexpected value",
+            "component.vacuum_orchestrator.exceptions.invalid_job_provenance.message": "The stored job origin is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_legacy_storage_payload.message": "Stored legacy data is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_map_inventory.message": "The robot reported an invalid map list",
+            "component.vacuum_orchestrator.exceptions.invalid_minimum_battery.message": "The minimum battery level must be between 0 and 100",
+            "component.vacuum_orchestrator.exceptions.invalid_occupancy_epoch.message": "The occupancy period is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_occupancy_states.message": "The occupied and unoccupied states must differ",
+            "component.vacuum_orchestrator.exceptions.invalid_operation.message": "The cleaning operation is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_option_mapping.message": "A robot option mapping is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_parameters.message": "The request parameters are invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_pass_capability.message": "The robot's pass capability is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_pass_count.message": "The number of passes must be between 1 and 10",
+            "component.vacuum_orchestrator.exceptions.invalid_receipt_rooms.message": "A cleaning record must name at least one room, each only once",
+            "component.vacuum_orchestrator.exceptions.invalid_required_off.message": "The entities required to be off are invalid or duplicated",
+            "component.vacuum_orchestrator.exceptions.invalid_required_on.message": "The entities required to be on are invalid or duplicated",
+            "component.vacuum_orchestrator.exceptions.invalid_requirements.message": "The requirements are invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_robot_configuration.message": "The robot configuration is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_robot_enabled.message": "The robot's enabled setting must be true or false",
+            "component.vacuum_orchestrator.exceptions.invalid_robot_identity.message": "The robot identity is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_robot_lease.message": "The robot reservation is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_robot_name.message": "A robot name must contain 1 to 100 characters",
+            "component.vacuum_orchestrator.exceptions.invalid_robot_preference.message": "The robot preference must be between -100 and 100",
+            "component.vacuum_orchestrator.exceptions.invalid_role_entity.message": "An entity assigned to a robot role is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_role_mapping.message": "The robot role mapping is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_room_admission.message": "The room admission is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_room_configuration.message": "The room configuration is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_room_name.message": "The room name is empty, too long or has surrounding spaces",
+            "component.vacuum_orchestrator.exceptions.invalid_room_targets.message": "The room's robot targets are invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_snapshot_envelope.message": "The stored snapshot has an invalid integrity envelope",
+            "component.vacuum_orchestrator.exceptions.invalid_storage_payload.message": "The stored state is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_target_areas.message": "The robot's target areas are invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_value.message": "The value is not valid here",
+            "component.vacuum_orchestrator.exceptions.invalid_vendor_extension_namespace.message": "The vendor extension namespace is invalid",
+            "component.vacuum_orchestrator.exceptions.invalid_vendor_extension_parameters.message": "The vendor extension parameters are invalid",
+            "component.vacuum_orchestrator.exceptions.job_already_exists.message": "A job with this identifier already exists",
+            "component.vacuum_orchestrator.exceptions.job_at_bottom.message": "The job is already last in the queue",
+            "component.vacuum_orchestrator.exceptions.job_at_top.message": "The job is already first in the queue",
+            "component.vacuum_orchestrator.exceptions.job_blocked.message": "The job's start conditions are not met",
+            "component.vacuum_orchestrator.exceptions.job_conditions_not_satisfied.message": "No robot currently meets the job's conditions",
+            "component.vacuum_orchestrator.exceptions.job_has_no_pending_work_unit.message": "The job has no remaining work step",
+            "component.vacuum_orchestrator.exceptions.job_held.message": "Someone is editing this job or confirming its deletion",
+            "component.vacuum_orchestrator.exceptions.job_not_cancellable.message": "The job can no longer be cancelled",
+            "component.vacuum_orchestrator.exceptions.job_not_deletable.message": "Only waiting or finished jobs can be deleted",
+            "component.vacuum_orchestrator.exceptions.job_not_dispatchable.message": "The job cannot be started in its current state",
+            "component.vacuum_orchestrator.exceptions.job_not_dispatching.message": "The job is not being started",
+            "component.vacuum_orchestrator.exceptions.job_not_editable.message": "Only waiting jobs can be edited",
+            "component.vacuum_orchestrator.exceptions.job_not_movable.message": "Only waiting jobs can be moved",
+            "component.vacuum_orchestrator.exceptions.job_not_correctable.message": "Only finished jobs can be corrected",
+            "component.vacuum_orchestrator.exceptions.job_not_retryable.message": "Only finished jobs can be retried",
+            "component.vacuum_orchestrator.exceptions.job_not_startable.message": "The job cannot start now",
+            "component.vacuum_orchestrator.exceptions.job_not_started.message": "Only started jobs can be cancelled; a waiting job is deleted",
+            "component.vacuum_orchestrator.exceptions.job_not_waiting.message": "The job no longer waits in the queue",
+            "component.vacuum_orchestrator.exceptions.job_plan_identity_conflict.message": "The job already has a different plan",
+            "component.vacuum_orchestrator.exceptions.job_plan_missing.message": "The job's plan is missing",
+            "component.vacuum_orchestrator.exceptions.job_plan_reference_mismatch.message": "Stored data is inconsistent: a job references an unknown plan",
+            "component.vacuum_orchestrator.exceptions.job_plan_semantics_mismatch.message": "Stored data is inconsistent: a plan does not match its job",
+            "component.vacuum_orchestrator.exceptions.job_requires_area.message": "A job needs at least one room",
+            "component.vacuum_orchestrator.exceptions.job_storage_key_mismatch.message": "Stored data is inconsistent: a job is stored under the wrong key",
+            "component.vacuum_orchestrator.exceptions.job_unknown.message": "The state of the job's start conditions is unknown",
+            "component.vacuum_orchestrator.exceptions.legacy_import_verification_failed.message": "Imported legacy data could not be verified",
+            "component.vacuum_orchestrator.exceptions.map_inventory_unavailable.message": "The robot's map list is unavailable",
+            "component.vacuum_orchestrator.exceptions.map_read_failed.message": "The robot's map list could not be read",
+            "component.vacuum_orchestrator.exceptions.mixed_map_contexts.message": "All rooms of a job must be on the same map",
+            "component.vacuum_orchestrator.exceptions.multiple_orchestrator_entries_loaded.message": "More than one Vacuum Orchestrator entry is loaded",
+            "component.vacuum_orchestrator.exceptions.naive_datetime.message": "Stored data is invalid: a timestamp has no time zone",
+            "component.vacuum_orchestrator.exceptions.negative_robot_generation.message": "Stored data is invalid: a robot generation is negative",
+            "component.vacuum_orchestrator.exceptions.negative_storage_revision.message": "Stored data is invalid: the revision is negative",
+            "component.vacuum_orchestrator.exceptions.no_active_rooms.message": "No active room: every room is excluded or its area was removed",
+            "component.vacuum_orchestrator.exceptions.no_eligible_robot.message": "No robot can run this job now",
+            "component.vacuum_orchestrator.exceptions.no_robot_configured.message": "No robot is configured",
+            "component.vacuum_orchestrator.exceptions.no_rooms.message": "No room was specified",
+            "component.vacuum_orchestrator.exceptions.no_suppressed_demand.message": "No job was created for the current due period yet",
+            "component.vacuum_orchestrator.exceptions.non_monotonic_commit.message": "The state changed concurrently; retry the action",
+            "component.vacuum_orchestrator.exceptions.non_monotonic_observation.message": "An occupancy observation is older than the previous one",
+            "component.vacuum_orchestrator.exceptions.occupancy_source_required.message": "Usage-based due times need an occupancy entity",
+            "component.vacuum_orchestrator.exceptions.orchestrator_not_initialized.message": "Vacuum Orchestrator is not initialized yet",
+            "component.vacuum_orchestrator.exceptions.orchestrator_not_loaded.message": "Vacuum Orchestrator is not loaded",
+            "component.vacuum_orchestrator.exceptions.orchestrator_shutting_down.message": "Vacuum Orchestrator is shutting down",
+            "component.vacuum_orchestrator.exceptions.out_of_range.message": "The value is outside the allowed range",
+            "component.vacuum_orchestrator.exceptions.overlapping_room_mapping.message": "Two rooms map to overlapping robot targets",
+            "component.vacuum_orchestrator.exceptions.plan_storage_key_mismatch.message": "Stored data is inconsistent: a plan is stored under the wrong key",
+            "component.vacuum_orchestrator.exceptions.preparation_timeout.message": "Preparing the robot took too long; no cleaning command was sent",
+            "component.vacuum_orchestrator.exceptions.queue_contains_non_queued_job.message": "The queue contains a job that is not waiting",
+            "component.vacuum_orchestrator.exceptions.queue_ending.message": "The queue is already ending",
+            "component.vacuum_orchestrator.exceptions.queue_grace_out_of_range.message": "The queue grace time must be between 0 and 86400 seconds",
+            "component.vacuum_orchestrator.exceptions.queue_not_running.message": "The queue is not running",
+            "component.vacuum_orchestrator.exceptions.queue_paused.message": "The queue is already paused",
+            "component.vacuum_orchestrator.exceptions.queue_references_unknown_job.message": "The queue references an unknown job",
+            "component.vacuum_orchestrator.exceptions.queue_run_binding_requires_run_release.message": "Only queue-run releases can be bound to a queue run",
+            "component.vacuum_orchestrator.exceptions.queue_run_time_order.message": "The queue run times are out of order",
+            "component.vacuum_orchestrator.exceptions.queue_running.message": "The queue is already running",
+            "component.vacuum_orchestrator.exceptions.queued_job_missing_from_queue.message": "A waiting job is missing from the queue",
+            "component.vacuum_orchestrator.exceptions.readiness_changed_before_start.message": "The start conditions changed before the cleaning command",
+            "component.vacuum_orchestrator.exceptions.receipt_evidence_required.message": "A cleaning record needs at least one piece of evidence",
+            "component.vacuum_orchestrator.exceptions.receipt_identity_conflict.message": "A different cleaning record with this identifier already exists",
+            "component.vacuum_orchestrator.exceptions.receipt_registry_mismatch.message": "The cleaning records do not match the rooms",
+            "component.vacuum_orchestrator.exceptions.receipt_room_mismatch.message": "The cleaning record does not include this room",
+            "component.vacuum_orchestrator.exceptions.release_duration_mismatch.message": "Only timed releases accept a duration, and they require one",
+            "component.vacuum_orchestrator.exceptions.release_expiry_mismatch.message": "Only timed releases have an expiry time",
+            "component.vacuum_orchestrator.exceptions.release_expiry_not_future.message": "The release expiry must be in the future",
+            "component.vacuum_orchestrator.exceptions.release_queue_run_mismatch.message": "Stored data is inconsistent: a release references a different queue run",
+            "component.vacuum_orchestrator.exceptions.release_reservation_mismatch.message": "The one-time release is reserved for a different job",
+            "component.vacuum_orchestrator.exceptions.release_reservation_requires_once.message": "Only one-time releases can be reserved for a job",
+            "component.vacuum_orchestrator.exceptions.required_field.message": "A required field is missing",
+            "component.vacuum_orchestrator.exceptions.requirement_binding_missing.message": "The entity of a requirement is no longer available",
+            "component.vacuum_orchestrator.exceptions.return_to_dock_unsupported.message": "This robot cannot be sent back to its dock",
+            "component.vacuum_orchestrator.exceptions.robot_already_executing.message": "The robot is already running a job",
+            "component.vacuum_orchestrator.exceptions.robot_at_dock.message": "The robot is already at its dock",
+            "component.vacuum_orchestrator.exceptions.robot_availability_unknown.message": "The robot's availability is unknown",
+            "component.vacuum_orchestrator.exceptions.robot_busy.message": "The robot is busy",
+            "component.vacuum_orchestrator.exceptions.robot_fault.message": "The robot reports a fault that blocks this operation",
+            "component.vacuum_orchestrator.exceptions.robot_generation_not_monotonic.message": "The robot command sequence is out of order",
+            "component.vacuum_orchestrator.exceptions.robot_generation_not_reserved.message": "The robot command sequence was not reserved",
+            "component.vacuum_orchestrator.exceptions.robot_identity_change.message": "A robot profile cannot be moved to a different robot",
+            "component.vacuum_orchestrator.exceptions.robot_lease_reference_mismatch.message": "Stored data is inconsistent: a robot reservation references unknown data",
+            "component.vacuum_orchestrator.exceptions.robot_limit_reached.message": "The maximum number of robots is reached",
+            "component.vacuum_orchestrator.exceptions.robot_needs_attention.message": "The robot needs attention before it can receive commands",
+            "component.vacuum_orchestrator.exceptions.robot_not_available.message": "The robot is not available",
+            "component.vacuum_orchestrator.exceptions.robot_not_needing_recovery.message": "The robot does not need recovery",
+            "component.vacuum_orchestrator.exceptions.robot_reserved.message": "The robot was reserved for a job before the command ran; nothing was sent",
+            "component.vacuum_orchestrator.exceptions.robot_session_already_owned.message": "The robot is already reserved for another attempt",
+            "component.vacuum_orchestrator.exceptions.robot_session_owner_mismatch.message": "The robot is reserved for a different attempt",
+            "component.vacuum_orchestrator.exceptions.robot_stopped_confirmation_required.message": "Confirm that the robot has stopped to resolve recovery",
+            "component.vacuum_orchestrator.exceptions.robot_unavailable.message": "The robot is unavailable or reports an error",
+            "component.vacuum_orchestrator.exceptions.robot_unknown.message": "The robot's state is unknown",
+            "component.vacuum_orchestrator.exceptions.room_admission_job_mismatch.message": "Stored data is inconsistent: a room admission references an unknown job",
+            "component.vacuum_orchestrator.exceptions.room_already_exists.message": "A room with this identifier already exists",
+            "component.vacuum_orchestrator.exceptions.room_configuration_changes_runtime_state.message": "Cleaning history and releases cannot be changed through the room configuration",
+            "component.vacuum_orchestrator.exceptions.room_disabled.message": "The room is already excluded from cleaning",
+            "component.vacuum_orchestrator.exceptions.room_enabled.message": "The room is already included in cleaning",
+            "component.vacuum_orchestrator.exceptions.room_has_active_job.message": "The room has an active job",
+            "component.vacuum_orchestrator.exceptions.room_identity_mismatch.message": "The room identifier does not match",
+            "component.vacuum_orchestrator.exceptions.room_not_released.message": "The room is not released for new jobs",
+            "component.vacuum_orchestrator.exceptions.room_unavailable.message": "The room is disabled or its area is missing",
+            "component.vacuum_orchestrator.exceptions.run_correlation_identity_conflict.message": "The robot run is already linked to a different attempt",
+            "component.vacuum_orchestrator.exceptions.setting_confirmation_timeout.message": "The robot did not confirm a setting in time",
+            "component.vacuum_orchestrator.exceptions.setting_entity_unavailable.message": "The entity for a robot setting is unavailable",
+            "component.vacuum_orchestrator.exceptions.setting_option_unavailable.message": "The robot does not offer a requested setting",
+            "component.vacuum_orchestrator.exceptions.settings_failed.message": "Applying the robot settings failed; no cleaning command was sent",
+            "component.vacuum_orchestrator.exceptions.snapshot_digest_mismatch.message": "The stored state failed its integrity check",
+            "component.vacuum_orchestrator.exceptions.source_robot_already_leased.message": "The physical robot is already reserved",
+            "component.vacuum_orchestrator.exceptions.source_robot_already_owned.message": "The physical robot is already managed by another installation",
+            "component.vacuum_orchestrator.exceptions.source_robot_mismatch.message": "The command targets a different physical robot",
+            "component.vacuum_orchestrator.exceptions.source_robot_owner_mismatch.message": "The physical robot is managed by another installation",
+            "component.vacuum_orchestrator.exceptions.stale_attempt_ownership.message": "The command belongs to an outdated attempt",
+            "component.vacuum_orchestrator.exceptions.stale_robot_generation.message": "The command was superseded by a newer robot command",
+            "component.vacuum_orchestrator.exceptions.start_delay_out_of_range.message": "The start delay must be between 0 and 600 seconds",
+            "component.vacuum_orchestrator.exceptions.start_delayed.message": "The job waits for its start delay",
+            "component.vacuum_orchestrator.exceptions.start_rejected.message": "The cleaning start was rejected before the command was sent",
+            "component.vacuum_orchestrator.exceptions.target_overlap_active.message": "A room of this job is already being cleaned",
+            "component.vacuum_orchestrator.exceptions.template_disabled.message": "The template is disabled",
+            "component.vacuum_orchestrator.exceptions.template_identity_mismatch.message": "The template identifier does not match",
+            "component.vacuum_orchestrator.exceptions.template_unknown_room.message": "The template references an unknown room",
+            "component.vacuum_orchestrator.exceptions.timeout_out_of_range.message": "Timeouts can be at most 86400 seconds",
+            "component.vacuum_orchestrator.exceptions.timezone_required.message": "A timestamp needs a time zone",
+            "component.vacuum_orchestrator.exceptions.unknown_area.message": "The area does not exist",
+            "component.vacuum_orchestrator.exceptions.unknown_attempt.message": "The execution attempt does not exist",
+            "component.vacuum_orchestrator.exceptions.unknown_entity_role.message": "The robot role is unknown",
+            "component.vacuum_orchestrator.exceptions.unknown_field.message": "This field is not supported",
+            "component.vacuum_orchestrator.exceptions.unknown_job.message": "The job does not exist",
+            "component.vacuum_orchestrator.exceptions.unknown_robot.message": "The robot does not exist",
+            "component.vacuum_orchestrator.exceptions.unknown_robot_configuration_field.message": "The robot configuration contains an unknown field",
+            "component.vacuum_orchestrator.exceptions.unknown_room.message": "The room does not exist",
+            "component.vacuum_orchestrator.exceptions.unknown_template.message": "The template does not exist",
+            "component.vacuum_orchestrator.exceptions.unmapped_target.message": "The robot has no target for at least one room of this job",
+            "component.vacuum_orchestrator.exceptions.unsupported_cancel_semantics.message": "The robot does not support stopping",
+            "component.vacuum_orchestrator.exceptions.unsupported_cleaning_preference.message": "The robot does not support a required cleaning setting",
+            "component.vacuum_orchestrator.exceptions.unsupported_home_assistant_store_wrapper.message": "The Home Assistant storage file has an unsupported version",
+            "component.vacuum_orchestrator.exceptions.unsupported_legacy_job_state.message": "Stored legacy data contains an unsupported job state",
+            "component.vacuum_orchestrator.exceptions.unsupported_legacy_pass_scope.message": "Stored legacy data contains an unsupported pass scope",
+            "component.vacuum_orchestrator.exceptions.unsupported_legacy_queue_mode.message": "Stored legacy data contains an unsupported queue mode",
+            "component.vacuum_orchestrator.exceptions.unsupported_legacy_requirement_state.message": "Stored legacy data contains an unsupported requirement state",
+            "component.vacuum_orchestrator.exceptions.unsupported_legacy_storage_schema.message": "Stored legacy data has an unsupported schema",
+            "component.vacuum_orchestrator.exceptions.unsupported_map_context.message": "The robot is not on the map required by the job",
+            "component.vacuum_orchestrator.exceptions.unsupported_operation.message": "The robot does not support this cleaning mode",
+            "component.vacuum_orchestrator.exceptions.unsupported_pass_count.message": "The robot does not support this number of passes",
+            "component.vacuum_orchestrator.exceptions.unsupported_pass_scope.message": "The robot does not support passes in this form",
+            "component.vacuum_orchestrator.exceptions.unsupported_previous_storage_schema.message": "The previous storage file has an unsupported schema",
+            "component.vacuum_orchestrator.exceptions.unsupported_robot_protocol.message": "The robot protocol is not supported",
+            "component.vacuum_orchestrator.exceptions.unsupported_storage_schema.message": "The stored state has an unsupported schema",
+            "component.vacuum_orchestrator.exceptions.unsupported_vendor_extension.message": "The robot does not support the vendor extension",
+            "component.vacuum_orchestrator.exceptions.vacuum_unavailable.message": "The vacuum entity is unavailable or not supported",
+            "component.vacuum_orchestrator.exceptions.work_unit_state_ledger_mismatch.message": "Stored data is inconsistent: work step states do not match the plans"
+          }
         }
       }
     },
     {
-      "receive": {
-        "id": 1,
-        "type": "event",
-        "event": {
-          "api_version": 4,
-          "loaded": true,
-          "commit_id": 1,
-          "runtime_id": "00000000-0000-4000-8000-000000000001",
-          "runtime_sequence": 2,
-          "server_time": "2026-03-14T09:26:53.589793+00:00",
-          "queue_revision": 0,
-          "mode": "idle",
-          "pending_jobs": 0,
-          "needs_attention": false,
-          "active_count": 0,
-          "attention_count": 0,
-          "changed": [
-            "jobs",
-            "queue",
-            "robots",
-            "rooms",
-            "setup"
-          ]
-        }
+      "send": {
+        "id": 2,
+        "type": "frontend/get_translations",
+        "language": "de",
+        "category": "exceptions",
+        "integration": [
+          "vacuum_orchestrator"
+        ]
       }
     },
     {
       "receive": {
-        "id": 1,
-        "type": "event",
-        "event": {
-          "api_version": 4,
-          "loaded": true,
-          "commit_id": 1,
-          "runtime_id": "00000000-0000-4000-8000-000000000001",
-          "runtime_sequence": 3,
-          "server_time": "2026-03-14T09:26:53.589793+00:00",
-          "queue_revision": 0,
-          "mode": "idle",
-          "pending_jobs": 0,
-          "needs_attention": false,
-          "active_count": 0,
-          "attention_count": 0,
-          "changed": [
-            "robots"
-          ]
+        "id": 2,
+        "type": "result",
+        "success": true,
+        "result": {
+          "resources": {
+            "component.vacuum_orchestrator.exceptions.active_attempt_missing.message": "Der aktive Auftrag hat keinen Ausführungsversuch",
+            "component.vacuum_orchestrator.exceptions.active_job_attempt_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein aktiver Auftrag verweist auf einen ungültigen Versuch",
+            "component.vacuum_orchestrator.exceptions.admission_scope_changed.message": "Die für diesen Auftrag zugelassenen Räume haben sich geändert",
+            "component.vacuum_orchestrator.exceptions.all_rooms_with_selection.message": "Wähle entweder alle Räume oder Bereiche und Räume, nicht beides",
+            "component.vacuum_orchestrator.exceptions.already_configured.message": "Dieser Roboter ist bereits eingerichtet",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_mop_route.message": "Gespeicherte Altdaten enthalten widersprüchliche Wischrouten",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_operation_sequence.message": "Gespeicherte Altdaten enthalten eine mehrdeutige Arbeitsfolge",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_pass_count.message": "Gespeicherte Altdaten enthalten widersprüchliche Durchgangszahlen",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_pass_scope.message": "Gespeicherte Altdaten enthalten widersprüchliche Durchgangsbereiche",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_vacuum_level.message": "Gespeicherte Altdaten enthalten widersprüchliche Saugstufen",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_vendor_extension.message": "Gespeicherte Altdaten enthalten widersprüchliche Herstellererweiterungen",
+            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_water_level.message": "Gespeicherte Altdaten enthalten widersprüchliche Wasserstufen",
+            "component.vacuum_orchestrator.exceptions.ambiguous_map_inventory.message": "Der Roboter meldet dieselbe Karte mehrfach",
+            "component.vacuum_orchestrator.exceptions.ambiguous_mode_mapping.message": "Mehrere Reinigungsmodi verweisen auf dieselbe Roboteroption",
+            "component.vacuum_orchestrator.exceptions.ambiguous_room_alias.message": "Die Raumangabe passt zu mehr als einem Raum",
+            "component.vacuum_orchestrator.exceptions.assigned_robot_missing.message": "Der diesem Auftrag zugewiesene Roboter ist nicht mehr eingerichtet",
+            "component.vacuum_orchestrator.exceptions.assignment_room_mapping_invalid.message": "Die Roboterzuweisung deckt die Räume des Auftrags nicht konsistent ab",
+            "component.vacuum_orchestrator.exceptions.assignment_work_unit_mismatch.message": "Die Roboterzuweisung gehört zu einem anderen Arbeitsschritt",
+            "component.vacuum_orchestrator.exceptions.atomic_writes_required.message": "Der Speicher garantiert keine atomaren Schreibvorgänge",
+            "component.vacuum_orchestrator.exceptions.attempt_command_not_sent.message": "Der Reinigungsbefehl für diesen Versuch wurde noch nicht gesendet",
+            "component.vacuum_orchestrator.exceptions.attempt_lease_missing.message": "Die Roboterreservierung für diesen Versuch fehlt",
+            "component.vacuum_orchestrator.exceptions.attempt_ledger_reference_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein Versuch verweist auf unbekannte Daten",
+            "component.vacuum_orchestrator.exceptions.attempt_not_awaiting_start.message": "Der Versuch wartet nicht auf einen Reinigungsstart",
+            "component.vacuum_orchestrator.exceptions.attempt_not_completable.message": "Der Versuch kann in seinem aktuellen Zustand nicht abgeschlossen werden",
+            "component.vacuum_orchestrator.exceptions.attempt_not_prepared.message": "Der Versuch wird nicht mehr vorbereitet",
+            "component.vacuum_orchestrator.exceptions.attempt_ownership_conflict.message": "Der Versuch gehört nicht mehr zu diesem Auftrag",
+            "component.vacuum_orchestrator.exceptions.battery_below_minimum.message": "Der Akku des Roboters liegt unter dem eingestellten Minimum",
+            "component.vacuum_orchestrator.exceptions.cancel_not_requested.message": "Für diesen Auftrag wurde kein Abbruch angefordert",
+            "component.vacuum_orchestrator.exceptions.capabilities_changed.message": "Die Fähigkeiten des Roboters haben sich seit der Planung geändert",
+            "component.vacuum_orchestrator.exceptions.capabilities_changed_before_dispatch.message": "Die Fähigkeiten des Roboters haben sich vor dem Start geändert",
+            "component.vacuum_orchestrator.exceptions.cleaning_mode_conflicts_with_fixed_mode.message": "Der aktuelle Reinigungsmodus des Roboters widerspricht dem angeforderten Modus",
+            "component.vacuum_orchestrator.exceptions.cleaning_mode_not_confirmed.message": "Der Roboter hat den angeforderten Reinigungsmodus nicht bestätigt",
+            "component.vacuum_orchestrator.exceptions.cleaning_projection_mismatch.message": "Gespeicherte Reinigungswerte des Raums passen nicht zu den Reinigungsbelegen",
+            "component.vacuum_orchestrator.exceptions.completion_in_future.message": "Ein Reinigungsabschluss kann nicht in der Zukunft liegen",
+            "component.vacuum_orchestrator.exceptions.config_entry_version_unsupported.message": "Diese Konfigurationsversion kann nicht migriert werden; entferne die Integration und richte sie neu ein",
+            "component.vacuum_orchestrator.exceptions.consumed_release_requires_job.message": "Eine verbrauchte Einmalfreigabe muss auf ihren Auftrag verweisen",
+            "component.vacuum_orchestrator.exceptions.contradictory_state_requirement.message": "Dieselbe Entität kann nicht gleichzeitig als ein und aus verlangt werden",
+            "component.vacuum_orchestrator.exceptions.correlation_identity_mismatch.message": "Der Nachweis des Roboterlaufs gehört zu einem anderen Versuch",
+            "component.vacuum_orchestrator.exceptions.correlation_ledger_reference_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein Laufnachweis verweist auf unbekannte Daten",
+            "component.vacuum_orchestrator.exceptions.critical_commit_missing_after_save.message": "Der gespeicherte Zustand konnte nicht zurückgelesen werden",
+            "component.vacuum_orchestrator.exceptions.critical_commit_readback_mismatch.message": "Der gespeicherte Zustand weicht vom beabsichtigten Zustand ab",
+            "component.vacuum_orchestrator.exceptions.critical_commit_semantic_mismatch.message": "Der gespeicherte Zustand ergibt beim Lesen nicht den beabsichtigten Zustand",
+            "component.vacuum_orchestrator.exceptions.critical_storage_state_uncertain.message": "Der gespeicherte Zustand ist unsicher; lade die Integration neu, bevor du Änderungen vornimmst",
+            "component.vacuum_orchestrator.exceptions.critical_storage_unreadable.message": "Der gespeicherte Zustand kann nicht gelesen werden",
+            "component.vacuum_orchestrator.exceptions.dedupe_key_already_queued.message": "Ein wartender Auftrag mit demselben Duplikatschlüssel existiert bereits",
+            "component.vacuum_orchestrator.exceptions.due_requires_single_operation.message": "Fälligkeit gibt es nur für Saugen oder Wischen",
+            "component.vacuum_orchestrator.exceptions.duplicate_active_physical_robot.message": "Zwei aktive Roboterprofile verweisen auf denselben physischen Roboter",
+            "component.vacuum_orchestrator.exceptions.duplicate_area.message": "Derselbe Raum ist mehrfach angegeben",
+            "component.vacuum_orchestrator.exceptions.duplicate_area_mapping.message": "Ein anderer Raum verwendet diesen Bereich bereits",
+            "component.vacuum_orchestrator.exceptions.duplicate_physical_robot.message": "Mehrere Roboterprofile verweisen auf denselben physischen Roboter",
+            "component.vacuum_orchestrator.exceptions.duplicate_queue_job.message": "Ein Auftrag kommt mehrfach in der Warteschlange vor",
+            "component.vacuum_orchestrator.exceptions.duplicate_room.message": "Derselbe Raum ist mehrfach angegeben",
+            "component.vacuum_orchestrator.exceptions.duplicate_room_binding.message": "Der Raum hat mehrere Zuordnungen für denselben Roboter und dieselbe Karte",
+            "component.vacuum_orchestrator.exceptions.duplicate_work_unit_identity.message": "Gespeicherte Daten sind inkonsistent: Eine Arbeitsschrittkennung ist doppelt vorhanden",
+            "component.vacuum_orchestrator.exceptions.empty_adapter_targets.message": "Die Roboterzuweisung enthält keine Reinigungsziele",
+            "component.vacuum_orchestrator.exceptions.empty_allowed_operations.message": "Mindestens eine Reinigungsart muss erlaubt sein",
+            "component.vacuum_orchestrator.exceptions.empty_capability_revision.message": "Der Fähigkeitsstand des Roboters hat keine Revision",
+            "component.vacuum_orchestrator.exceptions.empty_dedupe_key.message": "Der Duplikatschlüssel darf nicht leer sein",
+            "component.vacuum_orchestrator.exceptions.empty_installation_id.message": "Die Installationskennung darf nicht leer sein",
+            "component.vacuum_orchestrator.exceptions.empty_job_update.message": "Die Änderung enthält kein Feld",
+            "component.vacuum_orchestrator.exceptions.empty_map_context.message": "Die Kartenangabe darf nicht leer sein",
+            "component.vacuum_orchestrator.exceptions.empty_name.message": "Der Name darf nicht leer sein",
+            "component.vacuum_orchestrator.exceptions.empty_note.message": "Die Notiz darf nicht leer sein; lass sie weg oder setze sie auf null",
+            "component.vacuum_orchestrator.exceptions.empty_reason.message": "Der Grund darf nicht leer sein; lass ihn weg oder setze ihn auf null",
+            "component.vacuum_orchestrator.exceptions.empty_target.message": "Eine Raumangabe darf nicht leer sein",
+            "component.vacuum_orchestrator.exceptions.entity_not_registered.message": "Die Saugroboter-Entität ist nicht im Entitätsregister",
+            "component.vacuum_orchestrator.exceptions.execution_identity_conflict.message": "Die Ausführungskennungen widersprechen vorhandenen Daten",
+            "component.vacuum_orchestrator.exceptions.expected_boolean.message": "Gespeicherte Daten sind ungültig: Ein Wahr/Falsch-Wert wurde erwartet",
+            "component.vacuum_orchestrator.exceptions.expected_finite_number.message": "Gespeicherte Daten sind ungültig: Eine endliche Zahl wurde erwartet",
+            "component.vacuum_orchestrator.exceptions.expected_integer.message": "Gespeicherte Daten sind ungültig: Eine ganze Zahl wurde erwartet",
+            "component.vacuum_orchestrator.exceptions.expected_list.message": "Gespeicherte Daten sind ungültig: Eine Liste wurde erwartet",
+            "component.vacuum_orchestrator.exceptions.expected_object.message": "Gespeicherte Daten sind ungültig: Ein Objekt wurde erwartet",
+            "component.vacuum_orchestrator.exceptions.expected_optional_string.message": "Gespeicherte Daten sind ungültig: Text oder null wurde erwartet",
+            "component.vacuum_orchestrator.exceptions.expected_pair.message": "Gespeicherte Daten sind ungültig: Ein Schlüssel-Wert-Paar wurde erwartet",
+            "component.vacuum_orchestrator.exceptions.expected_pair_list.message": "Gespeicherte Daten sind ungültig: Eine Liste von Schlüssel-Wert-Paaren wurde erwartet",
+            "component.vacuum_orchestrator.exceptions.expected_string.message": "Gespeicherte Daten sind ungültig: Text wurde erwartet",
+            "component.vacuum_orchestrator.exceptions.expected_string_list.message": "Gespeicherte Daten sind ungültig: Eine Textliste wurde erwartet",
+            "component.vacuum_orchestrator.exceptions.external_receipt_requires_confirmation.message": "Ein Reinigungsbeleg von außerhalb des Vacuum Orchestrators braucht einen bestätigten Nachweis",
+            "component.vacuum_orchestrator.exceptions.hold_expired.message": "Der Schutz dieses Auftrags ist abgelaufen; lade neu und versuche es erneut",
+            "component.vacuum_orchestrator.exceptions.inactive_job_has_active_attempt.message": "Gespeicherte Daten sind inkonsistent: Ein beendeter Auftrag hat noch einen aktiven Versuch",
+            "component.vacuum_orchestrator.exceptions.installation_storage_ownership_mismatch.message": "Der gespeicherte Zustand gehört zu einer anderen Installation",
+            "component.vacuum_orchestrator.exceptions.insufficient_completion_evidence.message": "Der Roboter kann keinen verlässlichen Reinigungsabschluss melden",
+            "component.vacuum_orchestrator.exceptions.insufficient_start_evidence.message": "Der Roboter kann keinen verlässlichen Reinigungsstart melden",
+            "component.vacuum_orchestrator.exceptions.invalid_accepted_states.message": "Die akzeptierten Zustände einer Bedingung sind ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_adapter.message": "Der Roboteradapter wird nicht unterstützt",
+            "component.vacuum_orchestrator.exceptions.invalid_battery_percentage.message": "Der Roboter hat einen ungültigen Akkustand gemeldet",
+            "component.vacuum_orchestrator.exceptions.invalid_clean_percent.message": "Der Roboter hat einen ungültigen Reinigungsfortschritt gemeldet",
+            "component.vacuum_orchestrator.exceptions.invalid_cleaning_mode.message": "Der Reinigungsmodus ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_cleaning_projection.message": "Die Werte der letzten Reinigung des Raums sind ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_confirmed_projection.message": "Die Werte der letzten bestätigten Reinigung des Raums sind ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_duration.message": "Die Dauer muss eine endliche, nicht negative Anzahl Sekunden sein",
+            "component.vacuum_orchestrator.exceptions.invalid_execution_attempt.message": "Der Ausführungsversuch ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_execution_plan.message": "Der Ausführungsplan ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_home_assistant_store_data.message": "Die gespeicherten Home-Assistant-Daten haben eine ungültige Struktur",
+            "component.vacuum_orchestrator.exceptions.invalid_home_assistant_store_wrapper.message": "Die Home-Assistant-Speicherdatei hat eine ungültige Struktur",
+            "component.vacuum_orchestrator.exceptions.invalid_identifier.message": "Eine Kennung ist leer, zu lang oder hat umgebende Leerzeichen",
+            "component.vacuum_orchestrator.exceptions.invalid_job_hold.message": "Gespeicherte Daten sind ungültig: Ein Auftragsschutz passt nicht zu seinem Auftrag",
+            "component.vacuum_orchestrator.exceptions.invalid_correction_outcome.message": "Eine Korrektur lautet erfolgreich oder fehlgeschlagen",
+            "component.vacuum_orchestrator.exceptions.invalid_incident.message": "Gespeicherte Daten sind ungültig: Ein Vorfall enthält einen unerwarteten Wert",
+            "component.vacuum_orchestrator.exceptions.invalid_job_provenance.message": "Die gespeicherte Herkunft des Auftrags ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_legacy_storage_payload.message": "Gespeicherte Altdaten sind ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_map_inventory.message": "Der Roboter hat eine ungültige Kartenliste gemeldet",
+            "component.vacuum_orchestrator.exceptions.invalid_minimum_battery.message": "Der Mindestakkustand muss zwischen 0 und 100 liegen",
+            "component.vacuum_orchestrator.exceptions.invalid_occupancy_epoch.message": "Der Belegungszeitraum ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_occupancy_states.message": "Die Zustände für belegt und unbelegt müssen sich unterscheiden",
+            "component.vacuum_orchestrator.exceptions.invalid_operation.message": "Die Reinigungsart ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_option_mapping.message": "Eine Zuordnung von Roboteroptionen ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_parameters.message": "Die Anfrageparameter sind ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_pass_capability.message": "Die Durchgangsfähigkeit des Roboters ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_pass_count.message": "Die Anzahl der Durchgänge muss zwischen 1 und 10 liegen",
+            "component.vacuum_orchestrator.exceptions.invalid_receipt_rooms.message": "Ein Reinigungsbeleg muss mindestens einen Raum nennen, jeden nur einmal",
+            "component.vacuum_orchestrator.exceptions.invalid_required_off.message": "Die Entitäten, die aus sein müssen, sind ungültig oder doppelt",
+            "component.vacuum_orchestrator.exceptions.invalid_required_on.message": "Die Entitäten, die ein sein müssen, sind ungültig oder doppelt",
+            "component.vacuum_orchestrator.exceptions.invalid_requirements.message": "Die Bedingungen sind ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_robot_configuration.message": "Die Roboterkonfiguration ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_robot_enabled.message": "Die Aktivierung des Roboters muss wahr oder falsch sein",
+            "component.vacuum_orchestrator.exceptions.invalid_robot_identity.message": "Die Roboteridentität ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_robot_lease.message": "Die Roboterreservierung ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_robot_name.message": "Ein Robotername muss 1 bis 100 Zeichen enthalten",
+            "component.vacuum_orchestrator.exceptions.invalid_robot_preference.message": "Die Roboterpräferenz muss zwischen -100 und 100 liegen",
+            "component.vacuum_orchestrator.exceptions.invalid_role_entity.message": "Eine einer Roboterrolle zugewiesene Entität ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_role_mapping.message": "Die Zuordnung der Roboterrollen ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_room_admission.message": "Die Raumzulassung ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_room_configuration.message": "Die Raumkonfiguration ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_room_name.message": "Der Raumname ist leer, zu lang oder hat umgebende Leerzeichen",
+            "component.vacuum_orchestrator.exceptions.invalid_room_targets.message": "Die Roboterziele des Raums sind ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_snapshot_envelope.message": "Der gespeicherte Snapshot hat einen ungültigen Integritätsumschlag",
+            "component.vacuum_orchestrator.exceptions.invalid_storage_payload.message": "Der gespeicherte Zustand ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_target_areas.message": "Die Zielbereiche des Roboters sind ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_value.message": "Der Wert ist hier nicht gültig",
+            "component.vacuum_orchestrator.exceptions.invalid_vendor_extension_namespace.message": "Der Namensraum der Herstellererweiterung ist ungültig",
+            "component.vacuum_orchestrator.exceptions.invalid_vendor_extension_parameters.message": "Die Parameter der Herstellererweiterung sind ungültig",
+            "component.vacuum_orchestrator.exceptions.job_already_exists.message": "Ein Auftrag mit dieser Kennung existiert bereits",
+            "component.vacuum_orchestrator.exceptions.job_at_bottom.message": "Der Auftrag steht bereits an letzter Stelle",
+            "component.vacuum_orchestrator.exceptions.job_at_top.message": "Der Auftrag steht bereits an erster Stelle",
+            "component.vacuum_orchestrator.exceptions.job_blocked.message": "Die Startbedingungen des Auftrags sind nicht erfüllt",
+            "component.vacuum_orchestrator.exceptions.job_conditions_not_satisfied.message": "Kein Roboter erfüllt derzeit die Bedingungen des Auftrags",
+            "component.vacuum_orchestrator.exceptions.job_has_no_pending_work_unit.message": "Der Auftrag hat keinen verbleibenden Arbeitsschritt",
+            "component.vacuum_orchestrator.exceptions.job_held.message": "Dieser Auftrag wird gerade bearbeitet oder sein Löschen bestätigt",
+            "component.vacuum_orchestrator.exceptions.job_not_cancellable.message": "Der Auftrag kann nicht mehr abgebrochen werden",
+            "component.vacuum_orchestrator.exceptions.job_not_deletable.message": "Nur wartende oder beendete Aufträge können gelöscht werden",
+            "component.vacuum_orchestrator.exceptions.job_not_dispatchable.message": "Der Auftrag kann in seinem aktuellen Zustand nicht gestartet werden",
+            "component.vacuum_orchestrator.exceptions.job_not_dispatching.message": "Der Auftrag wird gerade nicht gestartet",
+            "component.vacuum_orchestrator.exceptions.job_not_editable.message": "Nur wartende Aufträge können bearbeitet werden",
+            "component.vacuum_orchestrator.exceptions.job_not_movable.message": "Nur wartende Aufträge können verschoben werden",
+            "component.vacuum_orchestrator.exceptions.job_not_correctable.message": "Nur beendete Aufträge können korrigiert werden",
+            "component.vacuum_orchestrator.exceptions.job_not_retryable.message": "Nur beendete Aufträge können wiederholt werden",
+            "component.vacuum_orchestrator.exceptions.job_not_startable.message": "Der Auftrag kann jetzt nicht starten",
+            "component.vacuum_orchestrator.exceptions.job_not_started.message": "Nur gestartete Aufträge können abgebrochen werden; ein wartender Auftrag wird gelöscht",
+            "component.vacuum_orchestrator.exceptions.job_not_waiting.message": "Der Auftrag wartet nicht mehr in der Warteschlange",
+            "component.vacuum_orchestrator.exceptions.job_plan_identity_conflict.message": "Der Auftrag hat bereits einen anderen Plan",
+            "component.vacuum_orchestrator.exceptions.job_plan_missing.message": "Der Plan des Auftrags fehlt",
+            "component.vacuum_orchestrator.exceptions.job_plan_reference_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein Auftrag verweist auf einen unbekannten Plan",
+            "component.vacuum_orchestrator.exceptions.job_plan_semantics_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein Plan passt nicht zu seinem Auftrag",
+            "component.vacuum_orchestrator.exceptions.job_requires_area.message": "Ein Auftrag braucht mindestens einen Raum",
+            "component.vacuum_orchestrator.exceptions.job_storage_key_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein Auftrag ist unter dem falschen Schlüssel gespeichert",
+            "component.vacuum_orchestrator.exceptions.job_unknown.message": "Der Zustand der Startbedingungen des Auftrags ist unbekannt",
+            "component.vacuum_orchestrator.exceptions.legacy_import_verification_failed.message": "Importierte Altdaten konnten nicht überprüft werden",
+            "component.vacuum_orchestrator.exceptions.map_inventory_unavailable.message": "Die Kartenliste des Roboters ist nicht verfügbar",
+            "component.vacuum_orchestrator.exceptions.map_read_failed.message": "Die Kartenliste des Roboters konnte nicht gelesen werden",
+            "component.vacuum_orchestrator.exceptions.mixed_map_contexts.message": "Alle Räume eines Auftrags müssen auf derselben Karte liegen",
+            "component.vacuum_orchestrator.exceptions.multiple_orchestrator_entries_loaded.message": "Mehr als ein Vacuum-Orchestrator-Eintrag ist geladen",
+            "component.vacuum_orchestrator.exceptions.naive_datetime.message": "Gespeicherte Daten sind ungültig: Ein Zeitstempel hat keine Zeitzone",
+            "component.vacuum_orchestrator.exceptions.negative_robot_generation.message": "Gespeicherte Daten sind ungültig: Eine Robotergeneration ist negativ",
+            "component.vacuum_orchestrator.exceptions.negative_storage_revision.message": "Gespeicherte Daten sind ungültig: Die Revision ist negativ",
+            "component.vacuum_orchestrator.exceptions.no_active_rooms.message": "Kein aktiver Raum: Alle Räume sind ausgeschlossen oder ihr Bereich wurde entfernt",
+            "component.vacuum_orchestrator.exceptions.no_eligible_robot.message": "Kein Roboter kann diesen Auftrag jetzt ausführen",
+            "component.vacuum_orchestrator.exceptions.no_robot_configured.message": "Es ist kein Roboter eingerichtet",
+            "component.vacuum_orchestrator.exceptions.no_rooms.message": "Es wurde kein Raum angegeben",
+            "component.vacuum_orchestrator.exceptions.no_suppressed_demand.message": "Für die aktuelle Fälligkeit wurde noch kein Auftrag angelegt",
+            "component.vacuum_orchestrator.exceptions.non_monotonic_commit.message": "Der Zustand wurde gleichzeitig geändert; wiederhole die Aktion",
+            "component.vacuum_orchestrator.exceptions.non_monotonic_observation.message": "Eine Belegungsbeobachtung ist älter als die vorherige",
+            "component.vacuum_orchestrator.exceptions.occupancy_source_required.message": "Nutzungsbasierte Fälligkeit braucht eine Belegungsentität",
+            "component.vacuum_orchestrator.exceptions.orchestrator_not_initialized.message": "Vacuum Orchestrator ist noch nicht initialisiert",
+            "component.vacuum_orchestrator.exceptions.orchestrator_not_loaded.message": "Vacuum Orchestrator ist nicht geladen",
+            "component.vacuum_orchestrator.exceptions.orchestrator_shutting_down.message": "Vacuum Orchestrator wird beendet",
+            "component.vacuum_orchestrator.exceptions.out_of_range.message": "Der Wert liegt außerhalb des erlaubten Bereichs",
+            "component.vacuum_orchestrator.exceptions.overlapping_room_mapping.message": "Zwei Räume verweisen auf überlappende Roboterziele",
+            "component.vacuum_orchestrator.exceptions.plan_storage_key_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein Plan ist unter dem falschen Schlüssel gespeichert",
+            "component.vacuum_orchestrator.exceptions.preparation_timeout.message": "Die Vorbereitung des Roboters dauerte zu lange; es wurde kein Reinigungsbefehl gesendet",
+            "component.vacuum_orchestrator.exceptions.queue_contains_non_queued_job.message": "Die Warteschlange enthält einen Auftrag, der nicht wartet",
+            "component.vacuum_orchestrator.exceptions.queue_ending.message": "Die Warteschlange wird bereits beendet",
+            "component.vacuum_orchestrator.exceptions.queue_grace_out_of_range.message": "Die Nachlaufzeit der Warteschlange muss zwischen 0 und 86400 Sekunden liegen",
+            "component.vacuum_orchestrator.exceptions.queue_not_running.message": "Die Warteschlange läuft nicht",
+            "component.vacuum_orchestrator.exceptions.queue_paused.message": "Die Warteschlange ist bereits pausiert",
+            "component.vacuum_orchestrator.exceptions.queue_references_unknown_job.message": "Die Warteschlange verweist auf einen unbekannten Auftrag",
+            "component.vacuum_orchestrator.exceptions.queue_run_binding_requires_run_release.message": "Nur Freigaben für einen Warteschlangenlauf können an einen Lauf gebunden werden",
+            "component.vacuum_orchestrator.exceptions.queue_run_time_order.message": "Die Zeiten des Warteschlangenlaufs sind nicht in der richtigen Reihenfolge",
+            "component.vacuum_orchestrator.exceptions.queue_running.message": "Die Warteschlange läuft bereits",
+            "component.vacuum_orchestrator.exceptions.queued_job_missing_from_queue.message": "Ein wartender Auftrag fehlt in der Warteschlange",
+            "component.vacuum_orchestrator.exceptions.readiness_changed_before_start.message": "Die Startbedingungen haben sich vor dem Reinigungsbefehl geändert",
+            "component.vacuum_orchestrator.exceptions.receipt_evidence_required.message": "Ein Reinigungsbeleg braucht mindestens einen Nachweis",
+            "component.vacuum_orchestrator.exceptions.receipt_identity_conflict.message": "Ein anderer Reinigungsbeleg mit dieser Kennung existiert bereits",
+            "component.vacuum_orchestrator.exceptions.receipt_registry_mismatch.message": "Die Reinigungsbelege passen nicht zu den Räumen",
+            "component.vacuum_orchestrator.exceptions.receipt_room_mismatch.message": "Der Reinigungsbeleg enthält diesen Raum nicht",
+            "component.vacuum_orchestrator.exceptions.release_duration_mismatch.message": "Nur zeitlich begrenzte Freigaben haben eine Dauer, und sie brauchen eine",
+            "component.vacuum_orchestrator.exceptions.release_expiry_mismatch.message": "Nur zeitlich begrenzte Freigaben haben einen Ablaufzeitpunkt",
+            "component.vacuum_orchestrator.exceptions.release_expiry_not_future.message": "Der Ablauf der Freigabe muss in der Zukunft liegen",
+            "component.vacuum_orchestrator.exceptions.release_queue_run_mismatch.message": "Gespeicherte Daten sind inkonsistent: Eine Freigabe verweist auf einen anderen Warteschlangenlauf",
+            "component.vacuum_orchestrator.exceptions.release_reservation_mismatch.message": "Die Einmalfreigabe ist für einen anderen Auftrag reserviert",
+            "component.vacuum_orchestrator.exceptions.release_reservation_requires_once.message": "Nur Einmalfreigaben können für einen Auftrag reserviert werden",
+            "component.vacuum_orchestrator.exceptions.required_field.message": "Ein Pflichtfeld fehlt",
+            "component.vacuum_orchestrator.exceptions.requirement_binding_missing.message": "Die Entität einer Bedingung ist nicht mehr verfügbar",
+            "component.vacuum_orchestrator.exceptions.return_to_dock_unsupported.message": "Dieser Roboter kann nicht zur Station geschickt werden",
+            "component.vacuum_orchestrator.exceptions.robot_already_executing.message": "Der Roboter führt bereits einen Auftrag aus",
+            "component.vacuum_orchestrator.exceptions.robot_at_dock.message": "Der Roboter ist bereits an seiner Station",
+            "component.vacuum_orchestrator.exceptions.robot_availability_unknown.message": "Die Verfügbarkeit des Roboters ist unbekannt",
+            "component.vacuum_orchestrator.exceptions.robot_busy.message": "Der Roboter ist beschäftigt",
+            "component.vacuum_orchestrator.exceptions.robot_fault.message": "Der Roboter meldet einen Fehler, der diese Betriebsart sperrt",
+            "component.vacuum_orchestrator.exceptions.robot_generation_not_monotonic.message": "Die Befehlsfolge des Roboters ist nicht in der richtigen Reihenfolge",
+            "component.vacuum_orchestrator.exceptions.robot_generation_not_reserved.message": "Die Befehlsfolge des Roboters wurde nicht reserviert",
+            "component.vacuum_orchestrator.exceptions.robot_identity_change.message": "Ein Roboterprofil kann nicht auf einen anderen Roboter umgestellt werden",
+            "component.vacuum_orchestrator.exceptions.robot_lease_reference_mismatch.message": "Gespeicherte Daten sind inkonsistent: Eine Roboterreservierung verweist auf unbekannte Daten",
+            "component.vacuum_orchestrator.exceptions.robot_limit_reached.message": "Die maximale Anzahl an Robotern ist erreicht",
+            "component.vacuum_orchestrator.exceptions.robot_needs_attention.message": "Der Roboter braucht Aufmerksamkeit, bevor er Befehle erhalten kann",
+            "component.vacuum_orchestrator.exceptions.robot_not_available.message": "Der Roboter ist nicht verfügbar",
+            "component.vacuum_orchestrator.exceptions.robot_not_needing_recovery.message": "Der Roboter braucht keine Wiederherstellung",
+            "component.vacuum_orchestrator.exceptions.robot_reserved.message": "Der Roboter wurde vor dem Befehl für einen Auftrag reserviert; es wurde nichts gesendet",
+            "component.vacuum_orchestrator.exceptions.robot_session_already_owned.message": "Der Roboter ist bereits für einen anderen Versuch reserviert",
+            "component.vacuum_orchestrator.exceptions.robot_session_owner_mismatch.message": "Der Roboter ist für einen anderen Versuch reserviert",
+            "component.vacuum_orchestrator.exceptions.robot_stopped_confirmation_required.message": "Bestätige, dass der Roboter angehalten hat, um die Wiederherstellung abzuschließen",
+            "component.vacuum_orchestrator.exceptions.robot_unavailable.message": "Der Roboter ist nicht verfügbar oder meldet einen Fehler",
+            "component.vacuum_orchestrator.exceptions.robot_unknown.message": "Der Zustand des Roboters ist unbekannt",
+            "component.vacuum_orchestrator.exceptions.room_admission_job_mismatch.message": "Gespeicherte Daten sind inkonsistent: Eine Raumzulassung verweist auf einen unbekannten Auftrag",
+            "component.vacuum_orchestrator.exceptions.room_already_exists.message": "Ein Raum mit dieser Kennung existiert bereits",
+            "component.vacuum_orchestrator.exceptions.room_configuration_changes_runtime_state.message": "Reinigungsverlauf und Freigaben können nicht über die Raumkonfiguration geändert werden",
+            "component.vacuum_orchestrator.exceptions.room_disabled.message": "Der Raum ist bereits von der Reinigung ausgeschlossen",
+            "component.vacuum_orchestrator.exceptions.room_enabled.message": "Der Raum wird bereits gereinigt",
+            "component.vacuum_orchestrator.exceptions.room_has_active_job.message": "Der Raum hat einen aktiven Auftrag",
+            "component.vacuum_orchestrator.exceptions.room_identity_mismatch.message": "Die Raumkennung passt nicht",
+            "component.vacuum_orchestrator.exceptions.room_not_released.message": "Der Raum ist nicht für neue Aufträge freigegeben",
+            "component.vacuum_orchestrator.exceptions.room_unavailable.message": "Der Raum ist deaktiviert oder sein Bereich fehlt",
+            "component.vacuum_orchestrator.exceptions.run_correlation_identity_conflict.message": "Der Roboterlauf ist bereits einem anderen Versuch zugeordnet",
+            "component.vacuum_orchestrator.exceptions.setting_confirmation_timeout.message": "Der Roboter hat eine Einstellung nicht rechtzeitig bestätigt",
+            "component.vacuum_orchestrator.exceptions.setting_entity_unavailable.message": "Die Entität für eine Robotereinstellung ist nicht verfügbar",
+            "component.vacuum_orchestrator.exceptions.setting_option_unavailable.message": "Der Roboter bietet eine angeforderte Einstellung nicht an",
+            "component.vacuum_orchestrator.exceptions.settings_failed.message": "Das Anwenden der Robotereinstellungen ist fehlgeschlagen; es wurde kein Reinigungsbefehl gesendet",
+            "component.vacuum_orchestrator.exceptions.snapshot_digest_mismatch.message": "Der gespeicherte Zustand hat die Integritätsprüfung nicht bestanden",
+            "component.vacuum_orchestrator.exceptions.source_robot_already_leased.message": "Der physische Roboter ist bereits reserviert",
+            "component.vacuum_orchestrator.exceptions.source_robot_already_owned.message": "Der physische Roboter wird bereits von einer anderen Installation verwaltet",
+            "component.vacuum_orchestrator.exceptions.source_robot_mismatch.message": "Der Befehl betrifft einen anderen physischen Roboter",
+            "component.vacuum_orchestrator.exceptions.source_robot_owner_mismatch.message": "Der physische Roboter wird von einer anderen Installation verwaltet",
+            "component.vacuum_orchestrator.exceptions.stale_attempt_ownership.message": "Der Befehl gehört zu einem veralteten Versuch",
+            "component.vacuum_orchestrator.exceptions.stale_robot_generation.message": "Der Befehl wurde durch einen neueren Roboterbefehl ersetzt",
+            "component.vacuum_orchestrator.exceptions.start_delay_out_of_range.message": "Die Startverzögerung muss zwischen 0 und 600 Sekunden liegen",
+            "component.vacuum_orchestrator.exceptions.start_delayed.message": "Der Auftrag wartet auf seine Startverzögerung",
+            "component.vacuum_orchestrator.exceptions.start_rejected.message": "Der Reinigungsstart wurde abgelehnt, bevor der Befehl gesendet wurde",
+            "component.vacuum_orchestrator.exceptions.target_overlap_active.message": "Ein Raum dieses Auftrags wird bereits gereinigt",
+            "component.vacuum_orchestrator.exceptions.template_disabled.message": "Die Vorlage ist deaktiviert",
+            "component.vacuum_orchestrator.exceptions.template_identity_mismatch.message": "Die Vorlagenkennung passt nicht",
+            "component.vacuum_orchestrator.exceptions.template_unknown_room.message": "Die Vorlage verweist auf einen unbekannten Raum",
+            "component.vacuum_orchestrator.exceptions.timeout_out_of_range.message": "Zeitlimits dürfen höchstens 86400 Sekunden betragen",
+            "component.vacuum_orchestrator.exceptions.timezone_required.message": "Ein Zeitstempel braucht eine Zeitzone",
+            "component.vacuum_orchestrator.exceptions.unknown_area.message": "Der Bereich existiert nicht",
+            "component.vacuum_orchestrator.exceptions.unknown_attempt.message": "Der Ausführungsversuch existiert nicht",
+            "component.vacuum_orchestrator.exceptions.unknown_entity_role.message": "Die Roboterrolle ist unbekannt",
+            "component.vacuum_orchestrator.exceptions.unknown_field.message": "Dieses Feld wird nicht unterstützt",
+            "component.vacuum_orchestrator.exceptions.unknown_job.message": "Der Auftrag existiert nicht",
+            "component.vacuum_orchestrator.exceptions.unknown_robot.message": "Der Roboter existiert nicht",
+            "component.vacuum_orchestrator.exceptions.unknown_robot_configuration_field.message": "Die Roboterkonfiguration enthält ein unbekanntes Feld",
+            "component.vacuum_orchestrator.exceptions.unknown_room.message": "Der Raum existiert nicht",
+            "component.vacuum_orchestrator.exceptions.unknown_template.message": "Die Vorlage existiert nicht",
+            "component.vacuum_orchestrator.exceptions.unmapped_target.message": "Der Roboter hat für mindestens einen Raum dieses Auftrags kein Ziel",
+            "component.vacuum_orchestrator.exceptions.unsupported_cancel_semantics.message": "Der Roboter unterstützt kein Anhalten",
+            "component.vacuum_orchestrator.exceptions.unsupported_cleaning_preference.message": "Der Roboter unterstützt eine verlangte Reinigungseinstellung nicht",
+            "component.vacuum_orchestrator.exceptions.unsupported_home_assistant_store_wrapper.message": "Die Home-Assistant-Speicherdatei hat eine nicht unterstützte Version",
+            "component.vacuum_orchestrator.exceptions.unsupported_legacy_job_state.message": "Gespeicherte Altdaten enthalten einen nicht unterstützten Auftragszustand",
+            "component.vacuum_orchestrator.exceptions.unsupported_legacy_pass_scope.message": "Gespeicherte Altdaten enthalten einen nicht unterstützten Durchgangsbereich",
+            "component.vacuum_orchestrator.exceptions.unsupported_legacy_queue_mode.message": "Gespeicherte Altdaten enthalten einen nicht unterstützten Warteschlangenmodus",
+            "component.vacuum_orchestrator.exceptions.unsupported_legacy_requirement_state.message": "Gespeicherte Altdaten enthalten einen nicht unterstützten Bedingungszustand",
+            "component.vacuum_orchestrator.exceptions.unsupported_legacy_storage_schema.message": "Gespeicherte Altdaten haben ein nicht unterstütztes Schema",
+            "component.vacuum_orchestrator.exceptions.unsupported_map_context.message": "Der Roboter ist nicht auf der vom Auftrag verlangten Karte",
+            "component.vacuum_orchestrator.exceptions.unsupported_operation.message": "Der Roboter unterstützt diesen Reinigungsmodus nicht",
+            "component.vacuum_orchestrator.exceptions.unsupported_pass_count.message": "Der Roboter unterstützt diese Anzahl an Durchgängen nicht",
+            "component.vacuum_orchestrator.exceptions.unsupported_pass_scope.message": "Der Roboter unterstützt Durchgänge in dieser Form nicht",
+            "component.vacuum_orchestrator.exceptions.unsupported_previous_storage_schema.message": "Die vorherige Speicherdatei hat ein nicht unterstütztes Schema",
+            "component.vacuum_orchestrator.exceptions.unsupported_robot_protocol.message": "Das Roboterprotokoll wird nicht unterstützt",
+            "component.vacuum_orchestrator.exceptions.unsupported_storage_schema.message": "Der gespeicherte Zustand hat ein nicht unterstütztes Schema",
+            "component.vacuum_orchestrator.exceptions.unsupported_vendor_extension.message": "Der Roboter unterstützt die Herstellererweiterung nicht",
+            "component.vacuum_orchestrator.exceptions.vacuum_unavailable.message": "Die Saugroboter-Entität ist nicht verfügbar oder wird nicht unterstützt",
+            "component.vacuum_orchestrator.exceptions.work_unit_state_ledger_mismatch.message": "Gespeicherte Daten sind inkonsistent: Zustände der Arbeitsschritte passen nicht zu den Plänen"
+          }
         }
       }
+    },
+    {
+      "send": {
+        "id": 3,
+        "type": "manifest/get",
+        "integration": "vacuum_orchestrator"
+      }
+    },
+    {
+      "receive": {
+        "id": 3,
+        "type": "result",
+        "success": true,
+        "result": {
+          "domain": "vacuum_orchestrator",
+          "name": "Vacuum Orchestrator",
+          "after_dependencies": [
+            "lovelace",
+            "roborock",
+            "vacuum"
+          ],
+          "codeowners": [
+            "@hyperfelixations"
+          ],
+          "config_flow": true,
+          "documentation": "https://github.com/hyperfelixations/vacuum-orchestrator",
+          "integration_type": "service",
+          "iot_class": "calculated",
+          "issue_tracker": "https://github.com/hyperfelixations/vacuum-orchestrator/issues",
+          "requirements": [],
+          "single_config_entry": true,
+          "version": "0.1.1",
+          "is_built_in": false,
+          "overwrites_built_in": false
+        }
+      }
+    },
+    {
+      "mark": "Vacuum Orchestrator is installed but not set up"
     },
     {
       "hass": {
@@ -966,686 +1490,64 @@
               "en": "Needs attention"
             }
           ]
+        },
+        "services": {
+          "vacuum_orchestrator": [
+            "add_robot",
+            "cancel_job",
+            "configure_job_defaults",
+            "configure_queue",
+            "configure_robot",
+            "correct_job",
+            "create_job",
+            "create_job_from_template",
+            "create_room",
+            "delete_job",
+            "disable_room",
+            "enable_room",
+            "end_queue",
+            "get_diagnostics",
+            "get_history",
+            "get_job",
+            "get_job_execution",
+            "get_queue",
+            "get_robot_candidates",
+            "get_robots",
+            "get_room",
+            "get_rooms",
+            "get_setup",
+            "get_templates",
+            "get_trace",
+            "move_job",
+            "pause_queue",
+            "preview_job",
+            "release_room",
+            "remove_robot",
+            "remove_template",
+            "rename_robot",
+            "reset_template_demand",
+            "resolve_recovery",
+            "resume_queue",
+            "retry_job",
+            "return_robot",
+            "revoke_room",
+            "run_queue",
+            "save_job_as_template",
+            "save_template",
+            "start_job",
+            "update_job",
+            "update_room",
+            "validate"
+          ]
         }
       }
     },
     {
-      "send": {
-        "id": 2,
-        "type": "vacuum_orchestrator/queue/get",
-        "offset": 0,
-        "limit": 1
-      }
-    },
-    {
-      "receive": {
-        "id": 2,
-        "type": "result",
-        "success": true,
-        "result": {
-          "api_version": 4,
-          "integration_version": "0.1.1",
-          "commit_id": 1,
-          "queue_revision": 0,
-          "mode": "idle",
-          "needs_attention": false,
-          "active_count": 0,
-          "attention_count": 0,
-          "attention": [],
-          "recovery_targets": [],
-          "queue_grace_seconds": 900,
-          "start_delay_seconds": 5.0,
-          "job_defaults": {
-            "mode": "vacuum",
-            "vacuum_power": "standard",
-            "mop_intensity": "medium",
-            "mop_route": "standard",
-            "passes": 1,
-            "settings_policy": "best_effort",
-            "configured": false
-          },
-          "queue_run": null,
-          "actions": {
-            "run": {
-              "available": true,
-              "reason": null,
-              "detail": null
-            },
-            "pause": {
-              "available": false,
-              "reason": "queue_not_running",
-              "detail": null
-            },
-            "resume": {
-              "available": false,
-              "reason": "queue_not_running",
-              "detail": null
-            },
-            "end": {
-              "available": false,
-              "reason": "queue_not_running",
-              "detail": null
-            }
-          },
-          "total": 0,
-          "offset": 0,
-          "limit": 1,
-          "jobs": [],
-          "runtime_id": "00000000-0000-4000-8000-000000000001",
-          "runtime_sequence": 3,
-          "server_time": "2026-03-14T09:26:53.589793+00:00"
-        }
-      }
-    },
-    {
-      "send": {
-        "id": 3,
-        "type": "frontend/get_translations",
-        "language": "en",
-        "category": "exceptions",
-        "integration": [
-          "vacuum_orchestrator"
-        ]
-      }
-    },
-    {
-      "receive": {
-        "id": 3,
-        "type": "result",
-        "success": true,
-        "result": {
-          "resources": {
-            "component.vacuum_orchestrator.exceptions.active_attempt_missing.message": "The active job has no execution attempt",
-            "component.vacuum_orchestrator.exceptions.active_job_attempt_mismatch.message": "Stored data is inconsistent: an active job references an invalid attempt",
-            "component.vacuum_orchestrator.exceptions.admission_scope_changed.message": "The rooms admitted for this job changed",
-            "component.vacuum_orchestrator.exceptions.all_rooms_with_selection.message": "Choose either all rooms or areas and rooms, not both",
-            "component.vacuum_orchestrator.exceptions.already_configured.message": "This robot is already configured",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_mop_route.message": "Stored legacy data has conflicting mop routes",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_operation_sequence.message": "Stored legacy data has an ambiguous operation sequence",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_pass_count.message": "Stored legacy data has conflicting pass counts",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_pass_scope.message": "Stored legacy data has conflicting pass scopes",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_vacuum_level.message": "Stored legacy data has conflicting suction levels",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_vendor_extension.message": "Stored legacy data has conflicting vendor extensions",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_water_level.message": "Stored legacy data has conflicting water levels",
-            "component.vacuum_orchestrator.exceptions.ambiguous_map_inventory.message": "The robot reports the same map more than once",
-            "component.vacuum_orchestrator.exceptions.ambiguous_mode_mapping.message": "Several cleaning modes map to the same robot option",
-            "component.vacuum_orchestrator.exceptions.ambiguous_room_alias.message": "The room reference matches more than one room",
-            "component.vacuum_orchestrator.exceptions.assigned_robot_missing.message": "The robot assigned to this job is no longer configured",
-            "component.vacuum_orchestrator.exceptions.assignment_room_mapping_invalid.message": "The robot assignment does not cover the job's rooms consistently",
-            "component.vacuum_orchestrator.exceptions.assignment_work_unit_mismatch.message": "The robot assignment belongs to a different work step",
-            "component.vacuum_orchestrator.exceptions.atomic_writes_required.message": "The storage backend does not guarantee atomic writes",
-            "component.vacuum_orchestrator.exceptions.attempt_command_not_sent.message": "The cleaning command for this attempt has not been sent",
-            "component.vacuum_orchestrator.exceptions.attempt_lease_missing.message": "The robot reservation for this attempt is missing",
-            "component.vacuum_orchestrator.exceptions.attempt_ledger_reference_mismatch.message": "Stored data is inconsistent: an attempt references unknown data",
-            "component.vacuum_orchestrator.exceptions.attempt_not_awaiting_start.message": "The attempt is not waiting for a cleaning start",
-            "component.vacuum_orchestrator.exceptions.attempt_not_completable.message": "The attempt cannot be completed in its current state",
-            "component.vacuum_orchestrator.exceptions.attempt_not_prepared.message": "The attempt is no longer being prepared",
-            "component.vacuum_orchestrator.exceptions.attempt_ownership_conflict.message": "The attempt no longer belongs to this job",
-            "component.vacuum_orchestrator.exceptions.battery_below_minimum.message": "The robot's battery is below the configured minimum",
-            "component.vacuum_orchestrator.exceptions.cancel_not_requested.message": "No cancellation was requested for this job",
-            "component.vacuum_orchestrator.exceptions.capabilities_changed.message": "The robot's capabilities changed since the job was planned",
-            "component.vacuum_orchestrator.exceptions.capabilities_changed_before_dispatch.message": "The robot's capabilities changed before the start",
-            "component.vacuum_orchestrator.exceptions.cleaning_mode_conflicts_with_fixed_mode.message": "The robot's current cleaning mode conflicts with the requested mode",
-            "component.vacuum_orchestrator.exceptions.cleaning_mode_not_confirmed.message": "The robot did not confirm the requested cleaning mode",
-            "component.vacuum_orchestrator.exceptions.cleaning_projection_mismatch.message": "Stored room cleaning data does not match the cleaning records",
-            "component.vacuum_orchestrator.exceptions.completion_in_future.message": "A cleaning completion cannot lie in the future",
-            "component.vacuum_orchestrator.exceptions.config_entry_version_unsupported.message": "This configuration version cannot be migrated; remove the integration and set it up again",
-            "component.vacuum_orchestrator.exceptions.consumed_release_requires_job.message": "A used one-time release must reference its job",
-            "component.vacuum_orchestrator.exceptions.contradictory_state_requirement.message": "The same entity cannot be required both on and off",
-            "component.vacuum_orchestrator.exceptions.correlation_identity_mismatch.message": "The robot run evidence belongs to a different attempt",
-            "component.vacuum_orchestrator.exceptions.correlation_ledger_reference_mismatch.message": "Stored data is inconsistent: run evidence references unknown data",
-            "component.vacuum_orchestrator.exceptions.critical_commit_missing_after_save.message": "The saved state could not be read back",
-            "component.vacuum_orchestrator.exceptions.critical_commit_readback_mismatch.message": "The saved state differs from the intended state",
-            "component.vacuum_orchestrator.exceptions.critical_commit_semantic_mismatch.message": "The saved state does not decode to the intended state",
-            "component.vacuum_orchestrator.exceptions.critical_storage_state_uncertain.message": "The stored state is uncertain; reload the integration before making changes",
-            "component.vacuum_orchestrator.exceptions.critical_storage_unreadable.message": "The stored state cannot be read",
-            "component.vacuum_orchestrator.exceptions.dedupe_key_already_queued.message": "A waiting job with the same deduplication key already exists",
-            "component.vacuum_orchestrator.exceptions.due_requires_single_operation.message": "Due state is only available for vacuuming or mopping",
-            "component.vacuum_orchestrator.exceptions.duplicate_active_physical_robot.message": "Two active robot profiles refer to the same physical robot",
-            "component.vacuum_orchestrator.exceptions.duplicate_area.message": "The same room is listed more than once",
-            "component.vacuum_orchestrator.exceptions.duplicate_area_mapping.message": "Another room already uses this area",
-            "component.vacuum_orchestrator.exceptions.duplicate_physical_robot.message": "Several robot profiles refer to the same physical robot",
-            "component.vacuum_orchestrator.exceptions.duplicate_queue_job.message": "A job appears more than once in the queue",
-            "component.vacuum_orchestrator.exceptions.duplicate_room.message": "The same room appears more than once",
-            "component.vacuum_orchestrator.exceptions.duplicate_room_binding.message": "The room has more than one binding for the same robot and map",
-            "component.vacuum_orchestrator.exceptions.duplicate_work_unit_identity.message": "Stored data is inconsistent: a work step identifier is duplicated",
-            "component.vacuum_orchestrator.exceptions.empty_adapter_targets.message": "The robot assignment contains no cleaning targets",
-            "component.vacuum_orchestrator.exceptions.empty_allowed_operations.message": "At least one cleaning operation must be allowed",
-            "component.vacuum_orchestrator.exceptions.empty_capability_revision.message": "The robot capability snapshot has no revision",
-            "component.vacuum_orchestrator.exceptions.empty_dedupe_key.message": "The deduplication key cannot be empty",
-            "component.vacuum_orchestrator.exceptions.empty_installation_id.message": "The installation identifier cannot be empty",
-            "component.vacuum_orchestrator.exceptions.empty_job_update.message": "The update does not change any field",
-            "component.vacuum_orchestrator.exceptions.empty_map_context.message": "The map reference cannot be empty",
-            "component.vacuum_orchestrator.exceptions.empty_name.message": "The name cannot be empty",
-            "component.vacuum_orchestrator.exceptions.empty_note.message": "The note cannot be empty; omit it or set it to null",
-            "component.vacuum_orchestrator.exceptions.empty_reason.message": "The reason cannot be empty; omit it or set it to null",
-            "component.vacuum_orchestrator.exceptions.empty_target.message": "A room reference cannot be empty",
-            "component.vacuum_orchestrator.exceptions.entity_not_registered.message": "The vacuum entity is not in the entity registry",
-            "component.vacuum_orchestrator.exceptions.execution_identity_conflict.message": "The execution identifiers conflict with existing data",
-            "component.vacuum_orchestrator.exceptions.expected_boolean.message": "Stored data is invalid: a true/false value was expected",
-            "component.vacuum_orchestrator.exceptions.expected_finite_number.message": "Stored data is invalid: a finite number was expected",
-            "component.vacuum_orchestrator.exceptions.expected_integer.message": "Stored data is invalid: an integer was expected",
-            "component.vacuum_orchestrator.exceptions.expected_list.message": "Stored data is invalid: a list was expected",
-            "component.vacuum_orchestrator.exceptions.expected_object.message": "Stored data is invalid: an object was expected",
-            "component.vacuum_orchestrator.exceptions.expected_optional_string.message": "Stored data is invalid: text or null was expected",
-            "component.vacuum_orchestrator.exceptions.expected_pair.message": "Stored data is invalid: a key-value pair was expected",
-            "component.vacuum_orchestrator.exceptions.expected_pair_list.message": "Stored data is invalid: a list of key-value pairs was expected",
-            "component.vacuum_orchestrator.exceptions.expected_string.message": "Stored data is invalid: text was expected",
-            "component.vacuum_orchestrator.exceptions.expected_string_list.message": "Stored data is invalid: a list of texts was expected",
-            "component.vacuum_orchestrator.exceptions.external_receipt_requires_confirmation.message": "A cleaning record from outside Vacuum Orchestrator needs confirmed evidence",
-            "component.vacuum_orchestrator.exceptions.hold_expired.message": "The protection of this job has ended; reload and try again",
-            "component.vacuum_orchestrator.exceptions.inactive_job_has_active_attempt.message": "Stored data is inconsistent: a finished job still has an active attempt",
-            "component.vacuum_orchestrator.exceptions.installation_storage_ownership_mismatch.message": "The stored state belongs to a different installation",
-            "component.vacuum_orchestrator.exceptions.insufficient_completion_evidence.message": "The robot cannot report a reliable cleaning completion",
-            "component.vacuum_orchestrator.exceptions.insufficient_start_evidence.message": "The robot cannot report a reliable cleaning start",
-            "component.vacuum_orchestrator.exceptions.invalid_accepted_states.message": "The accepted states of a requirement are invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_adapter.message": "The robot adapter is not supported",
-            "component.vacuum_orchestrator.exceptions.invalid_battery_percentage.message": "The robot reported an invalid battery level",
-            "component.vacuum_orchestrator.exceptions.invalid_clean_percent.message": "The robot reported an invalid cleaning progress",
-            "component.vacuum_orchestrator.exceptions.invalid_cleaning_mode.message": "The cleaning mode is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_cleaning_projection.message": "The room's last-cleaning values are invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_confirmed_projection.message": "The room's last confirmed cleaning values are invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_duration.message": "The duration must be a finite number of seconds that is not negative",
-            "component.vacuum_orchestrator.exceptions.invalid_execution_attempt.message": "The execution attempt is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_execution_plan.message": "The execution plan is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_home_assistant_store_data.message": "The stored Home Assistant data has an invalid structure",
-            "component.vacuum_orchestrator.exceptions.invalid_home_assistant_store_wrapper.message": "The Home Assistant storage file has an invalid structure",
-            "component.vacuum_orchestrator.exceptions.invalid_identifier.message": "An identifier is empty, too long or has surrounding spaces",
-            "component.vacuum_orchestrator.exceptions.invalid_job_hold.message": "Stored data is invalid: a job protection does not match its job",
-            "component.vacuum_orchestrator.exceptions.invalid_correction_outcome.message": "A correction is either completed or failed",
-            "component.vacuum_orchestrator.exceptions.invalid_incident.message": "Stored data is invalid: an incident has an unexpected value",
-            "component.vacuum_orchestrator.exceptions.invalid_job_provenance.message": "The stored job origin is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_legacy_storage_payload.message": "Stored legacy data is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_map_inventory.message": "The robot reported an invalid map list",
-            "component.vacuum_orchestrator.exceptions.invalid_minimum_battery.message": "The minimum battery level must be between 0 and 100",
-            "component.vacuum_orchestrator.exceptions.invalid_occupancy_epoch.message": "The occupancy period is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_occupancy_states.message": "The occupied and unoccupied states must differ",
-            "component.vacuum_orchestrator.exceptions.invalid_operation.message": "The cleaning operation is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_option_mapping.message": "A robot option mapping is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_parameters.message": "The request parameters are invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_pass_capability.message": "The robot's pass capability is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_pass_count.message": "The number of passes must be between 1 and 10",
-            "component.vacuum_orchestrator.exceptions.invalid_receipt_rooms.message": "A cleaning record must name at least one room, each only once",
-            "component.vacuum_orchestrator.exceptions.invalid_required_off.message": "The entities required to be off are invalid or duplicated",
-            "component.vacuum_orchestrator.exceptions.invalid_required_on.message": "The entities required to be on are invalid or duplicated",
-            "component.vacuum_orchestrator.exceptions.invalid_requirements.message": "The requirements are invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_robot_configuration.message": "The robot configuration is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_robot_enabled.message": "The robot's enabled setting must be true or false",
-            "component.vacuum_orchestrator.exceptions.invalid_robot_identity.message": "The robot identity is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_robot_lease.message": "The robot reservation is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_robot_name.message": "A robot name must contain 1 to 100 characters",
-            "component.vacuum_orchestrator.exceptions.invalid_robot_preference.message": "The robot preference must be between -100 and 100",
-            "component.vacuum_orchestrator.exceptions.invalid_role_entity.message": "An entity assigned to a robot role is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_role_mapping.message": "The robot role mapping is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_room_admission.message": "The room admission is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_room_configuration.message": "The room configuration is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_room_name.message": "The room name is empty, too long or has surrounding spaces",
-            "component.vacuum_orchestrator.exceptions.invalid_room_targets.message": "The room's robot targets are invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_snapshot_envelope.message": "The stored snapshot has an invalid integrity envelope",
-            "component.vacuum_orchestrator.exceptions.invalid_storage_payload.message": "The stored state is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_target_areas.message": "The robot's target areas are invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_value.message": "The value is not valid here",
-            "component.vacuum_orchestrator.exceptions.invalid_vendor_extension_namespace.message": "The vendor extension namespace is invalid",
-            "component.vacuum_orchestrator.exceptions.invalid_vendor_extension_parameters.message": "The vendor extension parameters are invalid",
-            "component.vacuum_orchestrator.exceptions.job_already_exists.message": "A job with this identifier already exists",
-            "component.vacuum_orchestrator.exceptions.job_at_bottom.message": "The job is already last in the queue",
-            "component.vacuum_orchestrator.exceptions.job_at_top.message": "The job is already first in the queue",
-            "component.vacuum_orchestrator.exceptions.job_blocked.message": "The job's start conditions are not met",
-            "component.vacuum_orchestrator.exceptions.job_conditions_not_satisfied.message": "No robot currently meets the job's conditions",
-            "component.vacuum_orchestrator.exceptions.job_has_no_pending_work_unit.message": "The job has no remaining work step",
-            "component.vacuum_orchestrator.exceptions.job_held.message": "Someone is editing this job or confirming its deletion",
-            "component.vacuum_orchestrator.exceptions.job_not_cancellable.message": "The job can no longer be cancelled",
-            "component.vacuum_orchestrator.exceptions.job_not_deletable.message": "Only waiting or finished jobs can be deleted",
-            "component.vacuum_orchestrator.exceptions.job_not_dispatchable.message": "The job cannot be started in its current state",
-            "component.vacuum_orchestrator.exceptions.job_not_dispatching.message": "The job is not being started",
-            "component.vacuum_orchestrator.exceptions.job_not_editable.message": "Only waiting jobs can be edited",
-            "component.vacuum_orchestrator.exceptions.job_not_movable.message": "Only waiting jobs can be moved",
-            "component.vacuum_orchestrator.exceptions.job_not_correctable.message": "Only finished jobs can be corrected",
-            "component.vacuum_orchestrator.exceptions.job_not_retryable.message": "Only finished jobs can be retried",
-            "component.vacuum_orchestrator.exceptions.job_not_startable.message": "The job cannot start now",
-            "component.vacuum_orchestrator.exceptions.job_not_started.message": "Only started jobs can be cancelled; a waiting job is deleted",
-            "component.vacuum_orchestrator.exceptions.job_not_waiting.message": "The job no longer waits in the queue",
-            "component.vacuum_orchestrator.exceptions.job_plan_identity_conflict.message": "The job already has a different plan",
-            "component.vacuum_orchestrator.exceptions.job_plan_missing.message": "The job's plan is missing",
-            "component.vacuum_orchestrator.exceptions.job_plan_reference_mismatch.message": "Stored data is inconsistent: a job references an unknown plan",
-            "component.vacuum_orchestrator.exceptions.job_plan_semantics_mismatch.message": "Stored data is inconsistent: a plan does not match its job",
-            "component.vacuum_orchestrator.exceptions.job_requires_area.message": "A job needs at least one room",
-            "component.vacuum_orchestrator.exceptions.job_storage_key_mismatch.message": "Stored data is inconsistent: a job is stored under the wrong key",
-            "component.vacuum_orchestrator.exceptions.job_unknown.message": "The state of the job's start conditions is unknown",
-            "component.vacuum_orchestrator.exceptions.legacy_import_verification_failed.message": "Imported legacy data could not be verified",
-            "component.vacuum_orchestrator.exceptions.map_inventory_unavailable.message": "The robot's map list is unavailable",
-            "component.vacuum_orchestrator.exceptions.map_read_failed.message": "The robot's map list could not be read",
-            "component.vacuum_orchestrator.exceptions.mixed_map_contexts.message": "All rooms of a job must be on the same map",
-            "component.vacuum_orchestrator.exceptions.multiple_orchestrator_entries_loaded.message": "More than one Vacuum Orchestrator entry is loaded",
-            "component.vacuum_orchestrator.exceptions.naive_datetime.message": "Stored data is invalid: a timestamp has no time zone",
-            "component.vacuum_orchestrator.exceptions.negative_robot_generation.message": "Stored data is invalid: a robot generation is negative",
-            "component.vacuum_orchestrator.exceptions.negative_storage_revision.message": "Stored data is invalid: the revision is negative",
-            "component.vacuum_orchestrator.exceptions.no_active_rooms.message": "No active room: every room is excluded or its area was removed",
-            "component.vacuum_orchestrator.exceptions.no_eligible_robot.message": "No robot can run this job now",
-            "component.vacuum_orchestrator.exceptions.no_robot_configured.message": "No robot is configured",
-            "component.vacuum_orchestrator.exceptions.no_rooms.message": "No room was specified",
-            "component.vacuum_orchestrator.exceptions.no_suppressed_demand.message": "No job was created for the current due period yet",
-            "component.vacuum_orchestrator.exceptions.non_monotonic_commit.message": "The state changed concurrently; retry the action",
-            "component.vacuum_orchestrator.exceptions.non_monotonic_observation.message": "An occupancy observation is older than the previous one",
-            "component.vacuum_orchestrator.exceptions.occupancy_source_required.message": "Usage-based due times need an occupancy entity",
-            "component.vacuum_orchestrator.exceptions.orchestrator_not_initialized.message": "Vacuum Orchestrator is not initialized yet",
-            "component.vacuum_orchestrator.exceptions.orchestrator_not_loaded.message": "Vacuum Orchestrator is not loaded",
-            "component.vacuum_orchestrator.exceptions.orchestrator_shutting_down.message": "Vacuum Orchestrator is shutting down",
-            "component.vacuum_orchestrator.exceptions.out_of_range.message": "The value is outside the allowed range",
-            "component.vacuum_orchestrator.exceptions.overlapping_room_mapping.message": "Two rooms map to overlapping robot targets",
-            "component.vacuum_orchestrator.exceptions.plan_storage_key_mismatch.message": "Stored data is inconsistent: a plan is stored under the wrong key",
-            "component.vacuum_orchestrator.exceptions.preparation_timeout.message": "Preparing the robot took too long; no cleaning command was sent",
-            "component.vacuum_orchestrator.exceptions.queue_contains_non_queued_job.message": "The queue contains a job that is not waiting",
-            "component.vacuum_orchestrator.exceptions.queue_ending.message": "The queue is already ending",
-            "component.vacuum_orchestrator.exceptions.queue_grace_out_of_range.message": "The queue grace time must be between 0 and 86400 seconds",
-            "component.vacuum_orchestrator.exceptions.queue_not_running.message": "The queue is not running",
-            "component.vacuum_orchestrator.exceptions.queue_paused.message": "The queue is already paused",
-            "component.vacuum_orchestrator.exceptions.queue_references_unknown_job.message": "The queue references an unknown job",
-            "component.vacuum_orchestrator.exceptions.queue_run_binding_requires_run_release.message": "Only queue-run releases can be bound to a queue run",
-            "component.vacuum_orchestrator.exceptions.queue_run_time_order.message": "The queue run times are out of order",
-            "component.vacuum_orchestrator.exceptions.queue_running.message": "The queue is already running",
-            "component.vacuum_orchestrator.exceptions.queued_job_missing_from_queue.message": "A waiting job is missing from the queue",
-            "component.vacuum_orchestrator.exceptions.readiness_changed_before_start.message": "The start conditions changed before the cleaning command",
-            "component.vacuum_orchestrator.exceptions.receipt_evidence_required.message": "A cleaning record needs at least one piece of evidence",
-            "component.vacuum_orchestrator.exceptions.receipt_identity_conflict.message": "A different cleaning record with this identifier already exists",
-            "component.vacuum_orchestrator.exceptions.receipt_registry_mismatch.message": "The cleaning records do not match the rooms",
-            "component.vacuum_orchestrator.exceptions.receipt_room_mismatch.message": "The cleaning record does not include this room",
-            "component.vacuum_orchestrator.exceptions.release_duration_mismatch.message": "Only timed releases accept a duration, and they require one",
-            "component.vacuum_orchestrator.exceptions.release_expiry_mismatch.message": "Only timed releases have an expiry time",
-            "component.vacuum_orchestrator.exceptions.release_expiry_not_future.message": "The release expiry must be in the future",
-            "component.vacuum_orchestrator.exceptions.release_queue_run_mismatch.message": "Stored data is inconsistent: a release references a different queue run",
-            "component.vacuum_orchestrator.exceptions.release_reservation_mismatch.message": "The one-time release is reserved for a different job",
-            "component.vacuum_orchestrator.exceptions.release_reservation_requires_once.message": "Only one-time releases can be reserved for a job",
-            "component.vacuum_orchestrator.exceptions.required_field.message": "A required field is missing",
-            "component.vacuum_orchestrator.exceptions.requirement_binding_missing.message": "The entity of a requirement is no longer available",
-            "component.vacuum_orchestrator.exceptions.return_to_dock_unsupported.message": "This robot cannot be sent back to its dock",
-            "component.vacuum_orchestrator.exceptions.robot_already_executing.message": "The robot is already running a job",
-            "component.vacuum_orchestrator.exceptions.robot_at_dock.message": "The robot is already at its dock",
-            "component.vacuum_orchestrator.exceptions.robot_availability_unknown.message": "The robot's availability is unknown",
-            "component.vacuum_orchestrator.exceptions.robot_busy.message": "The robot is busy",
-            "component.vacuum_orchestrator.exceptions.robot_fault.message": "The robot reports a fault that blocks this operation",
-            "component.vacuum_orchestrator.exceptions.robot_generation_not_monotonic.message": "The robot command sequence is out of order",
-            "component.vacuum_orchestrator.exceptions.robot_generation_not_reserved.message": "The robot command sequence was not reserved",
-            "component.vacuum_orchestrator.exceptions.robot_identity_change.message": "A robot profile cannot be moved to a different robot",
-            "component.vacuum_orchestrator.exceptions.robot_lease_reference_mismatch.message": "Stored data is inconsistent: a robot reservation references unknown data",
-            "component.vacuum_orchestrator.exceptions.robot_limit_reached.message": "The maximum number of robots is reached",
-            "component.vacuum_orchestrator.exceptions.robot_needs_attention.message": "The robot needs attention before it can receive commands",
-            "component.vacuum_orchestrator.exceptions.robot_not_available.message": "The robot is not available",
-            "component.vacuum_orchestrator.exceptions.robot_not_needing_recovery.message": "The robot does not need recovery",
-            "component.vacuum_orchestrator.exceptions.robot_reserved.message": "The robot was reserved for a job before the command ran; nothing was sent",
-            "component.vacuum_orchestrator.exceptions.robot_session_already_owned.message": "The robot is already reserved for another attempt",
-            "component.vacuum_orchestrator.exceptions.robot_session_owner_mismatch.message": "The robot is reserved for a different attempt",
-            "component.vacuum_orchestrator.exceptions.robot_stopped_confirmation_required.message": "Confirm that the robot has stopped to resolve recovery",
-            "component.vacuum_orchestrator.exceptions.robot_unavailable.message": "The robot is unavailable or reports an error",
-            "component.vacuum_orchestrator.exceptions.robot_unknown.message": "The robot's state is unknown",
-            "component.vacuum_orchestrator.exceptions.room_admission_job_mismatch.message": "Stored data is inconsistent: a room admission references an unknown job",
-            "component.vacuum_orchestrator.exceptions.room_already_exists.message": "A room with this identifier already exists",
-            "component.vacuum_orchestrator.exceptions.room_configuration_changes_runtime_state.message": "Cleaning history and releases cannot be changed through the room configuration",
-            "component.vacuum_orchestrator.exceptions.room_disabled.message": "The room is already excluded from cleaning",
-            "component.vacuum_orchestrator.exceptions.room_enabled.message": "The room is already included in cleaning",
-            "component.vacuum_orchestrator.exceptions.room_has_active_job.message": "The room has an active job",
-            "component.vacuum_orchestrator.exceptions.room_identity_mismatch.message": "The room identifier does not match",
-            "component.vacuum_orchestrator.exceptions.room_not_released.message": "The room is not released for new jobs",
-            "component.vacuum_orchestrator.exceptions.room_unavailable.message": "The room is disabled or its area is missing",
-            "component.vacuum_orchestrator.exceptions.run_correlation_identity_conflict.message": "The robot run is already linked to a different attempt",
-            "component.vacuum_orchestrator.exceptions.setting_confirmation_timeout.message": "The robot did not confirm a setting in time",
-            "component.vacuum_orchestrator.exceptions.setting_entity_unavailable.message": "The entity for a robot setting is unavailable",
-            "component.vacuum_orchestrator.exceptions.setting_option_unavailable.message": "The robot does not offer a requested setting",
-            "component.vacuum_orchestrator.exceptions.settings_failed.message": "Applying the robot settings failed; no cleaning command was sent",
-            "component.vacuum_orchestrator.exceptions.snapshot_digest_mismatch.message": "The stored state failed its integrity check",
-            "component.vacuum_orchestrator.exceptions.source_robot_already_leased.message": "The physical robot is already reserved",
-            "component.vacuum_orchestrator.exceptions.source_robot_already_owned.message": "The physical robot is already managed by another installation",
-            "component.vacuum_orchestrator.exceptions.source_robot_mismatch.message": "The command targets a different physical robot",
-            "component.vacuum_orchestrator.exceptions.source_robot_owner_mismatch.message": "The physical robot is managed by another installation",
-            "component.vacuum_orchestrator.exceptions.stale_attempt_ownership.message": "The command belongs to an outdated attempt",
-            "component.vacuum_orchestrator.exceptions.stale_robot_generation.message": "The command was superseded by a newer robot command",
-            "component.vacuum_orchestrator.exceptions.start_delay_out_of_range.message": "The start delay must be between 0 and 600 seconds",
-            "component.vacuum_orchestrator.exceptions.start_delayed.message": "The job waits for its start delay",
-            "component.vacuum_orchestrator.exceptions.start_rejected.message": "The cleaning start was rejected before the command was sent",
-            "component.vacuum_orchestrator.exceptions.target_overlap_active.message": "A room of this job is already being cleaned",
-            "component.vacuum_orchestrator.exceptions.template_disabled.message": "The template is disabled",
-            "component.vacuum_orchestrator.exceptions.template_identity_mismatch.message": "The template identifier does not match",
-            "component.vacuum_orchestrator.exceptions.template_unknown_room.message": "The template references an unknown room",
-            "component.vacuum_orchestrator.exceptions.timeout_out_of_range.message": "Timeouts can be at most 86400 seconds",
-            "component.vacuum_orchestrator.exceptions.timezone_required.message": "A timestamp needs a time zone",
-            "component.vacuum_orchestrator.exceptions.unknown_area.message": "The area does not exist",
-            "component.vacuum_orchestrator.exceptions.unknown_attempt.message": "The execution attempt does not exist",
-            "component.vacuum_orchestrator.exceptions.unknown_entity_role.message": "The robot role is unknown",
-            "component.vacuum_orchestrator.exceptions.unknown_field.message": "This field is not supported",
-            "component.vacuum_orchestrator.exceptions.unknown_job.message": "The job does not exist",
-            "component.vacuum_orchestrator.exceptions.unknown_robot.message": "The robot does not exist",
-            "component.vacuum_orchestrator.exceptions.unknown_robot_configuration_field.message": "The robot configuration contains an unknown field",
-            "component.vacuum_orchestrator.exceptions.unknown_room.message": "The room does not exist",
-            "component.vacuum_orchestrator.exceptions.unknown_template.message": "The template does not exist",
-            "component.vacuum_orchestrator.exceptions.unmapped_target.message": "The robot has no target for at least one room of this job",
-            "component.vacuum_orchestrator.exceptions.unsupported_cancel_semantics.message": "The robot does not support stopping",
-            "component.vacuum_orchestrator.exceptions.unsupported_cleaning_preference.message": "The robot does not support a required cleaning setting",
-            "component.vacuum_orchestrator.exceptions.unsupported_home_assistant_store_wrapper.message": "The Home Assistant storage file has an unsupported version",
-            "component.vacuum_orchestrator.exceptions.unsupported_legacy_job_state.message": "Stored legacy data contains an unsupported job state",
-            "component.vacuum_orchestrator.exceptions.unsupported_legacy_pass_scope.message": "Stored legacy data contains an unsupported pass scope",
-            "component.vacuum_orchestrator.exceptions.unsupported_legacy_queue_mode.message": "Stored legacy data contains an unsupported queue mode",
-            "component.vacuum_orchestrator.exceptions.unsupported_legacy_requirement_state.message": "Stored legacy data contains an unsupported requirement state",
-            "component.vacuum_orchestrator.exceptions.unsupported_legacy_storage_schema.message": "Stored legacy data has an unsupported schema",
-            "component.vacuum_orchestrator.exceptions.unsupported_map_context.message": "The robot is not on the map required by the job",
-            "component.vacuum_orchestrator.exceptions.unsupported_operation.message": "The robot does not support this cleaning mode",
-            "component.vacuum_orchestrator.exceptions.unsupported_pass_count.message": "The robot does not support this number of passes",
-            "component.vacuum_orchestrator.exceptions.unsupported_pass_scope.message": "The robot does not support passes in this form",
-            "component.vacuum_orchestrator.exceptions.unsupported_previous_storage_schema.message": "The previous storage file has an unsupported schema",
-            "component.vacuum_orchestrator.exceptions.unsupported_robot_protocol.message": "The robot protocol is not supported",
-            "component.vacuum_orchestrator.exceptions.unsupported_storage_schema.message": "The stored state has an unsupported schema",
-            "component.vacuum_orchestrator.exceptions.unsupported_vendor_extension.message": "The robot does not support the vendor extension",
-            "component.vacuum_orchestrator.exceptions.vacuum_unavailable.message": "The vacuum entity is unavailable or not supported",
-            "component.vacuum_orchestrator.exceptions.work_unit_state_ledger_mismatch.message": "Stored data is inconsistent: work step states do not match the plans"
-          }
-        }
-      }
+      "home": "The user adds Vacuum Orchestrator"
     },
     {
       "send": {
         "id": 4,
-        "type": "frontend/get_translations",
-        "language": "de",
-        "category": "exceptions",
-        "integration": [
-          "vacuum_orchestrator"
-        ]
-      }
-    },
-    {
-      "receive": {
-        "id": 4,
-        "type": "result",
-        "success": true,
-        "result": {
-          "resources": {
-            "component.vacuum_orchestrator.exceptions.active_attempt_missing.message": "Der aktive Auftrag hat keinen Ausführungsversuch",
-            "component.vacuum_orchestrator.exceptions.active_job_attempt_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein aktiver Auftrag verweist auf einen ungültigen Versuch",
-            "component.vacuum_orchestrator.exceptions.admission_scope_changed.message": "Die für diesen Auftrag zugelassenen Räume haben sich geändert",
-            "component.vacuum_orchestrator.exceptions.all_rooms_with_selection.message": "Wähle entweder alle Räume oder Bereiche und Räume, nicht beides",
-            "component.vacuum_orchestrator.exceptions.already_configured.message": "Dieser Roboter ist bereits eingerichtet",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_mop_route.message": "Gespeicherte Altdaten enthalten widersprüchliche Wischrouten",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_operation_sequence.message": "Gespeicherte Altdaten enthalten eine mehrdeutige Arbeitsfolge",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_pass_count.message": "Gespeicherte Altdaten enthalten widersprüchliche Durchgangszahlen",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_pass_scope.message": "Gespeicherte Altdaten enthalten widersprüchliche Durchgangsbereiche",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_vacuum_level.message": "Gespeicherte Altdaten enthalten widersprüchliche Saugstufen",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_vendor_extension.message": "Gespeicherte Altdaten enthalten widersprüchliche Herstellererweiterungen",
-            "component.vacuum_orchestrator.exceptions.ambiguous_legacy_water_level.message": "Gespeicherte Altdaten enthalten widersprüchliche Wasserstufen",
-            "component.vacuum_orchestrator.exceptions.ambiguous_map_inventory.message": "Der Roboter meldet dieselbe Karte mehrfach",
-            "component.vacuum_orchestrator.exceptions.ambiguous_mode_mapping.message": "Mehrere Reinigungsmodi verweisen auf dieselbe Roboteroption",
-            "component.vacuum_orchestrator.exceptions.ambiguous_room_alias.message": "Die Raumangabe passt zu mehr als einem Raum",
-            "component.vacuum_orchestrator.exceptions.assigned_robot_missing.message": "Der diesem Auftrag zugewiesene Roboter ist nicht mehr eingerichtet",
-            "component.vacuum_orchestrator.exceptions.assignment_room_mapping_invalid.message": "Die Roboterzuweisung deckt die Räume des Auftrags nicht konsistent ab",
-            "component.vacuum_orchestrator.exceptions.assignment_work_unit_mismatch.message": "Die Roboterzuweisung gehört zu einem anderen Arbeitsschritt",
-            "component.vacuum_orchestrator.exceptions.atomic_writes_required.message": "Der Speicher garantiert keine atomaren Schreibvorgänge",
-            "component.vacuum_orchestrator.exceptions.attempt_command_not_sent.message": "Der Reinigungsbefehl für diesen Versuch wurde noch nicht gesendet",
-            "component.vacuum_orchestrator.exceptions.attempt_lease_missing.message": "Die Roboterreservierung für diesen Versuch fehlt",
-            "component.vacuum_orchestrator.exceptions.attempt_ledger_reference_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein Versuch verweist auf unbekannte Daten",
-            "component.vacuum_orchestrator.exceptions.attempt_not_awaiting_start.message": "Der Versuch wartet nicht auf einen Reinigungsstart",
-            "component.vacuum_orchestrator.exceptions.attempt_not_completable.message": "Der Versuch kann in seinem aktuellen Zustand nicht abgeschlossen werden",
-            "component.vacuum_orchestrator.exceptions.attempt_not_prepared.message": "Der Versuch wird nicht mehr vorbereitet",
-            "component.vacuum_orchestrator.exceptions.attempt_ownership_conflict.message": "Der Versuch gehört nicht mehr zu diesem Auftrag",
-            "component.vacuum_orchestrator.exceptions.battery_below_minimum.message": "Der Akku des Roboters liegt unter dem eingestellten Minimum",
-            "component.vacuum_orchestrator.exceptions.cancel_not_requested.message": "Für diesen Auftrag wurde kein Abbruch angefordert",
-            "component.vacuum_orchestrator.exceptions.capabilities_changed.message": "Die Fähigkeiten des Roboters haben sich seit der Planung geändert",
-            "component.vacuum_orchestrator.exceptions.capabilities_changed_before_dispatch.message": "Die Fähigkeiten des Roboters haben sich vor dem Start geändert",
-            "component.vacuum_orchestrator.exceptions.cleaning_mode_conflicts_with_fixed_mode.message": "Der aktuelle Reinigungsmodus des Roboters widerspricht dem angeforderten Modus",
-            "component.vacuum_orchestrator.exceptions.cleaning_mode_not_confirmed.message": "Der Roboter hat den angeforderten Reinigungsmodus nicht bestätigt",
-            "component.vacuum_orchestrator.exceptions.cleaning_projection_mismatch.message": "Gespeicherte Reinigungswerte des Raums passen nicht zu den Reinigungsbelegen",
-            "component.vacuum_orchestrator.exceptions.completion_in_future.message": "Ein Reinigungsabschluss kann nicht in der Zukunft liegen",
-            "component.vacuum_orchestrator.exceptions.config_entry_version_unsupported.message": "Diese Konfigurationsversion kann nicht migriert werden; entferne die Integration und richte sie neu ein",
-            "component.vacuum_orchestrator.exceptions.consumed_release_requires_job.message": "Eine verbrauchte Einmalfreigabe muss auf ihren Auftrag verweisen",
-            "component.vacuum_orchestrator.exceptions.contradictory_state_requirement.message": "Dieselbe Entität kann nicht gleichzeitig als ein und aus verlangt werden",
-            "component.vacuum_orchestrator.exceptions.correlation_identity_mismatch.message": "Der Nachweis des Roboterlaufs gehört zu einem anderen Versuch",
-            "component.vacuum_orchestrator.exceptions.correlation_ledger_reference_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein Laufnachweis verweist auf unbekannte Daten",
-            "component.vacuum_orchestrator.exceptions.critical_commit_missing_after_save.message": "Der gespeicherte Zustand konnte nicht zurückgelesen werden",
-            "component.vacuum_orchestrator.exceptions.critical_commit_readback_mismatch.message": "Der gespeicherte Zustand weicht vom beabsichtigten Zustand ab",
-            "component.vacuum_orchestrator.exceptions.critical_commit_semantic_mismatch.message": "Der gespeicherte Zustand ergibt beim Lesen nicht den beabsichtigten Zustand",
-            "component.vacuum_orchestrator.exceptions.critical_storage_state_uncertain.message": "Der gespeicherte Zustand ist unsicher; lade die Integration neu, bevor du Änderungen vornimmst",
-            "component.vacuum_orchestrator.exceptions.critical_storage_unreadable.message": "Der gespeicherte Zustand kann nicht gelesen werden",
-            "component.vacuum_orchestrator.exceptions.dedupe_key_already_queued.message": "Ein wartender Auftrag mit demselben Duplikatschlüssel existiert bereits",
-            "component.vacuum_orchestrator.exceptions.due_requires_single_operation.message": "Fälligkeit gibt es nur für Saugen oder Wischen",
-            "component.vacuum_orchestrator.exceptions.duplicate_active_physical_robot.message": "Zwei aktive Roboterprofile verweisen auf denselben physischen Roboter",
-            "component.vacuum_orchestrator.exceptions.duplicate_area.message": "Derselbe Raum ist mehrfach angegeben",
-            "component.vacuum_orchestrator.exceptions.duplicate_area_mapping.message": "Ein anderer Raum verwendet diesen Bereich bereits",
-            "component.vacuum_orchestrator.exceptions.duplicate_physical_robot.message": "Mehrere Roboterprofile verweisen auf denselben physischen Roboter",
-            "component.vacuum_orchestrator.exceptions.duplicate_queue_job.message": "Ein Auftrag kommt mehrfach in der Warteschlange vor",
-            "component.vacuum_orchestrator.exceptions.duplicate_room.message": "Derselbe Raum ist mehrfach angegeben",
-            "component.vacuum_orchestrator.exceptions.duplicate_room_binding.message": "Der Raum hat mehrere Zuordnungen für denselben Roboter und dieselbe Karte",
-            "component.vacuum_orchestrator.exceptions.duplicate_work_unit_identity.message": "Gespeicherte Daten sind inkonsistent: Eine Arbeitsschrittkennung ist doppelt vorhanden",
-            "component.vacuum_orchestrator.exceptions.empty_adapter_targets.message": "Die Roboterzuweisung enthält keine Reinigungsziele",
-            "component.vacuum_orchestrator.exceptions.empty_allowed_operations.message": "Mindestens eine Reinigungsart muss erlaubt sein",
-            "component.vacuum_orchestrator.exceptions.empty_capability_revision.message": "Der Fähigkeitsstand des Roboters hat keine Revision",
-            "component.vacuum_orchestrator.exceptions.empty_dedupe_key.message": "Der Duplikatschlüssel darf nicht leer sein",
-            "component.vacuum_orchestrator.exceptions.empty_installation_id.message": "Die Installationskennung darf nicht leer sein",
-            "component.vacuum_orchestrator.exceptions.empty_job_update.message": "Die Änderung enthält kein Feld",
-            "component.vacuum_orchestrator.exceptions.empty_map_context.message": "Die Kartenangabe darf nicht leer sein",
-            "component.vacuum_orchestrator.exceptions.empty_name.message": "Der Name darf nicht leer sein",
-            "component.vacuum_orchestrator.exceptions.empty_note.message": "Die Notiz darf nicht leer sein; lass sie weg oder setze sie auf null",
-            "component.vacuum_orchestrator.exceptions.empty_reason.message": "Der Grund darf nicht leer sein; lass ihn weg oder setze ihn auf null",
-            "component.vacuum_orchestrator.exceptions.empty_target.message": "Eine Raumangabe darf nicht leer sein",
-            "component.vacuum_orchestrator.exceptions.entity_not_registered.message": "Die Saugroboter-Entität ist nicht im Entitätsregister",
-            "component.vacuum_orchestrator.exceptions.execution_identity_conflict.message": "Die Ausführungskennungen widersprechen vorhandenen Daten",
-            "component.vacuum_orchestrator.exceptions.expected_boolean.message": "Gespeicherte Daten sind ungültig: Ein Wahr/Falsch-Wert wurde erwartet",
-            "component.vacuum_orchestrator.exceptions.expected_finite_number.message": "Gespeicherte Daten sind ungültig: Eine endliche Zahl wurde erwartet",
-            "component.vacuum_orchestrator.exceptions.expected_integer.message": "Gespeicherte Daten sind ungültig: Eine ganze Zahl wurde erwartet",
-            "component.vacuum_orchestrator.exceptions.expected_list.message": "Gespeicherte Daten sind ungültig: Eine Liste wurde erwartet",
-            "component.vacuum_orchestrator.exceptions.expected_object.message": "Gespeicherte Daten sind ungültig: Ein Objekt wurde erwartet",
-            "component.vacuum_orchestrator.exceptions.expected_optional_string.message": "Gespeicherte Daten sind ungültig: Text oder null wurde erwartet",
-            "component.vacuum_orchestrator.exceptions.expected_pair.message": "Gespeicherte Daten sind ungültig: Ein Schlüssel-Wert-Paar wurde erwartet",
-            "component.vacuum_orchestrator.exceptions.expected_pair_list.message": "Gespeicherte Daten sind ungültig: Eine Liste von Schlüssel-Wert-Paaren wurde erwartet",
-            "component.vacuum_orchestrator.exceptions.expected_string.message": "Gespeicherte Daten sind ungültig: Text wurde erwartet",
-            "component.vacuum_orchestrator.exceptions.expected_string_list.message": "Gespeicherte Daten sind ungültig: Eine Textliste wurde erwartet",
-            "component.vacuum_orchestrator.exceptions.external_receipt_requires_confirmation.message": "Ein Reinigungsbeleg von außerhalb des Vacuum Orchestrators braucht einen bestätigten Nachweis",
-            "component.vacuum_orchestrator.exceptions.hold_expired.message": "Der Schutz dieses Auftrags ist abgelaufen; lade neu und versuche es erneut",
-            "component.vacuum_orchestrator.exceptions.inactive_job_has_active_attempt.message": "Gespeicherte Daten sind inkonsistent: Ein beendeter Auftrag hat noch einen aktiven Versuch",
-            "component.vacuum_orchestrator.exceptions.installation_storage_ownership_mismatch.message": "Der gespeicherte Zustand gehört zu einer anderen Installation",
-            "component.vacuum_orchestrator.exceptions.insufficient_completion_evidence.message": "Der Roboter kann keinen verlässlichen Reinigungsabschluss melden",
-            "component.vacuum_orchestrator.exceptions.insufficient_start_evidence.message": "Der Roboter kann keinen verlässlichen Reinigungsstart melden",
-            "component.vacuum_orchestrator.exceptions.invalid_accepted_states.message": "Die akzeptierten Zustände einer Bedingung sind ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_adapter.message": "Der Roboteradapter wird nicht unterstützt",
-            "component.vacuum_orchestrator.exceptions.invalid_battery_percentage.message": "Der Roboter hat einen ungültigen Akkustand gemeldet",
-            "component.vacuum_orchestrator.exceptions.invalid_clean_percent.message": "Der Roboter hat einen ungültigen Reinigungsfortschritt gemeldet",
-            "component.vacuum_orchestrator.exceptions.invalid_cleaning_mode.message": "Der Reinigungsmodus ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_cleaning_projection.message": "Die Werte der letzten Reinigung des Raums sind ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_confirmed_projection.message": "Die Werte der letzten bestätigten Reinigung des Raums sind ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_duration.message": "Die Dauer muss eine endliche, nicht negative Anzahl Sekunden sein",
-            "component.vacuum_orchestrator.exceptions.invalid_execution_attempt.message": "Der Ausführungsversuch ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_execution_plan.message": "Der Ausführungsplan ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_home_assistant_store_data.message": "Die gespeicherten Home-Assistant-Daten haben eine ungültige Struktur",
-            "component.vacuum_orchestrator.exceptions.invalid_home_assistant_store_wrapper.message": "Die Home-Assistant-Speicherdatei hat eine ungültige Struktur",
-            "component.vacuum_orchestrator.exceptions.invalid_identifier.message": "Eine Kennung ist leer, zu lang oder hat umgebende Leerzeichen",
-            "component.vacuum_orchestrator.exceptions.invalid_job_hold.message": "Gespeicherte Daten sind ungültig: Ein Auftragsschutz passt nicht zu seinem Auftrag",
-            "component.vacuum_orchestrator.exceptions.invalid_correction_outcome.message": "Eine Korrektur lautet erfolgreich oder fehlgeschlagen",
-            "component.vacuum_orchestrator.exceptions.invalid_incident.message": "Gespeicherte Daten sind ungültig: Ein Vorfall enthält einen unerwarteten Wert",
-            "component.vacuum_orchestrator.exceptions.invalid_job_provenance.message": "Die gespeicherte Herkunft des Auftrags ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_legacy_storage_payload.message": "Gespeicherte Altdaten sind ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_map_inventory.message": "Der Roboter hat eine ungültige Kartenliste gemeldet",
-            "component.vacuum_orchestrator.exceptions.invalid_minimum_battery.message": "Der Mindestakkustand muss zwischen 0 und 100 liegen",
-            "component.vacuum_orchestrator.exceptions.invalid_occupancy_epoch.message": "Der Belegungszeitraum ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_occupancy_states.message": "Die Zustände für belegt und unbelegt müssen sich unterscheiden",
-            "component.vacuum_orchestrator.exceptions.invalid_operation.message": "Die Reinigungsart ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_option_mapping.message": "Eine Zuordnung von Roboteroptionen ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_parameters.message": "Die Anfrageparameter sind ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_pass_capability.message": "Die Durchgangsfähigkeit des Roboters ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_pass_count.message": "Die Anzahl der Durchgänge muss zwischen 1 und 10 liegen",
-            "component.vacuum_orchestrator.exceptions.invalid_receipt_rooms.message": "Ein Reinigungsbeleg muss mindestens einen Raum nennen, jeden nur einmal",
-            "component.vacuum_orchestrator.exceptions.invalid_required_off.message": "Die Entitäten, die aus sein müssen, sind ungültig oder doppelt",
-            "component.vacuum_orchestrator.exceptions.invalid_required_on.message": "Die Entitäten, die ein sein müssen, sind ungültig oder doppelt",
-            "component.vacuum_orchestrator.exceptions.invalid_requirements.message": "Die Bedingungen sind ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_robot_configuration.message": "Die Roboterkonfiguration ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_robot_enabled.message": "Die Aktivierung des Roboters muss wahr oder falsch sein",
-            "component.vacuum_orchestrator.exceptions.invalid_robot_identity.message": "Die Roboteridentität ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_robot_lease.message": "Die Roboterreservierung ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_robot_name.message": "Ein Robotername muss 1 bis 100 Zeichen enthalten",
-            "component.vacuum_orchestrator.exceptions.invalid_robot_preference.message": "Die Roboterpräferenz muss zwischen -100 und 100 liegen",
-            "component.vacuum_orchestrator.exceptions.invalid_role_entity.message": "Eine einer Roboterrolle zugewiesene Entität ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_role_mapping.message": "Die Zuordnung der Roboterrollen ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_room_admission.message": "Die Raumzulassung ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_room_configuration.message": "Die Raumkonfiguration ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_room_name.message": "Der Raumname ist leer, zu lang oder hat umgebende Leerzeichen",
-            "component.vacuum_orchestrator.exceptions.invalid_room_targets.message": "Die Roboterziele des Raums sind ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_snapshot_envelope.message": "Der gespeicherte Snapshot hat einen ungültigen Integritätsumschlag",
-            "component.vacuum_orchestrator.exceptions.invalid_storage_payload.message": "Der gespeicherte Zustand ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_target_areas.message": "Die Zielbereiche des Roboters sind ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_value.message": "Der Wert ist hier nicht gültig",
-            "component.vacuum_orchestrator.exceptions.invalid_vendor_extension_namespace.message": "Der Namensraum der Herstellererweiterung ist ungültig",
-            "component.vacuum_orchestrator.exceptions.invalid_vendor_extension_parameters.message": "Die Parameter der Herstellererweiterung sind ungültig",
-            "component.vacuum_orchestrator.exceptions.job_already_exists.message": "Ein Auftrag mit dieser Kennung existiert bereits",
-            "component.vacuum_orchestrator.exceptions.job_at_bottom.message": "Der Auftrag steht bereits an letzter Stelle",
-            "component.vacuum_orchestrator.exceptions.job_at_top.message": "Der Auftrag steht bereits an erster Stelle",
-            "component.vacuum_orchestrator.exceptions.job_blocked.message": "Die Startbedingungen des Auftrags sind nicht erfüllt",
-            "component.vacuum_orchestrator.exceptions.job_conditions_not_satisfied.message": "Kein Roboter erfüllt derzeit die Bedingungen des Auftrags",
-            "component.vacuum_orchestrator.exceptions.job_has_no_pending_work_unit.message": "Der Auftrag hat keinen verbleibenden Arbeitsschritt",
-            "component.vacuum_orchestrator.exceptions.job_held.message": "Dieser Auftrag wird gerade bearbeitet oder sein Löschen bestätigt",
-            "component.vacuum_orchestrator.exceptions.job_not_cancellable.message": "Der Auftrag kann nicht mehr abgebrochen werden",
-            "component.vacuum_orchestrator.exceptions.job_not_deletable.message": "Nur wartende oder beendete Aufträge können gelöscht werden",
-            "component.vacuum_orchestrator.exceptions.job_not_dispatchable.message": "Der Auftrag kann in seinem aktuellen Zustand nicht gestartet werden",
-            "component.vacuum_orchestrator.exceptions.job_not_dispatching.message": "Der Auftrag wird gerade nicht gestartet",
-            "component.vacuum_orchestrator.exceptions.job_not_editable.message": "Nur wartende Aufträge können bearbeitet werden",
-            "component.vacuum_orchestrator.exceptions.job_not_movable.message": "Nur wartende Aufträge können verschoben werden",
-            "component.vacuum_orchestrator.exceptions.job_not_correctable.message": "Nur beendete Aufträge können korrigiert werden",
-            "component.vacuum_orchestrator.exceptions.job_not_retryable.message": "Nur beendete Aufträge können wiederholt werden",
-            "component.vacuum_orchestrator.exceptions.job_not_startable.message": "Der Auftrag kann jetzt nicht starten",
-            "component.vacuum_orchestrator.exceptions.job_not_started.message": "Nur gestartete Aufträge können abgebrochen werden; ein wartender Auftrag wird gelöscht",
-            "component.vacuum_orchestrator.exceptions.job_not_waiting.message": "Der Auftrag wartet nicht mehr in der Warteschlange",
-            "component.vacuum_orchestrator.exceptions.job_plan_identity_conflict.message": "Der Auftrag hat bereits einen anderen Plan",
-            "component.vacuum_orchestrator.exceptions.job_plan_missing.message": "Der Plan des Auftrags fehlt",
-            "component.vacuum_orchestrator.exceptions.job_plan_reference_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein Auftrag verweist auf einen unbekannten Plan",
-            "component.vacuum_orchestrator.exceptions.job_plan_semantics_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein Plan passt nicht zu seinem Auftrag",
-            "component.vacuum_orchestrator.exceptions.job_requires_area.message": "Ein Auftrag braucht mindestens einen Raum",
-            "component.vacuum_orchestrator.exceptions.job_storage_key_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein Auftrag ist unter dem falschen Schlüssel gespeichert",
-            "component.vacuum_orchestrator.exceptions.job_unknown.message": "Der Zustand der Startbedingungen des Auftrags ist unbekannt",
-            "component.vacuum_orchestrator.exceptions.legacy_import_verification_failed.message": "Importierte Altdaten konnten nicht überprüft werden",
-            "component.vacuum_orchestrator.exceptions.map_inventory_unavailable.message": "Die Kartenliste des Roboters ist nicht verfügbar",
-            "component.vacuum_orchestrator.exceptions.map_read_failed.message": "Die Kartenliste des Roboters konnte nicht gelesen werden",
-            "component.vacuum_orchestrator.exceptions.mixed_map_contexts.message": "Alle Räume eines Auftrags müssen auf derselben Karte liegen",
-            "component.vacuum_orchestrator.exceptions.multiple_orchestrator_entries_loaded.message": "Mehr als ein Vacuum-Orchestrator-Eintrag ist geladen",
-            "component.vacuum_orchestrator.exceptions.naive_datetime.message": "Gespeicherte Daten sind ungültig: Ein Zeitstempel hat keine Zeitzone",
-            "component.vacuum_orchestrator.exceptions.negative_robot_generation.message": "Gespeicherte Daten sind ungültig: Eine Robotergeneration ist negativ",
-            "component.vacuum_orchestrator.exceptions.negative_storage_revision.message": "Gespeicherte Daten sind ungültig: Die Revision ist negativ",
-            "component.vacuum_orchestrator.exceptions.no_active_rooms.message": "Kein aktiver Raum: Alle Räume sind ausgeschlossen oder ihr Bereich wurde entfernt",
-            "component.vacuum_orchestrator.exceptions.no_eligible_robot.message": "Kein Roboter kann diesen Auftrag jetzt ausführen",
-            "component.vacuum_orchestrator.exceptions.no_robot_configured.message": "Es ist kein Roboter eingerichtet",
-            "component.vacuum_orchestrator.exceptions.no_rooms.message": "Es wurde kein Raum angegeben",
-            "component.vacuum_orchestrator.exceptions.no_suppressed_demand.message": "Für die aktuelle Fälligkeit wurde noch kein Auftrag angelegt",
-            "component.vacuum_orchestrator.exceptions.non_monotonic_commit.message": "Der Zustand wurde gleichzeitig geändert; wiederhole die Aktion",
-            "component.vacuum_orchestrator.exceptions.non_monotonic_observation.message": "Eine Belegungsbeobachtung ist älter als die vorherige",
-            "component.vacuum_orchestrator.exceptions.occupancy_source_required.message": "Nutzungsbasierte Fälligkeit braucht eine Belegungsentität",
-            "component.vacuum_orchestrator.exceptions.orchestrator_not_initialized.message": "Vacuum Orchestrator ist noch nicht initialisiert",
-            "component.vacuum_orchestrator.exceptions.orchestrator_not_loaded.message": "Vacuum Orchestrator ist nicht geladen",
-            "component.vacuum_orchestrator.exceptions.orchestrator_shutting_down.message": "Vacuum Orchestrator wird beendet",
-            "component.vacuum_orchestrator.exceptions.out_of_range.message": "Der Wert liegt außerhalb des erlaubten Bereichs",
-            "component.vacuum_orchestrator.exceptions.overlapping_room_mapping.message": "Zwei Räume verweisen auf überlappende Roboterziele",
-            "component.vacuum_orchestrator.exceptions.plan_storage_key_mismatch.message": "Gespeicherte Daten sind inkonsistent: Ein Plan ist unter dem falschen Schlüssel gespeichert",
-            "component.vacuum_orchestrator.exceptions.preparation_timeout.message": "Die Vorbereitung des Roboters dauerte zu lange; es wurde kein Reinigungsbefehl gesendet",
-            "component.vacuum_orchestrator.exceptions.queue_contains_non_queued_job.message": "Die Warteschlange enthält einen Auftrag, der nicht wartet",
-            "component.vacuum_orchestrator.exceptions.queue_ending.message": "Die Warteschlange wird bereits beendet",
-            "component.vacuum_orchestrator.exceptions.queue_grace_out_of_range.message": "Die Nachlaufzeit der Warteschlange muss zwischen 0 und 86400 Sekunden liegen",
-            "component.vacuum_orchestrator.exceptions.queue_not_running.message": "Die Warteschlange läuft nicht",
-            "component.vacuum_orchestrator.exceptions.queue_paused.message": "Die Warteschlange ist bereits pausiert",
-            "component.vacuum_orchestrator.exceptions.queue_references_unknown_job.message": "Die Warteschlange verweist auf einen unbekannten Auftrag",
-            "component.vacuum_orchestrator.exceptions.queue_run_binding_requires_run_release.message": "Nur Freigaben für einen Warteschlangenlauf können an einen Lauf gebunden werden",
-            "component.vacuum_orchestrator.exceptions.queue_run_time_order.message": "Die Zeiten des Warteschlangenlaufs sind nicht in der richtigen Reihenfolge",
-            "component.vacuum_orchestrator.exceptions.queue_running.message": "Die Warteschlange läuft bereits",
-            "component.vacuum_orchestrator.exceptions.queued_job_missing_from_queue.message": "Ein wartender Auftrag fehlt in der Warteschlange",
-            "component.vacuum_orchestrator.exceptions.readiness_changed_before_start.message": "Die Startbedingungen haben sich vor dem Reinigungsbefehl geändert",
-            "component.vacuum_orchestrator.exceptions.receipt_evidence_required.message": "Ein Reinigungsbeleg braucht mindestens einen Nachweis",
-            "component.vacuum_orchestrator.exceptions.receipt_identity_conflict.message": "Ein anderer Reinigungsbeleg mit dieser Kennung existiert bereits",
-            "component.vacuum_orchestrator.exceptions.receipt_registry_mismatch.message": "Die Reinigungsbelege passen nicht zu den Räumen",
-            "component.vacuum_orchestrator.exceptions.receipt_room_mismatch.message": "Der Reinigungsbeleg enthält diesen Raum nicht",
-            "component.vacuum_orchestrator.exceptions.release_duration_mismatch.message": "Nur zeitlich begrenzte Freigaben haben eine Dauer, und sie brauchen eine",
-            "component.vacuum_orchestrator.exceptions.release_expiry_mismatch.message": "Nur zeitlich begrenzte Freigaben haben einen Ablaufzeitpunkt",
-            "component.vacuum_orchestrator.exceptions.release_expiry_not_future.message": "Der Ablauf der Freigabe muss in der Zukunft liegen",
-            "component.vacuum_orchestrator.exceptions.release_queue_run_mismatch.message": "Gespeicherte Daten sind inkonsistent: Eine Freigabe verweist auf einen anderen Warteschlangenlauf",
-            "component.vacuum_orchestrator.exceptions.release_reservation_mismatch.message": "Die Einmalfreigabe ist für einen anderen Auftrag reserviert",
-            "component.vacuum_orchestrator.exceptions.release_reservation_requires_once.message": "Nur Einmalfreigaben können für einen Auftrag reserviert werden",
-            "component.vacuum_orchestrator.exceptions.required_field.message": "Ein Pflichtfeld fehlt",
-            "component.vacuum_orchestrator.exceptions.requirement_binding_missing.message": "Die Entität einer Bedingung ist nicht mehr verfügbar",
-            "component.vacuum_orchestrator.exceptions.return_to_dock_unsupported.message": "Dieser Roboter kann nicht zur Station geschickt werden",
-            "component.vacuum_orchestrator.exceptions.robot_already_executing.message": "Der Roboter führt bereits einen Auftrag aus",
-            "component.vacuum_orchestrator.exceptions.robot_at_dock.message": "Der Roboter ist bereits an seiner Station",
-            "component.vacuum_orchestrator.exceptions.robot_availability_unknown.message": "Die Verfügbarkeit des Roboters ist unbekannt",
-            "component.vacuum_orchestrator.exceptions.robot_busy.message": "Der Roboter ist beschäftigt",
-            "component.vacuum_orchestrator.exceptions.robot_fault.message": "Der Roboter meldet einen Fehler, der diese Betriebsart sperrt",
-            "component.vacuum_orchestrator.exceptions.robot_generation_not_monotonic.message": "Die Befehlsfolge des Roboters ist nicht in der richtigen Reihenfolge",
-            "component.vacuum_orchestrator.exceptions.robot_generation_not_reserved.message": "Die Befehlsfolge des Roboters wurde nicht reserviert",
-            "component.vacuum_orchestrator.exceptions.robot_identity_change.message": "Ein Roboterprofil kann nicht auf einen anderen Roboter umgestellt werden",
-            "component.vacuum_orchestrator.exceptions.robot_lease_reference_mismatch.message": "Gespeicherte Daten sind inkonsistent: Eine Roboterreservierung verweist auf unbekannte Daten",
-            "component.vacuum_orchestrator.exceptions.robot_limit_reached.message": "Die maximale Anzahl an Robotern ist erreicht",
-            "component.vacuum_orchestrator.exceptions.robot_needs_attention.message": "Der Roboter braucht Aufmerksamkeit, bevor er Befehle erhalten kann",
-            "component.vacuum_orchestrator.exceptions.robot_not_available.message": "Der Roboter ist nicht verfügbar",
-            "component.vacuum_orchestrator.exceptions.robot_not_needing_recovery.message": "Der Roboter braucht keine Wiederherstellung",
-            "component.vacuum_orchestrator.exceptions.robot_reserved.message": "Der Roboter wurde vor dem Befehl für einen Auftrag reserviert; es wurde nichts gesendet",
-            "component.vacuum_orchestrator.exceptions.robot_session_already_owned.message": "Der Roboter ist bereits für einen anderen Versuch reserviert",
-            "component.vacuum_orchestrator.exceptions.robot_session_owner_mismatch.message": "Der Roboter ist für einen anderen Versuch reserviert",
-            "component.vacuum_orchestrator.exceptions.robot_stopped_confirmation_required.message": "Bestätige, dass der Roboter angehalten hat, um die Wiederherstellung abzuschließen",
-            "component.vacuum_orchestrator.exceptions.robot_unavailable.message": "Der Roboter ist nicht verfügbar oder meldet einen Fehler",
-            "component.vacuum_orchestrator.exceptions.robot_unknown.message": "Der Zustand des Roboters ist unbekannt",
-            "component.vacuum_orchestrator.exceptions.room_admission_job_mismatch.message": "Gespeicherte Daten sind inkonsistent: Eine Raumzulassung verweist auf einen unbekannten Auftrag",
-            "component.vacuum_orchestrator.exceptions.room_already_exists.message": "Ein Raum mit dieser Kennung existiert bereits",
-            "component.vacuum_orchestrator.exceptions.room_configuration_changes_runtime_state.message": "Reinigungsverlauf und Freigaben können nicht über die Raumkonfiguration geändert werden",
-            "component.vacuum_orchestrator.exceptions.room_disabled.message": "Der Raum ist bereits von der Reinigung ausgeschlossen",
-            "component.vacuum_orchestrator.exceptions.room_enabled.message": "Der Raum wird bereits gereinigt",
-            "component.vacuum_orchestrator.exceptions.room_has_active_job.message": "Der Raum hat einen aktiven Auftrag",
-            "component.vacuum_orchestrator.exceptions.room_identity_mismatch.message": "Die Raumkennung passt nicht",
-            "component.vacuum_orchestrator.exceptions.room_not_released.message": "Der Raum ist nicht für neue Aufträge freigegeben",
-            "component.vacuum_orchestrator.exceptions.room_unavailable.message": "Der Raum ist deaktiviert oder sein Bereich fehlt",
-            "component.vacuum_orchestrator.exceptions.run_correlation_identity_conflict.message": "Der Roboterlauf ist bereits einem anderen Versuch zugeordnet",
-            "component.vacuum_orchestrator.exceptions.setting_confirmation_timeout.message": "Der Roboter hat eine Einstellung nicht rechtzeitig bestätigt",
-            "component.vacuum_orchestrator.exceptions.setting_entity_unavailable.message": "Die Entität für eine Robotereinstellung ist nicht verfügbar",
-            "component.vacuum_orchestrator.exceptions.setting_option_unavailable.message": "Der Roboter bietet eine angeforderte Einstellung nicht an",
-            "component.vacuum_orchestrator.exceptions.settings_failed.message": "Das Anwenden der Robotereinstellungen ist fehlgeschlagen; es wurde kein Reinigungsbefehl gesendet",
-            "component.vacuum_orchestrator.exceptions.snapshot_digest_mismatch.message": "Der gespeicherte Zustand hat die Integritätsprüfung nicht bestanden",
-            "component.vacuum_orchestrator.exceptions.source_robot_already_leased.message": "Der physische Roboter ist bereits reserviert",
-            "component.vacuum_orchestrator.exceptions.source_robot_already_owned.message": "Der physische Roboter wird bereits von einer anderen Installation verwaltet",
-            "component.vacuum_orchestrator.exceptions.source_robot_mismatch.message": "Der Befehl betrifft einen anderen physischen Roboter",
-            "component.vacuum_orchestrator.exceptions.source_robot_owner_mismatch.message": "Der physische Roboter wird von einer anderen Installation verwaltet",
-            "component.vacuum_orchestrator.exceptions.stale_attempt_ownership.message": "Der Befehl gehört zu einem veralteten Versuch",
-            "component.vacuum_orchestrator.exceptions.stale_robot_generation.message": "Der Befehl wurde durch einen neueren Roboterbefehl ersetzt",
-            "component.vacuum_orchestrator.exceptions.start_delay_out_of_range.message": "Die Startverzögerung muss zwischen 0 und 600 Sekunden liegen",
-            "component.vacuum_orchestrator.exceptions.start_delayed.message": "Der Auftrag wartet auf seine Startverzögerung",
-            "component.vacuum_orchestrator.exceptions.start_rejected.message": "Der Reinigungsstart wurde abgelehnt, bevor der Befehl gesendet wurde",
-            "component.vacuum_orchestrator.exceptions.target_overlap_active.message": "Ein Raum dieses Auftrags wird bereits gereinigt",
-            "component.vacuum_orchestrator.exceptions.template_disabled.message": "Die Vorlage ist deaktiviert",
-            "component.vacuum_orchestrator.exceptions.template_identity_mismatch.message": "Die Vorlagenkennung passt nicht",
-            "component.vacuum_orchestrator.exceptions.template_unknown_room.message": "Die Vorlage verweist auf einen unbekannten Raum",
-            "component.vacuum_orchestrator.exceptions.timeout_out_of_range.message": "Zeitlimits dürfen höchstens 86400 Sekunden betragen",
-            "component.vacuum_orchestrator.exceptions.timezone_required.message": "Ein Zeitstempel braucht eine Zeitzone",
-            "component.vacuum_orchestrator.exceptions.unknown_area.message": "Der Bereich existiert nicht",
-            "component.vacuum_orchestrator.exceptions.unknown_attempt.message": "Der Ausführungsversuch existiert nicht",
-            "component.vacuum_orchestrator.exceptions.unknown_entity_role.message": "Die Roboterrolle ist unbekannt",
-            "component.vacuum_orchestrator.exceptions.unknown_field.message": "Dieses Feld wird nicht unterstützt",
-            "component.vacuum_orchestrator.exceptions.unknown_job.message": "Der Auftrag existiert nicht",
-            "component.vacuum_orchestrator.exceptions.unknown_robot.message": "Der Roboter existiert nicht",
-            "component.vacuum_orchestrator.exceptions.unknown_robot_configuration_field.message": "Die Roboterkonfiguration enthält ein unbekanntes Feld",
-            "component.vacuum_orchestrator.exceptions.unknown_room.message": "Der Raum existiert nicht",
-            "component.vacuum_orchestrator.exceptions.unknown_template.message": "Die Vorlage existiert nicht",
-            "component.vacuum_orchestrator.exceptions.unmapped_target.message": "Der Roboter hat für mindestens einen Raum dieses Auftrags kein Ziel",
-            "component.vacuum_orchestrator.exceptions.unsupported_cancel_semantics.message": "Der Roboter unterstützt kein Anhalten",
-            "component.vacuum_orchestrator.exceptions.unsupported_cleaning_preference.message": "Der Roboter unterstützt eine verlangte Reinigungseinstellung nicht",
-            "component.vacuum_orchestrator.exceptions.unsupported_home_assistant_store_wrapper.message": "Die Home-Assistant-Speicherdatei hat eine nicht unterstützte Version",
-            "component.vacuum_orchestrator.exceptions.unsupported_legacy_job_state.message": "Gespeicherte Altdaten enthalten einen nicht unterstützten Auftragszustand",
-            "component.vacuum_orchestrator.exceptions.unsupported_legacy_pass_scope.message": "Gespeicherte Altdaten enthalten einen nicht unterstützten Durchgangsbereich",
-            "component.vacuum_orchestrator.exceptions.unsupported_legacy_queue_mode.message": "Gespeicherte Altdaten enthalten einen nicht unterstützten Warteschlangenmodus",
-            "component.vacuum_orchestrator.exceptions.unsupported_legacy_requirement_state.message": "Gespeicherte Altdaten enthalten einen nicht unterstützten Bedingungszustand",
-            "component.vacuum_orchestrator.exceptions.unsupported_legacy_storage_schema.message": "Gespeicherte Altdaten haben ein nicht unterstütztes Schema",
-            "component.vacuum_orchestrator.exceptions.unsupported_map_context.message": "Der Roboter ist nicht auf der vom Auftrag verlangten Karte",
-            "component.vacuum_orchestrator.exceptions.unsupported_operation.message": "Der Roboter unterstützt diesen Reinigungsmodus nicht",
-            "component.vacuum_orchestrator.exceptions.unsupported_pass_count.message": "Der Roboter unterstützt diese Anzahl an Durchgängen nicht",
-            "component.vacuum_orchestrator.exceptions.unsupported_pass_scope.message": "Der Roboter unterstützt Durchgänge in dieser Form nicht",
-            "component.vacuum_orchestrator.exceptions.unsupported_previous_storage_schema.message": "Die vorherige Speicherdatei hat ein nicht unterstütztes Schema",
-            "component.vacuum_orchestrator.exceptions.unsupported_robot_protocol.message": "Das Roboterprotokoll wird nicht unterstützt",
-            "component.vacuum_orchestrator.exceptions.unsupported_storage_schema.message": "Der gespeicherte Zustand hat ein nicht unterstütztes Schema",
-            "component.vacuum_orchestrator.exceptions.unsupported_vendor_extension.message": "Der Roboter unterstützt die Herstellererweiterung nicht",
-            "component.vacuum_orchestrator.exceptions.vacuum_unavailable.message": "Die Saugroboter-Entität ist nicht verfügbar oder wird nicht unterstützt",
-            "component.vacuum_orchestrator.exceptions.work_unit_state_ledger_mismatch.message": "Gespeicherte Daten sind inkonsistent: Zustände der Arbeitsschritte passen nicht zu den Plänen"
-          }
-        }
-      }
-    },
-    {
-      "send": {
-        "id": 5,
         "type": "vacuum_orchestrator/queue/get",
         "offset": 0,
         "limit": 25
@@ -1653,7 +1555,7 @@
     },
     {
       "receive": {
-        "id": 5,
+        "id": 4,
         "type": "result",
         "success": true,
         "result": {
@@ -1713,7 +1615,7 @@
     },
     {
       "send": {
-        "id": 6,
+        "id": 5,
         "type": "vacuum_orchestrator/jobs/list",
         "offset": 0,
         "limit": 100,
@@ -1727,7 +1629,7 @@
     },
     {
       "receive": {
-        "id": 6,
+        "id": 5,
         "type": "result",
         "success": true,
         "result": {
@@ -1745,7 +1647,7 @@
     },
     {
       "send": {
-        "id": 7,
+        "id": 6,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_rooms",
         "parameters": {
@@ -1756,7 +1658,7 @@
     },
     {
       "receive": {
-        "id": 7,
+        "id": 6,
         "type": "result",
         "success": true,
         "result": {
@@ -2103,7 +2005,7 @@
     },
     {
       "send": {
-        "id": 8,
+        "id": 7,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robots",
         "parameters": {
@@ -2114,7 +2016,7 @@
     },
     {
       "receive": {
-        "id": 8,
+        "id": 7,
         "type": "result",
         "success": true,
         "result": {
@@ -2319,7 +2221,7 @@
     },
     {
       "send": {
-        "id": 9,
+        "id": 8,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robot_candidates",
         "parameters": {
@@ -2330,7 +2232,7 @@
     },
     {
       "receive": {
-        "id": 9,
+        "id": 8,
         "type": "result",
         "success": true,
         "result": {
@@ -2378,7 +2280,7 @@
     },
     {
       "send": {
-        "id": 10,
+        "id": 9,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_templates",
         "parameters": {
@@ -2389,7 +2291,7 @@
     },
     {
       "receive": {
-        "id": 10,
+        "id": 9,
         "type": "result",
         "success": true,
         "result": {
@@ -2407,7 +2309,7 @@
     },
     {
       "send": {
-        "id": 11,
+        "id": 10,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_setup",
         "parameters": {}
@@ -2415,7 +2317,7 @@
     },
     {
       "receive": {
-        "id": 11,
+        "id": 10,
         "type": "result",
         "success": true,
         "result": {
@@ -2456,13 +2358,13 @@
     },
     {
       "send": {
-        "id": 12,
+        "id": 11,
         "type": "config/entity_registry/list"
       }
     },
     {
       "receive": {
-        "id": 12,
+        "id": 11,
         "type": "result",
         "success": true,
         "result": [
@@ -3809,7 +3711,89 @@
     },
     {
       "send": {
+        "id": 12,
+        "type": "vacuum_orchestrator/subscribe"
+      }
+    },
+    {
+      "receive": {
+        "id": 12,
+        "type": "result",
+        "success": true,
+        "result": null
+      }
+    },
+    {
+      "send": {
         "id": 13,
+        "type": "vacuum_orchestrator/queue/get",
+        "offset": 0,
+        "limit": 1
+      }
+    },
+    {
+      "receive": {
+        "id": 13,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "integration_version": "0.1.1",
+          "commit_id": 1,
+          "queue_revision": 0,
+          "mode": "idle",
+          "needs_attention": false,
+          "active_count": 0,
+          "attention_count": 0,
+          "attention": [],
+          "recovery_targets": [],
+          "queue_grace_seconds": 900,
+          "start_delay_seconds": 5.0,
+          "job_defaults": {
+            "mode": "vacuum",
+            "vacuum_power": "standard",
+            "mop_intensity": "medium",
+            "mop_route": "standard",
+            "passes": 1,
+            "settings_policy": "best_effort",
+            "configured": false
+          },
+          "queue_run": null,
+          "actions": {
+            "run": {
+              "available": true,
+              "reason": null,
+              "detail": null
+            },
+            "pause": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "resume": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "end": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            }
+          },
+          "total": 0,
+          "offset": 0,
+          "limit": 1,
+          "jobs": [],
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 3,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 14,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robots",
         "parameters": {
@@ -3820,7 +3804,7 @@
     },
     {
       "receive": {
-        "id": 13,
+        "id": 14,
         "type": "result",
         "success": true,
         "result": {
@@ -4025,7 +4009,7 @@
     },
     {
       "send": {
-        "id": 14,
+        "id": 15,
         "type": "vacuum_orchestrator/configuration/command",
         "command": "rename_robot",
         "parameters": {
@@ -4036,7 +4020,7 @@
     },
     {
       "receive": {
-        "id": 14,
+        "id": 15,
         "type": "result",
         "success": true,
         "result": {
@@ -4048,7 +4032,7 @@
     },
     {
       "receive": {
-        "id": 1,
+        "id": 12,
         "type": "event",
         "event": {
           "api_version": 4,
@@ -4071,7 +4055,7 @@
     },
     {
       "send": {
-        "id": 15,
+        "id": 16,
         "type": "vacuum_orchestrator/queue/get",
         "offset": 0,
         "limit": 25
@@ -4079,7 +4063,7 @@
     },
     {
       "receive": {
-        "id": 15,
+        "id": 16,
         "type": "result",
         "success": true,
         "result": {
@@ -4139,7 +4123,7 @@
     },
     {
       "send": {
-        "id": 16,
+        "id": 17,
         "type": "vacuum_orchestrator/jobs/list",
         "offset": 0,
         "limit": 100,
@@ -4153,7 +4137,7 @@
     },
     {
       "receive": {
-        "id": 16,
+        "id": 17,
         "type": "result",
         "success": true,
         "result": {
@@ -4171,7 +4155,7 @@
     },
     {
       "send": {
-        "id": 17,
+        "id": 18,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_rooms",
         "parameters": {
@@ -4182,7 +4166,7 @@
     },
     {
       "receive": {
-        "id": 17,
+        "id": 18,
         "type": "result",
         "success": true,
         "result": {
@@ -4529,7 +4513,7 @@
     },
     {
       "send": {
-        "id": 18,
+        "id": 19,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robots",
         "parameters": {
@@ -4540,7 +4524,7 @@
     },
     {
       "receive": {
-        "id": 18,
+        "id": 19,
         "type": "result",
         "success": true,
         "result": {
@@ -4746,7 +4730,7 @@
     },
     {
       "send": {
-        "id": 19,
+        "id": 20,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robot_candidates",
         "parameters": {
@@ -4757,7 +4741,7 @@
     },
     {
       "receive": {
-        "id": 19,
+        "id": 20,
         "type": "result",
         "success": true,
         "result": {
@@ -4805,7 +4789,7 @@
     },
     {
       "send": {
-        "id": 20,
+        "id": 21,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_templates",
         "parameters": {
@@ -4816,7 +4800,7 @@
     },
     {
       "receive": {
-        "id": 20,
+        "id": 21,
         "type": "result",
         "success": true,
         "result": {
@@ -4834,7 +4818,7 @@
     },
     {
       "send": {
-        "id": 21,
+        "id": 22,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_setup",
         "parameters": {}
@@ -4842,7 +4826,7 @@
     },
     {
       "receive": {
-        "id": 21,
+        "id": 22,
         "type": "result",
         "success": true,
         "result": {
@@ -4883,7 +4867,7 @@
     },
     {
       "send": {
-        "id": 22,
+        "id": 23,
         "type": "vacuum_orchestrator/configuration/command",
         "command": "configure_queue",
         "parameters": {
@@ -4893,7 +4877,7 @@
     },
     {
       "receive": {
-        "id": 1,
+        "id": 12,
         "type": "event",
         "event": {
           "api_version": 4,
@@ -4917,7 +4901,7 @@
     },
     {
       "receive": {
-        "id": 22,
+        "id": 23,
         "type": "result",
         "success": true,
         "result": {
@@ -4930,7 +4914,7 @@
     },
     {
       "receive": {
-        "id": 1,
+        "id": 12,
         "type": "event",
         "event": {
           "api_version": 4,
@@ -4953,7 +4937,7 @@
     },
     {
       "send": {
-        "id": 23,
+        "id": 24,
         "type": "vacuum_orchestrator/queue/get",
         "offset": 0,
         "limit": 25
@@ -4961,7 +4945,7 @@
     },
     {
       "receive": {
-        "id": 23,
+        "id": 24,
         "type": "result",
         "success": true,
         "result": {
@@ -5021,7 +5005,7 @@
     },
     {
       "send": {
-        "id": 24,
+        "id": 25,
         "type": "vacuum_orchestrator/jobs/list",
         "offset": 0,
         "limit": 100,
@@ -5035,7 +5019,7 @@
     },
     {
       "receive": {
-        "id": 24,
+        "id": 25,
         "type": "result",
         "success": true,
         "result": {
@@ -5053,7 +5037,7 @@
     },
     {
       "send": {
-        "id": 25,
+        "id": 26,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_rooms",
         "parameters": {
@@ -5064,7 +5048,7 @@
     },
     {
       "receive": {
-        "id": 25,
+        "id": 26,
         "type": "result",
         "success": true,
         "result": {
@@ -5411,7 +5395,7 @@
     },
     {
       "send": {
-        "id": 26,
+        "id": 27,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robots",
         "parameters": {
@@ -5422,7 +5406,7 @@
     },
     {
       "receive": {
-        "id": 26,
+        "id": 27,
         "type": "result",
         "success": true,
         "result": {
@@ -5628,7 +5612,7 @@
     },
     {
       "send": {
-        "id": 27,
+        "id": 28,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robot_candidates",
         "parameters": {
@@ -5639,7 +5623,7 @@
     },
     {
       "receive": {
-        "id": 27,
+        "id": 28,
         "type": "result",
         "success": true,
         "result": {
@@ -5687,7 +5671,7 @@
     },
     {
       "send": {
-        "id": 28,
+        "id": 29,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_templates",
         "parameters": {
@@ -5698,7 +5682,7 @@
     },
     {
       "receive": {
-        "id": 28,
+        "id": 29,
         "type": "result",
         "success": true,
         "result": {
@@ -5716,7 +5700,7 @@
     },
     {
       "send": {
-        "id": 29,
+        "id": 30,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_setup",
         "parameters": {}
@@ -5724,7 +5708,7 @@
     },
     {
       "receive": {
-        "id": 29,
+        "id": 30,
         "type": "result",
         "success": true,
         "result": {
@@ -5765,7 +5749,7 @@
     },
     {
       "send": {
-        "id": 30,
+        "id": 31,
         "type": "vacuum_orchestrator/configuration/command",
         "command": "complete_setup",
         "parameters": {}
@@ -5773,7 +5757,7 @@
     },
     {
       "receive": {
-        "id": 1,
+        "id": 12,
         "type": "event",
         "event": {
           "api_version": 4,
@@ -5796,7 +5780,7 @@
     },
     {
       "receive": {
-        "id": 30,
+        "id": 31,
         "type": "result",
         "success": true,
         "result": {
@@ -5808,7 +5792,7 @@
     },
     {
       "receive": {
-        "id": 1,
+        "id": 12,
         "type": "event",
         "event": {
           "api_version": 4,
@@ -5831,7 +5815,7 @@
     },
     {
       "send": {
-        "id": 31,
+        "id": 32,
         "type": "vacuum_orchestrator/queue/get",
         "offset": 0,
         "limit": 25
@@ -5839,7 +5823,7 @@
     },
     {
       "receive": {
-        "id": 31,
+        "id": 32,
         "type": "result",
         "success": true,
         "result": {
@@ -5899,7 +5883,7 @@
     },
     {
       "send": {
-        "id": 32,
+        "id": 33,
         "type": "vacuum_orchestrator/jobs/list",
         "offset": 0,
         "limit": 100,
@@ -5913,7 +5897,7 @@
     },
     {
       "receive": {
-        "id": 32,
+        "id": 33,
         "type": "result",
         "success": true,
         "result": {
@@ -5931,7 +5915,7 @@
     },
     {
       "send": {
-        "id": 33,
+        "id": 34,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_rooms",
         "parameters": {
@@ -5942,7 +5926,7 @@
     },
     {
       "receive": {
-        "id": 33,
+        "id": 34,
         "type": "result",
         "success": true,
         "result": {
@@ -6289,7 +6273,7 @@
     },
     {
       "send": {
-        "id": 34,
+        "id": 35,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robots",
         "parameters": {
@@ -6300,7 +6284,7 @@
     },
     {
       "receive": {
-        "id": 34,
+        "id": 35,
         "type": "result",
         "success": true,
         "result": {
@@ -6506,7 +6490,7 @@
     },
     {
       "send": {
-        "id": 35,
+        "id": 36,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robot_candidates",
         "parameters": {
@@ -6517,7 +6501,7 @@
     },
     {
       "receive": {
-        "id": 35,
+        "id": 36,
         "type": "result",
         "success": true,
         "result": {
@@ -6565,7 +6549,7 @@
     },
     {
       "send": {
-        "id": 36,
+        "id": 37,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_templates",
         "parameters": {
@@ -6576,7 +6560,7 @@
     },
     {
       "receive": {
-        "id": 36,
+        "id": 37,
         "type": "result",
         "success": true,
         "result": {
@@ -6594,7 +6578,7 @@
     },
     {
       "send": {
-        "id": 37,
+        "id": 38,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_setup",
         "parameters": {}
@@ -6602,7 +6586,7 @@
     },
     {
       "receive": {
-        "id": 37,
+        "id": 38,
         "type": "result",
         "success": true,
         "result": {

@@ -1,0 +1,169 @@
+{
+  "provenance": {
+    "format": 2,
+    "api_version": 4,
+    "voi_commit": "97bd3cc",
+    "ha_version": "2026.10.0",
+    "frozen_now": "2026-03-14T09:26:53.589793+00:00"
+  },
+  "scenario": "not_installed",
+  "description": "The card on a dashboard before the integration is installed: HA knows no such integration.",
+  "home": {
+    "areas": {
+      "Küche": "kuche",
+      "Flur": "flur",
+      "Wohnzimmer": "wohnzimmer",
+      "Bad": "bad"
+    },
+    "vacuums": {}
+  },
+  "hass": {
+    "config": {
+      "components": [
+        "auth",
+        "config",
+        "http",
+        "websocket_api"
+      ],
+      "version": "2026.10.0"
+    },
+    "user": {
+      "id": "0123456789abcdef0123456789abcdef",
+      "name": "Recording",
+      "is_owner": false,
+      "is_admin": true,
+      "credentials": [],
+      "mfa_modules": []
+    },
+    "areas": [
+      {
+        "aliases": [],
+        "area_id": "kuche",
+        "floor_id": null,
+        "humidity_entity_id": null,
+        "icon": null,
+        "labels": [],
+        "name": "Küche",
+        "picture": null,
+        "temperature_entity_id": null,
+        "created_at": 1773480413.589793,
+        "modified_at": 1773480413.589793
+      },
+      {
+        "aliases": [],
+        "area_id": "flur",
+        "floor_id": null,
+        "humidity_entity_id": null,
+        "icon": null,
+        "labels": [],
+        "name": "Flur",
+        "picture": null,
+        "temperature_entity_id": null,
+        "created_at": 1773480413.589793,
+        "modified_at": 1773480413.589793
+      },
+      {
+        "aliases": [],
+        "area_id": "wohnzimmer",
+        "floor_id": null,
+        "humidity_entity_id": null,
+        "icon": null,
+        "labels": [],
+        "name": "Wohnzimmer",
+        "picture": null,
+        "temperature_entity_id": null,
+        "created_at": 1773480413.589793,
+        "modified_at": 1773480413.589793
+      },
+      {
+        "aliases": [],
+        "area_id": "bad",
+        "floor_id": null,
+        "humidity_entity_id": null,
+        "icon": null,
+        "labels": [],
+        "name": "Bad",
+        "picture": null,
+        "temperature_entity_id": null,
+        "created_at": 1773480413.589793,
+        "modified_at": 1773480413.589793
+      }
+    ],
+    "entities": {
+      "entity_categories": {
+        "0": "config",
+        "1": "diagnostic"
+      },
+      "entities": []
+    },
+    "services": {
+      "vacuum_orchestrator": []
+    },
+    "states": {}
+  },
+  "steps": [
+    {
+      "send": {
+        "id": 1,
+        "type": "frontend/get_translations",
+        "language": "en",
+        "category": "exceptions",
+        "integration": [
+          "vacuum_orchestrator"
+        ]
+      }
+    },
+    {
+      "receive": {
+        "id": 1,
+        "type": "result",
+        "success": true,
+        "result": {
+          "resources": {}
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 2,
+        "type": "frontend/get_translations",
+        "language": "de",
+        "category": "exceptions",
+        "integration": [
+          "vacuum_orchestrator"
+        ]
+      }
+    },
+    {
+      "receive": {
+        "id": 2,
+        "type": "result",
+        "success": true,
+        "result": {
+          "resources": {}
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 3,
+        "type": "manifest/get",
+        "integration": "vacuum_orchestrator"
+      }
+    },
+    {
+      "receive": {
+        "id": 3,
+        "type": "result",
+        "success": false,
+        "error": {
+          "code": "not_found",
+          "message": "Integration not found"
+        }
+      }
+    },
+    {
+      "mark": "Vacuum Orchestrator is not installed"
+    }
+  ]
+}

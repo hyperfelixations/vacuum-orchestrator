@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from itertools import count
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -71,6 +72,11 @@ def deterministic(
     monkeypatch.setattr(
         "custom_components.vacuum_orchestrator.runtime.new_id",
         lambda: f"00000000-0000-4000-8000-{next(voi):012d}",
+    )
+    # The diagnostics' pseudonym key; only VOI's telemetry, HA draws tokens too.
+    monkeypatch.setattr(
+        "custom_components.vacuum_orchestrator.infrastructure.telemetry.secrets",
+        SimpleNamespace(token_bytes=bytes),
     )
 
 
@@ -311,6 +317,23 @@ class Session:
         """Read a configuration collection as the card does: its first page."""
         return await self.query(name, offset=0, limit=CARD_COLLECTION_LIMIT)
 
+    async def read_history(self) -> None:
+        """Read the history view's first pages: jobs and cleaning runs."""
+        await self.request(
+            {"type": f"{DOMAIN}/jobs/list", "offset": 0, "limit": CARD_PAGE_SIZE}
+        )
+        await self.query("get_history", offset=0, limit=CARD_PAGE_SIZE)
+
+    async def read_diagnostics(self) -> None:
+        """Read the diagnostics view: the summary and the latest trace records."""
+        await self.query("get_diagnostics")
+        await self.query("get_trace", offset=0, limit=CARD_COLLECTION_LIMIT)
+
+    async def read_manifest(self) -> dict[str, Any]:
+        """Ask HA for the integration's manifest, as a card does while VOI is not
+        loaded, and return the result frame."""
+        return await self.request({"type": "manifest/get", "integration": DOMAIN})
+
     async def read_job(self, job_id: str) -> None:
         """Read what a card shows on a job's detail page."""
         await self.request({"type": f"{DOMAIN}/job/get", "job_id": job_id})
@@ -324,6 +347,16 @@ class Session:
         self.steps.append({"home": change})
         await self.settle()
         await self.read()
+
+    async def mark(self, label: str) -> None:
+        """Name this point, so a consumer can open a card here.
+
+        A card opened here checks the integration and reads, if it is loaded.
+        """
+        self.steps.append({"mark": label})
+        if DOMAIN in self._hass["config"]["components"]:
+            await self.probe()
+            await self.read()
 
     async def advance(self, seconds: float) -> None:
         """Let time pass after VOI observed the current state."""
