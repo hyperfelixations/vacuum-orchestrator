@@ -43,9 +43,12 @@ Each step has one key:
 
 The card's reads are sent as the card sends them (`Session.probe`,
 `read_static`, `read`, `read_job`, `collection`), so a consumer finds each of
-its read requests in a recording. Frames are unchanged except for the message
-`id`: the recorder interleaves its own `ping` messages to know when all frames
-arrived, so IDs are renumbered from 1 in sending order and pings are left out.
+its read requests in a recording. After each successful command or action and
+after each `home` step the views are read again, so every stretch between two
+changes holds the answers a card sees there. Frames are unchanged except for
+the message `id`: the recorder interleaves its own `ping` messages to know
+when all frames arrived, so IDs are renumbered from 1 in sending order and
+pings are left out.
 
 ## Determinism
 

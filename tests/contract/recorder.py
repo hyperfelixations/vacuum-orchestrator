@@ -251,7 +251,7 @@ class Session:
 
     async def command(self, name: str, /, **parameters: Any) -> dict[str, Any]:
         """Run a configuration command and return its result frame."""
-        return await self.request(
+        return await self._change(
             {
                 "type": f"{DOMAIN}/configuration/command",
                 "command": name,
@@ -261,7 +261,14 @@ class Session:
 
     async def action(self, name: str, /, **data: Any) -> dict[str, Any]:
         """Call an action as the card does and return its result frame."""
-        return await self.request(action(name, **data))
+        return await self._change(action(name, **data))
+
+    async def _change(self, message: dict[str, Any]) -> dict[str, Any]:
+        """Send a change; after a success the card reads its views again."""
+        frame = await self.request(message)
+        if frame["success"]:
+            await self.read()
+        return frame
 
     async def probe(self) -> None:
         """Check the integration as a card does before it reads."""
@@ -313,9 +320,10 @@ class Session:
         )
 
     async def home(self, change: str) -> None:
-        """Note a change in the home outside the card, then let VOI react."""
+        """Note a change in the home outside the card, let VOI react and read."""
         self.steps.append({"home": change})
         await self.settle()
+        await self.read()
 
     async def advance(self, seconds: float) -> None:
         """Let time pass after VOI observed the current state."""

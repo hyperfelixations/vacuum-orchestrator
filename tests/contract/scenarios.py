@@ -101,7 +101,6 @@ async def setup(stage: Stage) -> None:
     )
     await session.command("configure_queue", start_delay_seconds=10)
     await session.command("complete_setup")
-    await session.read()
 
 
 async def start_delay(stage: Stage) -> None:
@@ -112,7 +111,6 @@ async def start_delay(stage: Stage) -> None:
     await stage.open()
     await session.action("run_queue")
     await session.action("create_job", areas=stage.areas("Küche", "Flur"))
-    await session.read()
     await session.advance(1)
     rooms = await stage.rooms()
     await session.command(
@@ -122,7 +120,6 @@ async def start_delay(stage: Stage) -> None:
             {"room": rooms["Flur"], "kind": "timed", "duration_seconds": 14400},
         ],
     )
-    await session.read()
     await session.advance(4)
     await session.read()
     robot.clean()
@@ -151,20 +148,17 @@ async def job_hold(stage: Stage) -> None:
     hold = edit["result"]["hold_id"]
     await session.command("hold_job", job_id=job, purpose="edit")
     await session.action("start_job", job_id=job)
-    await session.read()
     await session.advance(30)
     await session.command("renew_job_hold", hold_id=hold)
     await session.action(
         "update_job", job_id=job, hold_id=hold, areas=stage.areas("Küche", "Flur")
     )
-    await session.read()
     confirm = await session.command("hold_job", job_id=job, purpose="confirm")
     await session.action("delete_job", job_id=job, hold_id=confirm["result"]["hold_id"])
     await session.action(
         "create_job", areas=stage.areas("Küche"), all_rooms=True, mode="vacuum"
     )
     await session.command("configure_queue", start_delay_seconds=601)
-    await session.read()
 
 
 async def reload(stage: Stage) -> None:
@@ -175,7 +169,6 @@ async def reload(stage: Stage) -> None:
     await session.action("create_job", areas=stage.areas("Flur"))
     assert await stage.hass.config_entries.async_reload(stage.entry.entry_id)
     await session.home("Home Assistant reloads the integration")
-    await session.read()
 
 
 async def delayed_answer(stage: Stage) -> None:
@@ -193,7 +186,6 @@ async def delayed_answer(stage: Stage) -> None:
         await session.read()
         answer.set()
     await session.home("Saugi's cloud confirms the command")
-    await session.read()
 
 
 async def device_fault(stage: Stage) -> None:
@@ -211,13 +203,11 @@ async def device_fault(stage: Stage) -> None:
     await session.advance(60)
     robot.fail("water_carriage_drop")
     await session.home("The mop carriage drops off; Saugi stops")
-    await session.read()
     await session.advance(300)
     await session.read()
     robot.set("vacuum_error", "none")
     robot.pause()
     await session.home("Someone reattaches the mop carriage")
-    await session.read()
     robot.clean()
     await session.home("Saugi mops again")
     await session.advance(300)
@@ -268,7 +258,6 @@ async def attention(stage: Stage) -> None:
     await stage.release("Küche", "Flur")
     robot.set("dirty_box_full", "on")
     await session.home("The dirty water tank is full")
-    await session.read()
     await session.action("run_queue")
     await session.action("create_job", areas=stage.areas("Küche"), mode="mop")
     await session.action("create_job", areas=stage.areas("Flur"), mode="vacuum")
@@ -321,7 +310,6 @@ async def recovery(stage: Stage) -> None:
     await session.command(
         "resolve_recovery", robot_id=robot_view["robot_id"], confirm_stopped=True
     )
-    await session.read()
     await session.action("correct_job", job_id=job, outcome="completed")
     await session.read_job(job)
     await session.read()

@@ -2,7 +2,7 @@
   "provenance": {
     "format": 2,
     "api_version": 4,
-    "voi_commit": "77dfbe8",
+    "voi_commit": "5a09a04",
     "ha_version": "2026.10.0",
     "frozen_now": "2026-03-14T09:26:53.589793+00:00"
   },
@@ -4186,6 +4186,825 @@
     {
       "send": {
         "id": 15,
+        "type": "vacuum_orchestrator/queue/get",
+        "offset": 0,
+        "limit": 25
+      }
+    },
+    {
+      "receive": {
+        "id": 15,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "integration_version": "0.1.1",
+          "commit_id": 2,
+          "queue_revision": 0,
+          "mode": "idle",
+          "needs_attention": false,
+          "active_count": 0,
+          "attention_count": 0,
+          "attention": [],
+          "recovery_targets": [],
+          "queue_grace_seconds": 900,
+          "start_delay_seconds": 5.0,
+          "job_defaults": {
+            "mode": "vacuum",
+            "vacuum_power": "standard",
+            "mop_intensity": "medium",
+            "mop_route": "standard",
+            "passes": 1,
+            "settings_policy": "best_effort",
+            "configured": false
+          },
+          "queue_run": null,
+          "actions": {
+            "run": {
+              "available": true,
+              "reason": null,
+              "detail": null
+            },
+            "pause": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "resume": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "end": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            }
+          },
+          "total": 0,
+          "offset": 0,
+          "limit": 25,
+          "jobs": [],
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 5,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 16,
+        "type": "vacuum_orchestrator/jobs/list",
+        "offset": 0,
+        "limit": 100,
+        "states": [
+          "dispatching",
+          "running",
+          "canceling",
+          "needs_attention"
+        ]
+      }
+    },
+    {
+      "receive": {
+        "id": 16,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 0,
+          "offset": 0,
+          "limit": 100,
+          "jobs": [],
+          "commit_id": 2,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 5,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 17,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_rooms",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 17,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 4,
+          "offset": 0,
+          "limit": 100,
+          "rooms": [
+            {
+              "room_id": "00000000-0000-4000-8000-000000000002",
+              "name": "Küche",
+              "area_id": "kuche",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": {
+                "grant_id": "00000000-0000-4000-8000-000000000007",
+                "kind": "permanent",
+                "granted_at": "2026-03-14T09:26:53.589793+00:00",
+                "expires_at": null,
+                "reserved_job_id": null,
+                "consumed": false,
+                "queue_run_id": null
+              },
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": true,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000003",
+              "name": "Flur",
+              "area_id": "flur",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000004",
+              "name": "Wohnzimmer",
+              "area_id": "wohnzimmer",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000005",
+              "name": "Bad",
+              "area_id": "bad",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            }
+          ],
+          "commit_id": 2,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 5,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 18,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_robots",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 18,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "robots": [
+            {
+              "robot_id": "01J00000000000000000000003",
+              "name": "Saugi",
+              "name_source": "home_assistant",
+              "ha_name": "Saugi",
+              "configuration": {
+                "robot_entity_id": "vacuum.saugi",
+                "robot_registry_id": "00000000000000000000000000000003",
+                "adapter": "roborock",
+                "source_robot_id": "physical:fe0a29e37dd070ea6c6192380e323bf8810d2ee4e61ccc28db59ee9494c90d1d",
+                "roles": {},
+                "requirements": [],
+                "target_areas": null,
+                "allowed_operations": [
+                  "vacuum",
+                  "mop",
+                  "vacuum_and_mop"
+                ],
+                "enabled": true,
+                "protocol": "roborock_v1",
+                "fixed_mode": null,
+                "preference": 0,
+                "minimum_battery": null,
+                "mode_options": {},
+                "vacuum_levels": {},
+                "water_levels": {},
+                "mop_routes": {},
+                "map_options": {},
+                "start_timeout_seconds": 180.0,
+                "run_timeout_seconds": 14400.0,
+                "cancel_timeout_seconds": 120.0,
+                "settle_seconds": 30.0,
+                "settings_timeout_seconds": 45.0,
+                "return_timeout_seconds": 900.0,
+                "fault_timeout_seconds": 900.0,
+                "connection_timeout_seconds": 600.0
+              },
+              "reach": [
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000002",
+                  "status": "reachable",
+                  "targets": [
+                    "0_16"
+                  ],
+                  "ignored": []
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000003",
+                  "status": "reachable",
+                  "targets": [
+                    "0_17"
+                  ],
+                  "ignored": []
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000004",
+                  "status": "reachable",
+                  "targets": [
+                    "0_18"
+                  ],
+                  "ignored": [
+                    "0_99"
+                  ]
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000005",
+                  "status": "not_on_current_map",
+                  "targets": [],
+                  "ignored": [
+                    "1_16"
+                  ]
+                }
+              ],
+              "map_image_entity_id": "image.saugi_erdgeschoss",
+              "maps": [
+                {
+                  "map_id": "0",
+                  "name": "Erdgeschoss",
+                  "current": true,
+                  "image_entity_id": "image.saugi_erdgeschoss",
+                  "segments": [
+                    {
+                      "id": "16",
+                      "name": "Küche"
+                    },
+                    {
+                      "id": "17",
+                      "name": "Flur"
+                    },
+                    {
+                      "id": "18",
+                      "name": "Wohnzimmer"
+                    }
+                  ]
+                },
+                {
+                  "map_id": "1",
+                  "name": "Obergeschoss",
+                  "current": false,
+                  "image_entity_id": "image.saugi_obergeschoss",
+                  "segments": [
+                    {
+                      "id": "16",
+                      "name": "Bad"
+                    }
+                  ]
+                }
+              ],
+              "maps_unavailable_reason": null,
+              "active": false,
+              "activity": {
+                "phase": "docked",
+                "external": false
+              },
+              "faults": [],
+              "actions": {
+                "configure": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "rename": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "remove": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "return_to_dock": {
+                  "available": false,
+                  "reason": "robot_at_dock",
+                  "detail": null
+                }
+              },
+              "blocked_reason": null,
+              "capabilities": {
+                "revision": "f7cd6e0af12e30eae25c5c206648a7ab7bf7108eaa9f42e6b6f4a7b853644a76",
+                "operations": [
+                  "mop",
+                  "vacuum",
+                  "vacuum_and_mop"
+                ],
+                "targets": {
+                  "00000000-0000-4000-8000-000000000002": [
+                    "0_16"
+                  ],
+                  "00000000-0000-4000-8000-000000000003": [
+                    "0_17"
+                  ],
+                  "00000000-0000-4000-8000-000000000004": [
+                    "0_18"
+                  ]
+                },
+                "map_context": "0",
+                "maximum_passes": 3,
+                "settings": {
+                  "vacuum_power": [
+                    "low",
+                    "standard",
+                    "high",
+                    "maximum",
+                    "maximum_plus"
+                  ],
+                  "mop_intensity": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "mop_route": [
+                    "fast",
+                    "standard",
+                    "deep",
+                    "deep_plus"
+                  ]
+                },
+                "unavailable_settings": [],
+                "supports": {
+                  "stop": true,
+                  "return_to_dock": true,
+                  "pause": false
+                }
+              }
+            }
+          ],
+          "commit_id": 2,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 5,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 19,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_robot_candidates",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 19,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "candidates": [
+            {
+              "registry_id": "00000000000000000000000000000003",
+              "entity_id": "vacuum.saugi",
+              "name": "Saugi",
+              "adapter": "roborock",
+              "roles": {
+                "status": "00000000000000000000000000000004",
+                "error": "00000000000000000000000000000005",
+                "dock_error": "00000000000000000000000000000006",
+                "battery": "00000000000000000000000000000007",
+                "last_clean_start": "00000000000000000000000000000008",
+                "last_clean_end": "00000000000000000000000000000009",
+                "clean_percent": "0000000000000000000000000000000a",
+                "current_room": "0000000000000000000000000000000b",
+                "mop_intensity": "0000000000000000000000000000000c",
+                "mop_route": "0000000000000000000000000000000d",
+                "cleaning_mode": "0000000000000000000000000000000e",
+                "selected_map": "0000000000000000000000000000000f",
+                "in_cleaning": "00000000000000000000000000000010",
+                "mop_attached": "00000000000000000000000000000011",
+                "water_box_attached": "00000000000000000000000000000012",
+                "water_shortage": "00000000000000000000000000000013",
+                "dirty_box_full": "00000000000000000000000000000014",
+                "clean_box_empty": "00000000000000000000000000000015",
+                "clean_fluid_empty": "00000000000000000000000000000016"
+              },
+              "ambiguous_roles": [],
+              "protocol": "roborock_v1"
+            }
+          ],
+          "commit_id": 2,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 5,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 20,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_templates",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 20,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 0,
+          "offset": 0,
+          "limit": 100,
+          "templates": [],
+          "commit_id": 2,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 5,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 21,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_setup",
+        "parameters": {}
+      }
+    },
+    {
+      "receive": {
+        "id": 21,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "assistant_pending": true,
+          "completed_at": null,
+          "steps": {
+            "robots": {
+              "robot_ids": [
+                "01J00000000000000000000003"
+              ]
+            },
+            "rooms": {
+              "room_ids": [
+                "00000000-0000-4000-8000-000000000002",
+                "00000000-0000-4000-8000-000000000003",
+                "00000000-0000-4000-8000-000000000004",
+                "00000000-0000-4000-8000-000000000005"
+              ],
+              "unreachable_room_ids": [
+                "00000000-0000-4000-8000-000000000005"
+              ]
+            },
+            "defaults": {
+              "configured": false
+            },
+            "queue": {
+              "grace_seconds": 900,
+              "start_delay_seconds": 5.0
+            }
+          },
+          "commit_id": 2,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 5,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 22,
         "type": "call_service",
         "domain": "vacuum_orchestrator",
         "service": "create_job",
@@ -4275,7 +5094,7 @@
     },
     {
       "receive": {
-        "id": 15,
+        "id": 22,
         "type": "result",
         "success": true,
         "result": {
@@ -4353,6 +5172,918 @@
               "lc": 1773480413.589793
             }
           }
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 23,
+        "type": "vacuum_orchestrator/queue/get",
+        "offset": 0,
+        "limit": 25
+      }
+    },
+    {
+      "receive": {
+        "id": 23,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "integration_version": "0.1.1",
+          "commit_id": 5,
+          "queue_revision": 2,
+          "mode": "idle",
+          "needs_attention": false,
+          "active_count": 1,
+          "attention_count": 0,
+          "attention": [],
+          "recovery_targets": [],
+          "queue_grace_seconds": 900,
+          "start_delay_seconds": 5.0,
+          "job_defaults": {
+            "mode": "vacuum",
+            "vacuum_power": "standard",
+            "mop_intensity": "medium",
+            "mop_route": "standard",
+            "passes": 1,
+            "settings_policy": "best_effort",
+            "configured": false
+          },
+          "queue_run": null,
+          "actions": {
+            "run": {
+              "available": true,
+              "reason": null,
+              "detail": null
+            },
+            "pause": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "resume": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "end": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            }
+          },
+          "total": 0,
+          "offset": 0,
+          "limit": 25,
+          "jobs": [],
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 9,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 24,
+        "type": "vacuum_orchestrator/jobs/list",
+        "offset": 0,
+        "limit": 100,
+        "states": [
+          "dispatching",
+          "running",
+          "canceling",
+          "needs_attention"
+        ]
+      }
+    },
+    {
+      "receive": {
+        "id": 24,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "jobs": [
+            {
+              "api_version": 4,
+              "job_id": "00000000-0000-4000-8000-000000000009",
+              "revision": 2,
+              "state": "running",
+              "name": null,
+              "areas": [
+                "kuche"
+              ],
+              "room_ids": [
+                "00000000-0000-4000-8000-000000000002"
+              ],
+              "mode": "mop",
+              "vacuum_power": null,
+              "mop_intensity": "medium",
+              "mop_route": "standard",
+              "passes": 1,
+              "all_rooms": false,
+              "reason": null,
+              "note": null,
+              "dedupe_key": null,
+              "required_on": [],
+              "required_off": [],
+              "settings_policy": "best_effort",
+              "created_at": "2026-03-14T09:26:53.589793+00:00",
+              "updated_at": "2026-03-14T09:26:53.589793+00:00",
+              "start_after": null,
+              "hold": null,
+              "waiting": null,
+              "progress": {
+                "operation": "mop",
+                "phase": 1,
+                "phases": 1,
+                "started_at": null,
+                "robot_id": "01J00000000000000000000003",
+                "phase_percent": null,
+                "percent": null,
+                "fault": null
+              },
+              "completion": null,
+              "actions": {
+                "edit": {
+                  "available": false,
+                  "reason": "job_not_editable",
+                  "detail": null
+                },
+                "delete": {
+                  "available": false,
+                  "reason": "job_not_deletable",
+                  "detail": null
+                },
+                "cancel": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "start": {
+                  "available": false,
+                  "reason": "job_not_waiting",
+                  "detail": null
+                },
+                "retry": {
+                  "available": false,
+                  "reason": "job_not_retryable",
+                  "detail": null
+                },
+                "correct": {
+                  "available": false,
+                  "reason": "job_not_correctable",
+                  "detail": null
+                },
+                "move_up": {
+                  "available": false,
+                  "reason": "job_not_movable",
+                  "detail": null
+                },
+                "move_down": {
+                  "available": false,
+                  "reason": "job_not_movable",
+                  "detail": null
+                }
+              },
+              "active_attempt_id": "00000000-0000-4000-8000-000000000012",
+              "origin": {
+                "kind": "manual",
+                "template_id": null
+              },
+              "retries_job_id": null,
+              "failure_code": null,
+              "corrected_at": null,
+              "after_cancel": null
+            }
+          ],
+          "commit_id": 5,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 9,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 25,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_rooms",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 25,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 4,
+          "offset": 0,
+          "limit": 100,
+          "rooms": [
+            {
+              "room_id": "00000000-0000-4000-8000-000000000002",
+              "name": "Küche",
+              "area_id": "kuche",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": {
+                "grant_id": "00000000-0000-4000-8000-000000000007",
+                "kind": "permanent",
+                "granted_at": "2026-03-14T09:26:53.589793+00:00",
+                "expires_at": null,
+                "reserved_job_id": null,
+                "consumed": false,
+                "queue_run_id": null
+              },
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": true,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "edit": {
+                  "available": false,
+                  "reason": "room_has_active_job",
+                  "detail": null
+                },
+                "disable": {
+                  "available": false,
+                  "reason": "room_has_active_job",
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000003",
+              "name": "Flur",
+              "area_id": "flur",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000004",
+              "name": "Wohnzimmer",
+              "area_id": "wohnzimmer",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000005",
+              "name": "Bad",
+              "area_id": "bad",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            }
+          ],
+          "commit_id": 5,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 9,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 26,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_robots",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 26,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "robots": [
+            {
+              "robot_id": "01J00000000000000000000003",
+              "name": "Saugi",
+              "name_source": "home_assistant",
+              "ha_name": "Saugi",
+              "configuration": {
+                "robot_entity_id": "vacuum.saugi",
+                "robot_registry_id": "00000000000000000000000000000003",
+                "adapter": "roborock",
+                "source_robot_id": "physical:fe0a29e37dd070ea6c6192380e323bf8810d2ee4e61ccc28db59ee9494c90d1d",
+                "roles": {},
+                "requirements": [],
+                "target_areas": null,
+                "allowed_operations": [
+                  "vacuum",
+                  "mop",
+                  "vacuum_and_mop"
+                ],
+                "enabled": true,
+                "protocol": "roborock_v1",
+                "fixed_mode": null,
+                "preference": 0,
+                "minimum_battery": null,
+                "mode_options": {},
+                "vacuum_levels": {},
+                "water_levels": {},
+                "mop_routes": {},
+                "map_options": {},
+                "start_timeout_seconds": 180.0,
+                "run_timeout_seconds": 14400.0,
+                "cancel_timeout_seconds": 120.0,
+                "settle_seconds": 30.0,
+                "settings_timeout_seconds": 45.0,
+                "return_timeout_seconds": 900.0,
+                "fault_timeout_seconds": 900.0,
+                "connection_timeout_seconds": 600.0
+              },
+              "reach": [
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000002",
+                  "status": "reachable",
+                  "targets": [
+                    "0_16"
+                  ],
+                  "ignored": []
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000003",
+                  "status": "reachable",
+                  "targets": [
+                    "0_17"
+                  ],
+                  "ignored": []
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000004",
+                  "status": "reachable",
+                  "targets": [
+                    "0_18"
+                  ],
+                  "ignored": [
+                    "0_99"
+                  ]
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000005",
+                  "status": "not_on_current_map",
+                  "targets": [],
+                  "ignored": [
+                    "1_16"
+                  ]
+                }
+              ],
+              "map_image_entity_id": "image.saugi_erdgeschoss",
+              "maps": [
+                {
+                  "map_id": "0",
+                  "name": "Erdgeschoss",
+                  "current": true,
+                  "image_entity_id": "image.saugi_erdgeschoss",
+                  "segments": [
+                    {
+                      "id": "16",
+                      "name": "Küche"
+                    },
+                    {
+                      "id": "17",
+                      "name": "Flur"
+                    },
+                    {
+                      "id": "18",
+                      "name": "Wohnzimmer"
+                    }
+                  ]
+                },
+                {
+                  "map_id": "1",
+                  "name": "Obergeschoss",
+                  "current": false,
+                  "image_entity_id": "image.saugi_obergeschoss",
+                  "segments": [
+                    {
+                      "id": "16",
+                      "name": "Bad"
+                    }
+                  ]
+                }
+              ],
+              "maps_unavailable_reason": null,
+              "active": true,
+              "activity": {
+                "phase": "docked",
+                "external": false
+              },
+              "faults": [],
+              "actions": {
+                "configure": {
+                  "available": false,
+                  "reason": "robot_busy",
+                  "detail": null
+                },
+                "rename": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "remove": {
+                  "available": false,
+                  "reason": "robot_busy",
+                  "detail": null
+                },
+                "return_to_dock": {
+                  "available": false,
+                  "reason": "robot_already_executing",
+                  "detail": null
+                }
+              },
+              "blocked_reason": null,
+              "capabilities": {
+                "revision": "f7cd6e0af12e30eae25c5c206648a7ab7bf7108eaa9f42e6b6f4a7b853644a76",
+                "operations": [
+                  "mop",
+                  "vacuum",
+                  "vacuum_and_mop"
+                ],
+                "targets": {
+                  "00000000-0000-4000-8000-000000000002": [
+                    "0_16"
+                  ],
+                  "00000000-0000-4000-8000-000000000003": [
+                    "0_17"
+                  ],
+                  "00000000-0000-4000-8000-000000000004": [
+                    "0_18"
+                  ]
+                },
+                "map_context": "0",
+                "maximum_passes": 3,
+                "settings": {
+                  "vacuum_power": [
+                    "low",
+                    "standard",
+                    "high",
+                    "maximum",
+                    "maximum_plus"
+                  ],
+                  "mop_intensity": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "mop_route": [
+                    "fast",
+                    "standard",
+                    "deep",
+                    "deep_plus"
+                  ]
+                },
+                "unavailable_settings": [],
+                "supports": {
+                  "stop": true,
+                  "return_to_dock": true,
+                  "pause": false
+                }
+              }
+            }
+          ],
+          "commit_id": 5,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 9,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 27,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_robot_candidates",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 27,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "candidates": [
+            {
+              "registry_id": "00000000000000000000000000000003",
+              "entity_id": "vacuum.saugi",
+              "name": "Saugi",
+              "adapter": "roborock",
+              "roles": {
+                "status": "00000000000000000000000000000004",
+                "error": "00000000000000000000000000000005",
+                "dock_error": "00000000000000000000000000000006",
+                "battery": "00000000000000000000000000000007",
+                "last_clean_start": "00000000000000000000000000000008",
+                "last_clean_end": "00000000000000000000000000000009",
+                "clean_percent": "0000000000000000000000000000000a",
+                "current_room": "0000000000000000000000000000000b",
+                "mop_intensity": "0000000000000000000000000000000c",
+                "mop_route": "0000000000000000000000000000000d",
+                "cleaning_mode": "0000000000000000000000000000000e",
+                "selected_map": "0000000000000000000000000000000f",
+                "in_cleaning": "00000000000000000000000000000010",
+                "mop_attached": "00000000000000000000000000000011",
+                "water_box_attached": "00000000000000000000000000000012",
+                "water_shortage": "00000000000000000000000000000013",
+                "dirty_box_full": "00000000000000000000000000000014",
+                "clean_box_empty": "00000000000000000000000000000015",
+                "clean_fluid_empty": "00000000000000000000000000000016"
+              },
+              "ambiguous_roles": [],
+              "protocol": "roborock_v1"
+            }
+          ],
+          "commit_id": 5,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 9,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 28,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_templates",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 28,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 0,
+          "offset": 0,
+          "limit": 100,
+          "templates": [],
+          "commit_id": 5,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 9,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 29,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_setup",
+        "parameters": {}
+      }
+    },
+    {
+      "receive": {
+        "id": 29,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "assistant_pending": true,
+          "completed_at": null,
+          "steps": {
+            "robots": {
+              "robot_ids": [
+                "01J00000000000000000000003"
+              ]
+            },
+            "rooms": {
+              "room_ids": [
+                "00000000-0000-4000-8000-000000000002",
+                "00000000-0000-4000-8000-000000000003",
+                "00000000-0000-4000-8000-000000000004",
+                "00000000-0000-4000-8000-000000000005"
+              ],
+              "unreachable_room_ids": [
+                "00000000-0000-4000-8000-000000000005"
+              ]
+            },
+            "defaults": {
+              "configured": false
+            },
+            "queue": {
+              "grace_seconds": 900,
+              "start_delay_seconds": 5.0
+            }
+          },
+          "commit_id": 5,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 9,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
         }
       }
     },
@@ -4482,6 +6213,918 @@
               "lc": 1773480413.589793
             }
           }
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 30,
+        "type": "vacuum_orchestrator/queue/get",
+        "offset": 0,
+        "limit": 25
+      }
+    },
+    {
+      "receive": {
+        "id": 30,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "integration_version": "0.1.1",
+          "commit_id": 6,
+          "queue_revision": 2,
+          "mode": "idle",
+          "needs_attention": false,
+          "active_count": 1,
+          "attention_count": 0,
+          "attention": [],
+          "recovery_targets": [],
+          "queue_grace_seconds": 900,
+          "start_delay_seconds": 5.0,
+          "job_defaults": {
+            "mode": "vacuum",
+            "vacuum_power": "standard",
+            "mop_intensity": "medium",
+            "mop_route": "standard",
+            "passes": 1,
+            "settings_policy": "best_effort",
+            "configured": false
+          },
+          "queue_run": null,
+          "actions": {
+            "run": {
+              "available": true,
+              "reason": null,
+              "detail": null
+            },
+            "pause": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "resume": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "end": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            }
+          },
+          "total": 0,
+          "offset": 0,
+          "limit": 25,
+          "jobs": [],
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 11,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 31,
+        "type": "vacuum_orchestrator/jobs/list",
+        "offset": 0,
+        "limit": 100,
+        "states": [
+          "dispatching",
+          "running",
+          "canceling",
+          "needs_attention"
+        ]
+      }
+    },
+    {
+      "receive": {
+        "id": 31,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "jobs": [
+            {
+              "api_version": 4,
+              "job_id": "00000000-0000-4000-8000-000000000009",
+              "revision": 2,
+              "state": "running",
+              "name": null,
+              "areas": [
+                "kuche"
+              ],
+              "room_ids": [
+                "00000000-0000-4000-8000-000000000002"
+              ],
+              "mode": "mop",
+              "vacuum_power": null,
+              "mop_intensity": "medium",
+              "mop_route": "standard",
+              "passes": 1,
+              "all_rooms": false,
+              "reason": null,
+              "note": null,
+              "dedupe_key": null,
+              "required_on": [],
+              "required_off": [],
+              "settings_policy": "best_effort",
+              "created_at": "2026-03-14T09:26:53.589793+00:00",
+              "updated_at": "2026-03-14T09:26:53.589793+00:00",
+              "start_after": null,
+              "hold": null,
+              "waiting": null,
+              "progress": {
+                "operation": "mop",
+                "phase": 1,
+                "phases": 1,
+                "started_at": "2026-03-14T09:26:53.589793+00:00",
+                "robot_id": "01J00000000000000000000003",
+                "phase_percent": null,
+                "percent": null,
+                "fault": null
+              },
+              "completion": null,
+              "actions": {
+                "edit": {
+                  "available": false,
+                  "reason": "job_not_editable",
+                  "detail": null
+                },
+                "delete": {
+                  "available": false,
+                  "reason": "job_not_deletable",
+                  "detail": null
+                },
+                "cancel": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "start": {
+                  "available": false,
+                  "reason": "job_not_waiting",
+                  "detail": null
+                },
+                "retry": {
+                  "available": false,
+                  "reason": "job_not_retryable",
+                  "detail": null
+                },
+                "correct": {
+                  "available": false,
+                  "reason": "job_not_correctable",
+                  "detail": null
+                },
+                "move_up": {
+                  "available": false,
+                  "reason": "job_not_movable",
+                  "detail": null
+                },
+                "move_down": {
+                  "available": false,
+                  "reason": "job_not_movable",
+                  "detail": null
+                }
+              },
+              "active_attempt_id": "00000000-0000-4000-8000-000000000012",
+              "origin": {
+                "kind": "manual",
+                "template_id": null
+              },
+              "retries_job_id": null,
+              "failure_code": null,
+              "corrected_at": null,
+              "after_cancel": null
+            }
+          ],
+          "commit_id": 6,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 11,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 32,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_rooms",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 32,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 4,
+          "offset": 0,
+          "limit": 100,
+          "rooms": [
+            {
+              "room_id": "00000000-0000-4000-8000-000000000002",
+              "name": "Küche",
+              "area_id": "kuche",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": {
+                "grant_id": "00000000-0000-4000-8000-000000000007",
+                "kind": "permanent",
+                "granted_at": "2026-03-14T09:26:53.589793+00:00",
+                "expires_at": null,
+                "reserved_job_id": null,
+                "consumed": false,
+                "queue_run_id": null
+              },
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": true,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "edit": {
+                  "available": false,
+                  "reason": "room_has_active_job",
+                  "detail": null
+                },
+                "disable": {
+                  "available": false,
+                  "reason": "room_has_active_job",
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000003",
+              "name": "Flur",
+              "area_id": "flur",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000004",
+              "name": "Wohnzimmer",
+              "area_id": "wohnzimmer",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000005",
+              "name": "Bad",
+              "area_id": "bad",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            }
+          ],
+          "commit_id": 6,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 11,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 33,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_robots",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 33,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "robots": [
+            {
+              "robot_id": "01J00000000000000000000003",
+              "name": "Saugi",
+              "name_source": "home_assistant",
+              "ha_name": "Saugi",
+              "configuration": {
+                "robot_entity_id": "vacuum.saugi",
+                "robot_registry_id": "00000000000000000000000000000003",
+                "adapter": "roborock",
+                "source_robot_id": "physical:fe0a29e37dd070ea6c6192380e323bf8810d2ee4e61ccc28db59ee9494c90d1d",
+                "roles": {},
+                "requirements": [],
+                "target_areas": null,
+                "allowed_operations": [
+                  "vacuum",
+                  "mop",
+                  "vacuum_and_mop"
+                ],
+                "enabled": true,
+                "protocol": "roborock_v1",
+                "fixed_mode": null,
+                "preference": 0,
+                "minimum_battery": null,
+                "mode_options": {},
+                "vacuum_levels": {},
+                "water_levels": {},
+                "mop_routes": {},
+                "map_options": {},
+                "start_timeout_seconds": 180.0,
+                "run_timeout_seconds": 14400.0,
+                "cancel_timeout_seconds": 120.0,
+                "settle_seconds": 30.0,
+                "settings_timeout_seconds": 45.0,
+                "return_timeout_seconds": 900.0,
+                "fault_timeout_seconds": 900.0,
+                "connection_timeout_seconds": 600.0
+              },
+              "reach": [
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000002",
+                  "status": "reachable",
+                  "targets": [
+                    "0_16"
+                  ],
+                  "ignored": []
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000003",
+                  "status": "reachable",
+                  "targets": [
+                    "0_17"
+                  ],
+                  "ignored": []
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000004",
+                  "status": "reachable",
+                  "targets": [
+                    "0_18"
+                  ],
+                  "ignored": [
+                    "0_99"
+                  ]
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000005",
+                  "status": "not_on_current_map",
+                  "targets": [],
+                  "ignored": [
+                    "1_16"
+                  ]
+                }
+              ],
+              "map_image_entity_id": "image.saugi_erdgeschoss",
+              "maps": [
+                {
+                  "map_id": "0",
+                  "name": "Erdgeschoss",
+                  "current": true,
+                  "image_entity_id": "image.saugi_erdgeschoss",
+                  "segments": [
+                    {
+                      "id": "16",
+                      "name": "Küche"
+                    },
+                    {
+                      "id": "17",
+                      "name": "Flur"
+                    },
+                    {
+                      "id": "18",
+                      "name": "Wohnzimmer"
+                    }
+                  ]
+                },
+                {
+                  "map_id": "1",
+                  "name": "Obergeschoss",
+                  "current": false,
+                  "image_entity_id": "image.saugi_obergeschoss",
+                  "segments": [
+                    {
+                      "id": "16",
+                      "name": "Bad"
+                    }
+                  ]
+                }
+              ],
+              "maps_unavailable_reason": null,
+              "active": true,
+              "activity": {
+                "phase": "cleaning",
+                "external": false
+              },
+              "faults": [],
+              "actions": {
+                "configure": {
+                  "available": false,
+                  "reason": "robot_busy",
+                  "detail": null
+                },
+                "rename": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "remove": {
+                  "available": false,
+                  "reason": "robot_busy",
+                  "detail": null
+                },
+                "return_to_dock": {
+                  "available": false,
+                  "reason": "robot_already_executing",
+                  "detail": null
+                }
+              },
+              "blocked_reason": null,
+              "capabilities": {
+                "revision": "f7cd6e0af12e30eae25c5c206648a7ab7bf7108eaa9f42e6b6f4a7b853644a76",
+                "operations": [
+                  "mop",
+                  "vacuum",
+                  "vacuum_and_mop"
+                ],
+                "targets": {
+                  "00000000-0000-4000-8000-000000000002": [
+                    "0_16"
+                  ],
+                  "00000000-0000-4000-8000-000000000003": [
+                    "0_17"
+                  ],
+                  "00000000-0000-4000-8000-000000000004": [
+                    "0_18"
+                  ]
+                },
+                "map_context": "0",
+                "maximum_passes": 3,
+                "settings": {
+                  "vacuum_power": [
+                    "low",
+                    "standard",
+                    "high",
+                    "maximum",
+                    "maximum_plus"
+                  ],
+                  "mop_intensity": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "mop_route": [
+                    "fast",
+                    "standard",
+                    "deep",
+                    "deep_plus"
+                  ]
+                },
+                "unavailable_settings": [],
+                "supports": {
+                  "stop": true,
+                  "return_to_dock": true,
+                  "pause": false
+                }
+              }
+            }
+          ],
+          "commit_id": 6,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 11,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 34,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_robot_candidates",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 34,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "candidates": [
+            {
+              "registry_id": "00000000000000000000000000000003",
+              "entity_id": "vacuum.saugi",
+              "name": "Saugi",
+              "adapter": "roborock",
+              "roles": {
+                "status": "00000000000000000000000000000004",
+                "error": "00000000000000000000000000000005",
+                "dock_error": "00000000000000000000000000000006",
+                "battery": "00000000000000000000000000000007",
+                "last_clean_start": "00000000000000000000000000000008",
+                "last_clean_end": "00000000000000000000000000000009",
+                "clean_percent": "0000000000000000000000000000000a",
+                "current_room": "0000000000000000000000000000000b",
+                "mop_intensity": "0000000000000000000000000000000c",
+                "mop_route": "0000000000000000000000000000000d",
+                "cleaning_mode": "0000000000000000000000000000000e",
+                "selected_map": "0000000000000000000000000000000f",
+                "in_cleaning": "00000000000000000000000000000010",
+                "mop_attached": "00000000000000000000000000000011",
+                "water_box_attached": "00000000000000000000000000000012",
+                "water_shortage": "00000000000000000000000000000013",
+                "dirty_box_full": "00000000000000000000000000000014",
+                "clean_box_empty": "00000000000000000000000000000015",
+                "clean_fluid_empty": "00000000000000000000000000000016"
+              },
+              "ambiguous_roles": [],
+              "protocol": "roborock_v1"
+            }
+          ],
+          "commit_id": 6,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 11,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 35,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_templates",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 35,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 0,
+          "offset": 0,
+          "limit": 100,
+          "templates": [],
+          "commit_id": 6,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 11,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 36,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_setup",
+        "parameters": {}
+      }
+    },
+    {
+      "receive": {
+        "id": 36,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "assistant_pending": true,
+          "completed_at": null,
+          "steps": {
+            "robots": {
+              "robot_ids": [
+                "01J00000000000000000000003"
+              ]
+            },
+            "rooms": {
+              "room_ids": [
+                "00000000-0000-4000-8000-000000000002",
+                "00000000-0000-4000-8000-000000000003",
+                "00000000-0000-4000-8000-000000000004",
+                "00000000-0000-4000-8000-000000000005"
+              ],
+              "unreachable_room_ids": [
+                "00000000-0000-4000-8000-000000000005"
+              ]
+            },
+            "defaults": {
+              "configured": false
+            },
+            "queue": {
+              "grace_seconds": 900,
+              "start_delay_seconds": 5.0
+            }
+          },
+          "commit_id": 6,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 11,
+          "server_time": "2026-03-14T09:26:53.589793+00:00"
         }
       }
     },
@@ -4625,7 +7268,7 @@
     },
     {
       "send": {
-        "id": 16,
+        "id": 37,
         "type": "vacuum_orchestrator/queue/get",
         "offset": 0,
         "limit": 25
@@ -4633,7 +7276,7 @@
     },
     {
       "receive": {
-        "id": 16,
+        "id": 37,
         "type": "result",
         "success": true,
         "result": {
@@ -4710,7 +7353,7 @@
     },
     {
       "send": {
-        "id": 17,
+        "id": 38,
         "type": "vacuum_orchestrator/jobs/list",
         "offset": 0,
         "limit": 100,
@@ -4724,7 +7367,7 @@
     },
     {
       "receive": {
-        "id": 17,
+        "id": 38,
         "type": "result",
         "success": true,
         "result": {
@@ -4842,7 +7485,7 @@
     },
     {
       "send": {
-        "id": 18,
+        "id": 39,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_rooms",
         "parameters": {
@@ -4853,7 +7496,7 @@
     },
     {
       "receive": {
-        "id": 18,
+        "id": 39,
         "type": "result",
         "success": true,
         "result": {
@@ -5208,7 +7851,7 @@
     },
     {
       "send": {
-        "id": 19,
+        "id": 40,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robots",
         "parameters": {
@@ -5219,7 +7862,7 @@
     },
     {
       "receive": {
-        "id": 19,
+        "id": 40,
         "type": "result",
         "success": true,
         "result": {
@@ -5446,7 +8089,7 @@
     },
     {
       "send": {
-        "id": 20,
+        "id": 41,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robot_candidates",
         "parameters": {
@@ -5457,7 +8100,7 @@
     },
     {
       "receive": {
-        "id": 20,
+        "id": 41,
         "type": "result",
         "success": true,
         "result": {
@@ -5505,7 +8148,7 @@
     },
     {
       "send": {
-        "id": 21,
+        "id": 42,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_templates",
         "parameters": {
@@ -5516,7 +8159,7 @@
     },
     {
       "receive": {
-        "id": 21,
+        "id": 42,
         "type": "result",
         "success": true,
         "result": {
@@ -5534,7 +8177,7 @@
     },
     {
       "send": {
-        "id": 22,
+        "id": 43,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_setup",
         "parameters": {}
@@ -5542,7 +8185,7 @@
     },
     {
       "receive": {
-        "id": 22,
+        "id": 43,
         "type": "result",
         "success": true,
         "result": {
@@ -5586,7 +8229,7 @@
     },
     {
       "send": {
-        "id": 23,
+        "id": 44,
         "type": "vacuum_orchestrator/queue/get",
         "offset": 0,
         "limit": 25
@@ -5594,7 +8237,7 @@
     },
     {
       "receive": {
-        "id": 23,
+        "id": 44,
         "type": "result",
         "success": true,
         "result": {
@@ -5671,7 +8314,7 @@
     },
     {
       "send": {
-        "id": 24,
+        "id": 45,
         "type": "vacuum_orchestrator/jobs/list",
         "offset": 0,
         "limit": 100,
@@ -5685,7 +8328,7 @@
     },
     {
       "receive": {
-        "id": 24,
+        "id": 45,
         "type": "result",
         "success": true,
         "result": {
@@ -5803,7 +8446,7 @@
     },
     {
       "send": {
-        "id": 25,
+        "id": 46,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_rooms",
         "parameters": {
@@ -5814,7 +8457,7 @@
     },
     {
       "receive": {
-        "id": 25,
+        "id": 46,
         "type": "result",
         "success": true,
         "result": {
@@ -6169,7 +8812,7 @@
     },
     {
       "send": {
-        "id": 26,
+        "id": 47,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robots",
         "parameters": {
@@ -6180,7 +8823,7 @@
     },
     {
       "receive": {
-        "id": 26,
+        "id": 47,
         "type": "result",
         "success": true,
         "result": {
@@ -6407,7 +9050,7 @@
     },
     {
       "send": {
-        "id": 27,
+        "id": 48,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robot_candidates",
         "parameters": {
@@ -6418,7 +9061,7 @@
     },
     {
       "receive": {
-        "id": 27,
+        "id": 48,
         "type": "result",
         "success": true,
         "result": {
@@ -6466,7 +9109,7 @@
     },
     {
       "send": {
-        "id": 28,
+        "id": 49,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_templates",
         "parameters": {
@@ -6477,7 +9120,7 @@
     },
     {
       "receive": {
-        "id": 28,
+        "id": 49,
         "type": "result",
         "success": true,
         "result": {
@@ -6495,7 +9138,7 @@
     },
     {
       "send": {
-        "id": 29,
+        "id": 50,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_setup",
         "parameters": {}
@@ -6503,7 +9146,7 @@
     },
     {
       "receive": {
-        "id": 29,
+        "id": 50,
         "type": "result",
         "success": true,
         "result": {
@@ -6655,7 +9298,7 @@
     },
     {
       "send": {
-        "id": 30,
+        "id": 51,
         "type": "vacuum_orchestrator/queue/get",
         "offset": 0,
         "limit": 25
@@ -6663,7 +9306,7 @@
     },
     {
       "receive": {
-        "id": 30,
+        "id": 51,
         "type": "result",
         "success": true,
         "result": {
@@ -6723,7 +9366,7 @@
     },
     {
       "send": {
-        "id": 31,
+        "id": 52,
         "type": "vacuum_orchestrator/jobs/list",
         "offset": 0,
         "limit": 100,
@@ -6737,7 +9380,7 @@
     },
     {
       "receive": {
-        "id": 31,
+        "id": 52,
         "type": "result",
         "success": true,
         "result": {
@@ -6852,7 +9495,7 @@
     },
     {
       "send": {
-        "id": 32,
+        "id": 53,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_rooms",
         "parameters": {
@@ -6863,7 +9506,7 @@
     },
     {
       "receive": {
-        "id": 32,
+        "id": 53,
         "type": "result",
         "success": true,
         "result": {
@@ -7218,7 +9861,7 @@
     },
     {
       "send": {
-        "id": 33,
+        "id": 54,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robots",
         "parameters": {
@@ -7229,7 +9872,7 @@
     },
     {
       "receive": {
-        "id": 33,
+        "id": 54,
         "type": "result",
         "success": true,
         "result": {
@@ -7434,7 +10077,7 @@
     },
     {
       "send": {
-        "id": 34,
+        "id": 55,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robot_candidates",
         "parameters": {
@@ -7445,7 +10088,7 @@
     },
     {
       "receive": {
-        "id": 34,
+        "id": 55,
         "type": "result",
         "success": true,
         "result": {
@@ -7493,7 +10136,7 @@
     },
     {
       "send": {
-        "id": 35,
+        "id": 56,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_templates",
         "parameters": {
@@ -7504,7 +10147,7 @@
     },
     {
       "receive": {
-        "id": 35,
+        "id": 56,
         "type": "result",
         "success": true,
         "result": {
@@ -7522,7 +10165,7 @@
     },
     {
       "send": {
-        "id": 36,
+        "id": 57,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_setup",
         "parameters": {}
@@ -7530,7 +10173,7 @@
     },
     {
       "receive": {
-        "id": 36,
+        "id": 57,
         "type": "result",
         "success": true,
         "result": {
@@ -7693,6 +10336,918 @@
       }
     },
     {
+      "send": {
+        "id": 58,
+        "type": "vacuum_orchestrator/queue/get",
+        "offset": 0,
+        "limit": 25
+      }
+    },
+    {
+      "receive": {
+        "id": 58,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "integration_version": "0.1.1",
+          "commit_id": 8,
+          "queue_revision": 2,
+          "mode": "idle",
+          "needs_attention": false,
+          "active_count": 1,
+          "attention_count": 0,
+          "attention": [],
+          "recovery_targets": [],
+          "queue_grace_seconds": 900,
+          "start_delay_seconds": 5.0,
+          "job_defaults": {
+            "mode": "vacuum",
+            "vacuum_power": "standard",
+            "mop_intensity": "medium",
+            "mop_route": "standard",
+            "passes": 1,
+            "settings_policy": "best_effort",
+            "configured": false
+          },
+          "queue_run": null,
+          "actions": {
+            "run": {
+              "available": true,
+              "reason": null,
+              "detail": null
+            },
+            "pause": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "resume": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "end": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            }
+          },
+          "total": 0,
+          "offset": 0,
+          "limit": 25,
+          "jobs": [],
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 16,
+          "server_time": "2026-03-14T09:32:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 59,
+        "type": "vacuum_orchestrator/jobs/list",
+        "offset": 0,
+        "limit": 100,
+        "states": [
+          "dispatching",
+          "running",
+          "canceling",
+          "needs_attention"
+        ]
+      }
+    },
+    {
+      "receive": {
+        "id": 59,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "jobs": [
+            {
+              "api_version": 4,
+              "job_id": "00000000-0000-4000-8000-000000000009",
+              "revision": 2,
+              "state": "running",
+              "name": null,
+              "areas": [
+                "kuche"
+              ],
+              "room_ids": [
+                "00000000-0000-4000-8000-000000000002"
+              ],
+              "mode": "mop",
+              "vacuum_power": null,
+              "mop_intensity": "medium",
+              "mop_route": "standard",
+              "passes": 1,
+              "all_rooms": false,
+              "reason": null,
+              "note": null,
+              "dedupe_key": null,
+              "required_on": [],
+              "required_off": [],
+              "settings_policy": "best_effort",
+              "created_at": "2026-03-14T09:26:53.589793+00:00",
+              "updated_at": "2026-03-14T09:26:53.589793+00:00",
+              "start_after": null,
+              "hold": null,
+              "waiting": null,
+              "progress": {
+                "operation": "mop",
+                "phase": 1,
+                "phases": 1,
+                "started_at": "2026-03-14T09:26:53.589793+00:00",
+                "robot_id": "01J00000000000000000000003",
+                "phase_percent": null,
+                "percent": null,
+                "fault": null
+              },
+              "completion": null,
+              "actions": {
+                "edit": {
+                  "available": false,
+                  "reason": "job_not_editable",
+                  "detail": null
+                },
+                "delete": {
+                  "available": false,
+                  "reason": "job_not_deletable",
+                  "detail": null
+                },
+                "cancel": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "start": {
+                  "available": false,
+                  "reason": "job_not_waiting",
+                  "detail": null
+                },
+                "retry": {
+                  "available": false,
+                  "reason": "job_not_retryable",
+                  "detail": null
+                },
+                "correct": {
+                  "available": false,
+                  "reason": "job_not_correctable",
+                  "detail": null
+                },
+                "move_up": {
+                  "available": false,
+                  "reason": "job_not_movable",
+                  "detail": null
+                },
+                "move_down": {
+                  "available": false,
+                  "reason": "job_not_movable",
+                  "detail": null
+                }
+              },
+              "active_attempt_id": "00000000-0000-4000-8000-000000000012",
+              "origin": {
+                "kind": "manual",
+                "template_id": null
+              },
+              "retries_job_id": null,
+              "failure_code": null,
+              "corrected_at": null,
+              "after_cancel": null
+            }
+          ],
+          "commit_id": 8,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 16,
+          "server_time": "2026-03-14T09:32:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 60,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_rooms",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 60,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 4,
+          "offset": 0,
+          "limit": 100,
+          "rooms": [
+            {
+              "room_id": "00000000-0000-4000-8000-000000000002",
+              "name": "Küche",
+              "area_id": "kuche",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": {
+                "grant_id": "00000000-0000-4000-8000-000000000007",
+                "kind": "permanent",
+                "granted_at": "2026-03-14T09:26:53.589793+00:00",
+                "expires_at": null,
+                "reserved_job_id": null,
+                "consumed": false,
+                "queue_run_id": null
+              },
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": true,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "edit": {
+                  "available": false,
+                  "reason": "room_has_active_job",
+                  "detail": null
+                },
+                "disable": {
+                  "available": false,
+                  "reason": "room_has_active_job",
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000003",
+              "name": "Flur",
+              "area_id": "flur",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000004",
+              "name": "Wohnzimmer",
+              "area_id": "wohnzimmer",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000005",
+              "name": "Bad",
+              "area_id": "bad",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            }
+          ],
+          "commit_id": 8,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 16,
+          "server_time": "2026-03-14T09:32:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 61,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_robots",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 61,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "robots": [
+            {
+              "robot_id": "01J00000000000000000000003",
+              "name": "Saugi",
+              "name_source": "home_assistant",
+              "ha_name": "Saugi",
+              "configuration": {
+                "robot_entity_id": "vacuum.saugi",
+                "robot_registry_id": "00000000000000000000000000000003",
+                "adapter": "roborock",
+                "source_robot_id": "physical:fe0a29e37dd070ea6c6192380e323bf8810d2ee4e61ccc28db59ee9494c90d1d",
+                "roles": {},
+                "requirements": [],
+                "target_areas": null,
+                "allowed_operations": [
+                  "vacuum",
+                  "mop",
+                  "vacuum_and_mop"
+                ],
+                "enabled": true,
+                "protocol": "roborock_v1",
+                "fixed_mode": null,
+                "preference": 0,
+                "minimum_battery": null,
+                "mode_options": {},
+                "vacuum_levels": {},
+                "water_levels": {},
+                "mop_routes": {},
+                "map_options": {},
+                "start_timeout_seconds": 180.0,
+                "run_timeout_seconds": 14400.0,
+                "cancel_timeout_seconds": 120.0,
+                "settle_seconds": 30.0,
+                "settings_timeout_seconds": 45.0,
+                "return_timeout_seconds": 900.0,
+                "fault_timeout_seconds": 900.0,
+                "connection_timeout_seconds": 600.0
+              },
+              "reach": [
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000002",
+                  "status": "reachable",
+                  "targets": [
+                    "0_16"
+                  ],
+                  "ignored": []
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000003",
+                  "status": "reachable",
+                  "targets": [
+                    "0_17"
+                  ],
+                  "ignored": []
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000004",
+                  "status": "reachable",
+                  "targets": [
+                    "0_18"
+                  ],
+                  "ignored": [
+                    "0_99"
+                  ]
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000005",
+                  "status": "not_on_current_map",
+                  "targets": [],
+                  "ignored": [
+                    "1_16"
+                  ]
+                }
+              ],
+              "map_image_entity_id": "image.saugi_erdgeschoss",
+              "maps": [
+                {
+                  "map_id": "0",
+                  "name": "Erdgeschoss",
+                  "current": true,
+                  "image_entity_id": "image.saugi_erdgeschoss",
+                  "segments": [
+                    {
+                      "id": "16",
+                      "name": "Küche"
+                    },
+                    {
+                      "id": "17",
+                      "name": "Flur"
+                    },
+                    {
+                      "id": "18",
+                      "name": "Wohnzimmer"
+                    }
+                  ]
+                },
+                {
+                  "map_id": "1",
+                  "name": "Obergeschoss",
+                  "current": false,
+                  "image_entity_id": "image.saugi_obergeschoss",
+                  "segments": [
+                    {
+                      "id": "16",
+                      "name": "Bad"
+                    }
+                  ]
+                }
+              ],
+              "maps_unavailable_reason": null,
+              "active": true,
+              "activity": {
+                "phase": "cleaning",
+                "external": false
+              },
+              "faults": [],
+              "actions": {
+                "configure": {
+                  "available": false,
+                  "reason": "robot_busy",
+                  "detail": null
+                },
+                "rename": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "remove": {
+                  "available": false,
+                  "reason": "robot_busy",
+                  "detail": null
+                },
+                "return_to_dock": {
+                  "available": false,
+                  "reason": "robot_already_executing",
+                  "detail": null
+                }
+              },
+              "blocked_reason": null,
+              "capabilities": {
+                "revision": "f7cd6e0af12e30eae25c5c206648a7ab7bf7108eaa9f42e6b6f4a7b853644a76",
+                "operations": [
+                  "mop",
+                  "vacuum",
+                  "vacuum_and_mop"
+                ],
+                "targets": {
+                  "00000000-0000-4000-8000-000000000002": [
+                    "0_16"
+                  ],
+                  "00000000-0000-4000-8000-000000000003": [
+                    "0_17"
+                  ],
+                  "00000000-0000-4000-8000-000000000004": [
+                    "0_18"
+                  ]
+                },
+                "map_context": "0",
+                "maximum_passes": 3,
+                "settings": {
+                  "vacuum_power": [
+                    "low",
+                    "standard",
+                    "high",
+                    "maximum",
+                    "maximum_plus"
+                  ],
+                  "mop_intensity": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "mop_route": [
+                    "fast",
+                    "standard",
+                    "deep",
+                    "deep_plus"
+                  ]
+                },
+                "unavailable_settings": [],
+                "supports": {
+                  "stop": true,
+                  "return_to_dock": true,
+                  "pause": false
+                }
+              }
+            }
+          ],
+          "commit_id": 8,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 16,
+          "server_time": "2026-03-14T09:32:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 62,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_robot_candidates",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 62,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "candidates": [
+            {
+              "registry_id": "00000000000000000000000000000003",
+              "entity_id": "vacuum.saugi",
+              "name": "Saugi",
+              "adapter": "roborock",
+              "roles": {
+                "status": "00000000000000000000000000000004",
+                "error": "00000000000000000000000000000005",
+                "dock_error": "00000000000000000000000000000006",
+                "battery": "00000000000000000000000000000007",
+                "last_clean_start": "00000000000000000000000000000008",
+                "last_clean_end": "00000000000000000000000000000009",
+                "clean_percent": "0000000000000000000000000000000a",
+                "current_room": "0000000000000000000000000000000b",
+                "mop_intensity": "0000000000000000000000000000000c",
+                "mop_route": "0000000000000000000000000000000d",
+                "cleaning_mode": "0000000000000000000000000000000e",
+                "selected_map": "0000000000000000000000000000000f",
+                "in_cleaning": "00000000000000000000000000000010",
+                "mop_attached": "00000000000000000000000000000011",
+                "water_box_attached": "00000000000000000000000000000012",
+                "water_shortage": "00000000000000000000000000000013",
+                "dirty_box_full": "00000000000000000000000000000014",
+                "clean_box_empty": "00000000000000000000000000000015",
+                "clean_fluid_empty": "00000000000000000000000000000016"
+              },
+              "ambiguous_roles": [],
+              "protocol": "roborock_v1"
+            }
+          ],
+          "commit_id": 8,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 16,
+          "server_time": "2026-03-14T09:32:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 63,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_templates",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 63,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 0,
+          "offset": 0,
+          "limit": 100,
+          "templates": [],
+          "commit_id": 8,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 16,
+          "server_time": "2026-03-14T09:32:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 64,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_setup",
+        "parameters": {}
+      }
+    },
+    {
+      "receive": {
+        "id": 64,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "assistant_pending": true,
+          "completed_at": null,
+          "steps": {
+            "robots": {
+              "robot_ids": [
+                "01J00000000000000000000003"
+              ]
+            },
+            "rooms": {
+              "room_ids": [
+                "00000000-0000-4000-8000-000000000002",
+                "00000000-0000-4000-8000-000000000003",
+                "00000000-0000-4000-8000-000000000004",
+                "00000000-0000-4000-8000-000000000005"
+              ],
+              "unreachable_room_ids": [
+                "00000000-0000-4000-8000-000000000005"
+              ]
+            },
+            "defaults": {
+              "configured": false
+            },
+            "queue": {
+              "grace_seconds": 900,
+              "start_delay_seconds": 5.0
+            }
+          },
+          "commit_id": 8,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 16,
+          "server_time": "2026-03-14T09:32:53.589793+00:00"
+        }
+      }
+    },
+    {
       "advance": 300
     },
     {
@@ -7794,6 +11349,918 @@
               "lc": 1773481073.589793
             }
           }
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 65,
+        "type": "vacuum_orchestrator/queue/get",
+        "offset": 0,
+        "limit": 25
+      }
+    },
+    {
+      "receive": {
+        "id": 65,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "integration_version": "0.1.1",
+          "commit_id": 8,
+          "queue_revision": 2,
+          "mode": "idle",
+          "needs_attention": false,
+          "active_count": 1,
+          "attention_count": 0,
+          "attention": [],
+          "recovery_targets": [],
+          "queue_grace_seconds": 900,
+          "start_delay_seconds": 5.0,
+          "job_defaults": {
+            "mode": "vacuum",
+            "vacuum_power": "standard",
+            "mop_intensity": "medium",
+            "mop_route": "standard",
+            "passes": 1,
+            "settings_policy": "best_effort",
+            "configured": false
+          },
+          "queue_run": null,
+          "actions": {
+            "run": {
+              "available": true,
+              "reason": null,
+              "detail": null
+            },
+            "pause": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "resume": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "end": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            }
+          },
+          "total": 0,
+          "offset": 0,
+          "limit": 25,
+          "jobs": [],
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 17,
+          "server_time": "2026-03-14T09:37:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 66,
+        "type": "vacuum_orchestrator/jobs/list",
+        "offset": 0,
+        "limit": 100,
+        "states": [
+          "dispatching",
+          "running",
+          "canceling",
+          "needs_attention"
+        ]
+      }
+    },
+    {
+      "receive": {
+        "id": 66,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "jobs": [
+            {
+              "api_version": 4,
+              "job_id": "00000000-0000-4000-8000-000000000009",
+              "revision": 2,
+              "state": "running",
+              "name": null,
+              "areas": [
+                "kuche"
+              ],
+              "room_ids": [
+                "00000000-0000-4000-8000-000000000002"
+              ],
+              "mode": "mop",
+              "vacuum_power": null,
+              "mop_intensity": "medium",
+              "mop_route": "standard",
+              "passes": 1,
+              "all_rooms": false,
+              "reason": null,
+              "note": null,
+              "dedupe_key": null,
+              "required_on": [],
+              "required_off": [],
+              "settings_policy": "best_effort",
+              "created_at": "2026-03-14T09:26:53.589793+00:00",
+              "updated_at": "2026-03-14T09:26:53.589793+00:00",
+              "start_after": null,
+              "hold": null,
+              "waiting": null,
+              "progress": {
+                "operation": "mop",
+                "phase": 1,
+                "phases": 1,
+                "started_at": "2026-03-14T09:26:53.589793+00:00",
+                "robot_id": "01J00000000000000000000003",
+                "phase_percent": null,
+                "percent": null,
+                "fault": null
+              },
+              "completion": null,
+              "actions": {
+                "edit": {
+                  "available": false,
+                  "reason": "job_not_editable",
+                  "detail": null
+                },
+                "delete": {
+                  "available": false,
+                  "reason": "job_not_deletable",
+                  "detail": null
+                },
+                "cancel": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "start": {
+                  "available": false,
+                  "reason": "job_not_waiting",
+                  "detail": null
+                },
+                "retry": {
+                  "available": false,
+                  "reason": "job_not_retryable",
+                  "detail": null
+                },
+                "correct": {
+                  "available": false,
+                  "reason": "job_not_correctable",
+                  "detail": null
+                },
+                "move_up": {
+                  "available": false,
+                  "reason": "job_not_movable",
+                  "detail": null
+                },
+                "move_down": {
+                  "available": false,
+                  "reason": "job_not_movable",
+                  "detail": null
+                }
+              },
+              "active_attempt_id": "00000000-0000-4000-8000-000000000012",
+              "origin": {
+                "kind": "manual",
+                "template_id": null
+              },
+              "retries_job_id": null,
+              "failure_code": null,
+              "corrected_at": null,
+              "after_cancel": null
+            }
+          ],
+          "commit_id": 8,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 17,
+          "server_time": "2026-03-14T09:37:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 67,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_rooms",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 67,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 4,
+          "offset": 0,
+          "limit": 100,
+          "rooms": [
+            {
+              "room_id": "00000000-0000-4000-8000-000000000002",
+              "name": "Küche",
+              "area_id": "kuche",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": {
+                "grant_id": "00000000-0000-4000-8000-000000000007",
+                "kind": "permanent",
+                "granted_at": "2026-03-14T09:26:53.589793+00:00",
+                "expires_at": null,
+                "reserved_job_id": null,
+                "consumed": false,
+                "queue_run_id": null
+              },
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": true,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "edit": {
+                  "available": false,
+                  "reason": "room_has_active_job",
+                  "detail": null
+                },
+                "disable": {
+                  "available": false,
+                  "reason": "room_has_active_job",
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000003",
+              "name": "Flur",
+              "area_id": "flur",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000004",
+              "name": "Wohnzimmer",
+              "area_id": "wohnzimmer",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000005",
+              "name": "Bad",
+              "area_id": "bad",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            }
+          ],
+          "commit_id": 8,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 17,
+          "server_time": "2026-03-14T09:37:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 68,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_robots",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 68,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "robots": [
+            {
+              "robot_id": "01J00000000000000000000003",
+              "name": "Saugi",
+              "name_source": "home_assistant",
+              "ha_name": "Saugi",
+              "configuration": {
+                "robot_entity_id": "vacuum.saugi",
+                "robot_registry_id": "00000000000000000000000000000003",
+                "adapter": "roborock",
+                "source_robot_id": "physical:fe0a29e37dd070ea6c6192380e323bf8810d2ee4e61ccc28db59ee9494c90d1d",
+                "roles": {},
+                "requirements": [],
+                "target_areas": null,
+                "allowed_operations": [
+                  "vacuum",
+                  "mop",
+                  "vacuum_and_mop"
+                ],
+                "enabled": true,
+                "protocol": "roborock_v1",
+                "fixed_mode": null,
+                "preference": 0,
+                "minimum_battery": null,
+                "mode_options": {},
+                "vacuum_levels": {},
+                "water_levels": {},
+                "mop_routes": {},
+                "map_options": {},
+                "start_timeout_seconds": 180.0,
+                "run_timeout_seconds": 14400.0,
+                "cancel_timeout_seconds": 120.0,
+                "settle_seconds": 30.0,
+                "settings_timeout_seconds": 45.0,
+                "return_timeout_seconds": 900.0,
+                "fault_timeout_seconds": 900.0,
+                "connection_timeout_seconds": 600.0
+              },
+              "reach": [
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000002",
+                  "status": "reachable",
+                  "targets": [
+                    "0_16"
+                  ],
+                  "ignored": []
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000003",
+                  "status": "reachable",
+                  "targets": [
+                    "0_17"
+                  ],
+                  "ignored": []
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000004",
+                  "status": "reachable",
+                  "targets": [
+                    "0_18"
+                  ],
+                  "ignored": [
+                    "0_99"
+                  ]
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000005",
+                  "status": "not_on_current_map",
+                  "targets": [],
+                  "ignored": [
+                    "1_16"
+                  ]
+                }
+              ],
+              "map_image_entity_id": "image.saugi_erdgeschoss",
+              "maps": [
+                {
+                  "map_id": "0",
+                  "name": "Erdgeschoss",
+                  "current": true,
+                  "image_entity_id": "image.saugi_erdgeschoss",
+                  "segments": [
+                    {
+                      "id": "16",
+                      "name": "Küche"
+                    },
+                    {
+                      "id": "17",
+                      "name": "Flur"
+                    },
+                    {
+                      "id": "18",
+                      "name": "Wohnzimmer"
+                    }
+                  ]
+                },
+                {
+                  "map_id": "1",
+                  "name": "Obergeschoss",
+                  "current": false,
+                  "image_entity_id": "image.saugi_obergeschoss",
+                  "segments": [
+                    {
+                      "id": "16",
+                      "name": "Bad"
+                    }
+                  ]
+                }
+              ],
+              "maps_unavailable_reason": null,
+              "active": true,
+              "activity": {
+                "phase": "returning",
+                "external": false
+              },
+              "faults": [],
+              "actions": {
+                "configure": {
+                  "available": false,
+                  "reason": "robot_busy",
+                  "detail": null
+                },
+                "rename": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "remove": {
+                  "available": false,
+                  "reason": "robot_busy",
+                  "detail": null
+                },
+                "return_to_dock": {
+                  "available": false,
+                  "reason": "robot_already_executing",
+                  "detail": null
+                }
+              },
+              "blocked_reason": null,
+              "capabilities": {
+                "revision": "f7cd6e0af12e30eae25c5c206648a7ab7bf7108eaa9f42e6b6f4a7b853644a76",
+                "operations": [
+                  "mop",
+                  "vacuum",
+                  "vacuum_and_mop"
+                ],
+                "targets": {
+                  "00000000-0000-4000-8000-000000000002": [
+                    "0_16"
+                  ],
+                  "00000000-0000-4000-8000-000000000003": [
+                    "0_17"
+                  ],
+                  "00000000-0000-4000-8000-000000000004": [
+                    "0_18"
+                  ]
+                },
+                "map_context": "0",
+                "maximum_passes": 3,
+                "settings": {
+                  "vacuum_power": [
+                    "low",
+                    "standard",
+                    "high",
+                    "maximum",
+                    "maximum_plus"
+                  ],
+                  "mop_intensity": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "mop_route": [
+                    "fast",
+                    "standard",
+                    "deep",
+                    "deep_plus"
+                  ]
+                },
+                "unavailable_settings": [],
+                "supports": {
+                  "stop": true,
+                  "return_to_dock": true,
+                  "pause": false
+                }
+              }
+            }
+          ],
+          "commit_id": 8,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 17,
+          "server_time": "2026-03-14T09:37:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 69,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_robot_candidates",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 69,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "candidates": [
+            {
+              "registry_id": "00000000000000000000000000000003",
+              "entity_id": "vacuum.saugi",
+              "name": "Saugi",
+              "adapter": "roborock",
+              "roles": {
+                "status": "00000000000000000000000000000004",
+                "error": "00000000000000000000000000000005",
+                "dock_error": "00000000000000000000000000000006",
+                "battery": "00000000000000000000000000000007",
+                "last_clean_start": "00000000000000000000000000000008",
+                "last_clean_end": "00000000000000000000000000000009",
+                "clean_percent": "0000000000000000000000000000000a",
+                "current_room": "0000000000000000000000000000000b",
+                "mop_intensity": "0000000000000000000000000000000c",
+                "mop_route": "0000000000000000000000000000000d",
+                "cleaning_mode": "0000000000000000000000000000000e",
+                "selected_map": "0000000000000000000000000000000f",
+                "in_cleaning": "00000000000000000000000000000010",
+                "mop_attached": "00000000000000000000000000000011",
+                "water_box_attached": "00000000000000000000000000000012",
+                "water_shortage": "00000000000000000000000000000013",
+                "dirty_box_full": "00000000000000000000000000000014",
+                "clean_box_empty": "00000000000000000000000000000015",
+                "clean_fluid_empty": "00000000000000000000000000000016"
+              },
+              "ambiguous_roles": [],
+              "protocol": "roborock_v1"
+            }
+          ],
+          "commit_id": 8,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 17,
+          "server_time": "2026-03-14T09:37:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 70,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_templates",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 70,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 0,
+          "offset": 0,
+          "limit": 100,
+          "templates": [],
+          "commit_id": 8,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 17,
+          "server_time": "2026-03-14T09:37:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 71,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_setup",
+        "parameters": {}
+      }
+    },
+    {
+      "receive": {
+        "id": 71,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "assistant_pending": true,
+          "completed_at": null,
+          "steps": {
+            "robots": {
+              "robot_ids": [
+                "01J00000000000000000000003"
+              ]
+            },
+            "rooms": {
+              "room_ids": [
+                "00000000-0000-4000-8000-000000000002",
+                "00000000-0000-4000-8000-000000000003",
+                "00000000-0000-4000-8000-000000000004",
+                "00000000-0000-4000-8000-000000000005"
+              ],
+              "unreachable_room_ids": [
+                "00000000-0000-4000-8000-000000000005"
+              ]
+            },
+            "defaults": {
+              "configured": false
+            },
+            "queue": {
+              "grace_seconds": 900,
+              "start_delay_seconds": 5.0
+            }
+          },
+          "commit_id": 8,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 17,
+          "server_time": "2026-03-14T09:37:53.589793+00:00"
         }
       }
     },
@@ -7922,6 +12389,918 @@
       }
     },
     {
+      "send": {
+        "id": 72,
+        "type": "vacuum_orchestrator/queue/get",
+        "offset": 0,
+        "limit": 25
+      }
+    },
+    {
+      "receive": {
+        "id": 72,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "integration_version": "0.1.1",
+          "commit_id": 9,
+          "queue_revision": 2,
+          "mode": "idle",
+          "needs_attention": false,
+          "active_count": 1,
+          "attention_count": 0,
+          "attention": [],
+          "recovery_targets": [],
+          "queue_grace_seconds": 900,
+          "start_delay_seconds": 5.0,
+          "job_defaults": {
+            "mode": "vacuum",
+            "vacuum_power": "standard",
+            "mop_intensity": "medium",
+            "mop_route": "standard",
+            "passes": 1,
+            "settings_policy": "best_effort",
+            "configured": false
+          },
+          "queue_run": null,
+          "actions": {
+            "run": {
+              "available": true,
+              "reason": null,
+              "detail": null
+            },
+            "pause": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "resume": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            },
+            "end": {
+              "available": false,
+              "reason": "queue_not_running",
+              "detail": null
+            }
+          },
+          "total": 0,
+          "offset": 0,
+          "limit": 25,
+          "jobs": [],
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 19,
+          "server_time": "2026-03-14T09:38:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 73,
+        "type": "vacuum_orchestrator/jobs/list",
+        "offset": 0,
+        "limit": 100,
+        "states": [
+          "dispatching",
+          "running",
+          "canceling",
+          "needs_attention"
+        ]
+      }
+    },
+    {
+      "receive": {
+        "id": 73,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "jobs": [
+            {
+              "api_version": 4,
+              "job_id": "00000000-0000-4000-8000-000000000009",
+              "revision": 2,
+              "state": "running",
+              "name": null,
+              "areas": [
+                "kuche"
+              ],
+              "room_ids": [
+                "00000000-0000-4000-8000-000000000002"
+              ],
+              "mode": "mop",
+              "vacuum_power": null,
+              "mop_intensity": "medium",
+              "mop_route": "standard",
+              "passes": 1,
+              "all_rooms": false,
+              "reason": null,
+              "note": null,
+              "dedupe_key": null,
+              "required_on": [],
+              "required_off": [],
+              "settings_policy": "best_effort",
+              "created_at": "2026-03-14T09:26:53.589793+00:00",
+              "updated_at": "2026-03-14T09:26:53.589793+00:00",
+              "start_after": null,
+              "hold": null,
+              "waiting": null,
+              "progress": {
+                "operation": "mop",
+                "phase": 1,
+                "phases": 1,
+                "started_at": "2026-03-14T09:26:53.589793+00:00",
+                "robot_id": "01J00000000000000000000003",
+                "phase_percent": null,
+                "percent": null,
+                "fault": null
+              },
+              "completion": null,
+              "actions": {
+                "edit": {
+                  "available": false,
+                  "reason": "job_not_editable",
+                  "detail": null
+                },
+                "delete": {
+                  "available": false,
+                  "reason": "job_not_deletable",
+                  "detail": null
+                },
+                "cancel": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "start": {
+                  "available": false,
+                  "reason": "job_not_waiting",
+                  "detail": null
+                },
+                "retry": {
+                  "available": false,
+                  "reason": "job_not_retryable",
+                  "detail": null
+                },
+                "correct": {
+                  "available": false,
+                  "reason": "job_not_correctable",
+                  "detail": null
+                },
+                "move_up": {
+                  "available": false,
+                  "reason": "job_not_movable",
+                  "detail": null
+                },
+                "move_down": {
+                  "available": false,
+                  "reason": "job_not_movable",
+                  "detail": null
+                }
+              },
+              "active_attempt_id": "00000000-0000-4000-8000-000000000012",
+              "origin": {
+                "kind": "manual",
+                "template_id": null
+              },
+              "retries_job_id": null,
+              "failure_code": null,
+              "corrected_at": null,
+              "after_cancel": null
+            }
+          ],
+          "commit_id": 9,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 19,
+          "server_time": "2026-03-14T09:38:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 74,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_rooms",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 74,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 4,
+          "offset": 0,
+          "limit": 100,
+          "rooms": [
+            {
+              "room_id": "00000000-0000-4000-8000-000000000002",
+              "name": "Küche",
+              "area_id": "kuche",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": {
+                "grant_id": "00000000-0000-4000-8000-000000000007",
+                "kind": "permanent",
+                "granted_at": "2026-03-14T09:26:53.589793+00:00",
+                "expires_at": null,
+                "reserved_job_id": null,
+                "consumed": false,
+                "queue_run_id": null
+              },
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": true,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "edit": {
+                  "available": false,
+                  "reason": "room_has_active_job",
+                  "detail": null
+                },
+                "disable": {
+                  "available": false,
+                  "reason": "room_has_active_job",
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000003",
+              "name": "Flur",
+              "area_id": "flur",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000004",
+              "name": "Wohnzimmer",
+              "area_id": "wohnzimmer",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            },
+            {
+              "room_id": "00000000-0000-4000-8000-000000000005",
+              "name": "Bad",
+              "area_id": "bad",
+              "floor_id": null,
+              "enabled": true,
+              "area_missing": false,
+              "follow_area_name": true,
+              "bindings": [],
+              "requirements": [],
+              "release": null,
+              "due_policy": {
+                "basis": "calendar",
+                "vacuum_seconds": null,
+                "mop_seconds": null,
+                "occupancy_entity_id": null,
+                "occupied_state": "on",
+                "unoccupied_state": "off",
+                "occupancy_entity_registry_id": null
+              },
+              "occupancy": {
+                "epoch": 0,
+                "occupied_seconds": 0,
+                "unknown_seconds": 0,
+                "observed_at": null,
+                "occupied": null
+              },
+              "last_cleaning": {},
+              "last_confirmed": {},
+              "released": false,
+              "waiting_job_ids": [],
+              "actions": {
+                "release": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "revoke": {
+                  "available": false,
+                  "reason": "room_not_released",
+                  "detail": null
+                },
+                "edit": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "disable": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "enable": {
+                  "available": false,
+                  "reason": "room_enabled",
+                  "detail": null
+                },
+                "create_job": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                }
+              },
+              "due": {
+                "vacuum": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                },
+                "mop": {
+                  "state": "disabled",
+                  "reason": "interval_disabled",
+                  "elapsed_seconds": null,
+                  "remaining_seconds": null,
+                  "due_at": null,
+                  "quality": null
+                }
+              }
+            }
+          ],
+          "commit_id": 9,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 19,
+          "server_time": "2026-03-14T09:38:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 75,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_robots",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 75,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "robots": [
+            {
+              "robot_id": "01J00000000000000000000003",
+              "name": "Saugi",
+              "name_source": "home_assistant",
+              "ha_name": "Saugi",
+              "configuration": {
+                "robot_entity_id": "vacuum.saugi",
+                "robot_registry_id": "00000000000000000000000000000003",
+                "adapter": "roborock",
+                "source_robot_id": "physical:fe0a29e37dd070ea6c6192380e323bf8810d2ee4e61ccc28db59ee9494c90d1d",
+                "roles": {},
+                "requirements": [],
+                "target_areas": null,
+                "allowed_operations": [
+                  "vacuum",
+                  "mop",
+                  "vacuum_and_mop"
+                ],
+                "enabled": true,
+                "protocol": "roborock_v1",
+                "fixed_mode": null,
+                "preference": 0,
+                "minimum_battery": null,
+                "mode_options": {},
+                "vacuum_levels": {},
+                "water_levels": {},
+                "mop_routes": {},
+                "map_options": {},
+                "start_timeout_seconds": 180.0,
+                "run_timeout_seconds": 14400.0,
+                "cancel_timeout_seconds": 120.0,
+                "settle_seconds": 30.0,
+                "settings_timeout_seconds": 45.0,
+                "return_timeout_seconds": 900.0,
+                "fault_timeout_seconds": 900.0,
+                "connection_timeout_seconds": 600.0
+              },
+              "reach": [
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000002",
+                  "status": "reachable",
+                  "targets": [
+                    "0_16"
+                  ],
+                  "ignored": []
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000003",
+                  "status": "reachable",
+                  "targets": [
+                    "0_17"
+                  ],
+                  "ignored": []
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000004",
+                  "status": "reachable",
+                  "targets": [
+                    "0_18"
+                  ],
+                  "ignored": [
+                    "0_99"
+                  ]
+                },
+                {
+                  "room_id": "00000000-0000-4000-8000-000000000005",
+                  "status": "not_on_current_map",
+                  "targets": [],
+                  "ignored": [
+                    "1_16"
+                  ]
+                }
+              ],
+              "map_image_entity_id": "image.saugi_erdgeschoss",
+              "maps": [
+                {
+                  "map_id": "0",
+                  "name": "Erdgeschoss",
+                  "current": true,
+                  "image_entity_id": "image.saugi_erdgeschoss",
+                  "segments": [
+                    {
+                      "id": "16",
+                      "name": "Küche"
+                    },
+                    {
+                      "id": "17",
+                      "name": "Flur"
+                    },
+                    {
+                      "id": "18",
+                      "name": "Wohnzimmer"
+                    }
+                  ]
+                },
+                {
+                  "map_id": "1",
+                  "name": "Obergeschoss",
+                  "current": false,
+                  "image_entity_id": "image.saugi_obergeschoss",
+                  "segments": [
+                    {
+                      "id": "16",
+                      "name": "Bad"
+                    }
+                  ]
+                }
+              ],
+              "maps_unavailable_reason": null,
+              "active": true,
+              "activity": {
+                "phase": "docked",
+                "external": false
+              },
+              "faults": [],
+              "actions": {
+                "configure": {
+                  "available": false,
+                  "reason": "robot_busy",
+                  "detail": null
+                },
+                "rename": {
+                  "available": true,
+                  "reason": null,
+                  "detail": null
+                },
+                "remove": {
+                  "available": false,
+                  "reason": "robot_busy",
+                  "detail": null
+                },
+                "return_to_dock": {
+                  "available": false,
+                  "reason": "robot_already_executing",
+                  "detail": null
+                }
+              },
+              "blocked_reason": null,
+              "capabilities": {
+                "revision": "f7cd6e0af12e30eae25c5c206648a7ab7bf7108eaa9f42e6b6f4a7b853644a76",
+                "operations": [
+                  "mop",
+                  "vacuum",
+                  "vacuum_and_mop"
+                ],
+                "targets": {
+                  "00000000-0000-4000-8000-000000000002": [
+                    "0_16"
+                  ],
+                  "00000000-0000-4000-8000-000000000003": [
+                    "0_17"
+                  ],
+                  "00000000-0000-4000-8000-000000000004": [
+                    "0_18"
+                  ]
+                },
+                "map_context": "0",
+                "maximum_passes": 3,
+                "settings": {
+                  "vacuum_power": [
+                    "low",
+                    "standard",
+                    "high",
+                    "maximum",
+                    "maximum_plus"
+                  ],
+                  "mop_intensity": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "mop_route": [
+                    "fast",
+                    "standard",
+                    "deep",
+                    "deep_plus"
+                  ]
+                },
+                "unavailable_settings": [],
+                "supports": {
+                  "stop": true,
+                  "return_to_dock": true,
+                  "pause": false
+                }
+              }
+            }
+          ],
+          "commit_id": 9,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 19,
+          "server_time": "2026-03-14T09:38:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 76,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_robot_candidates",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 76,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "candidates": [
+            {
+              "registry_id": "00000000000000000000000000000003",
+              "entity_id": "vacuum.saugi",
+              "name": "Saugi",
+              "adapter": "roborock",
+              "roles": {
+                "status": "00000000000000000000000000000004",
+                "error": "00000000000000000000000000000005",
+                "dock_error": "00000000000000000000000000000006",
+                "battery": "00000000000000000000000000000007",
+                "last_clean_start": "00000000000000000000000000000008",
+                "last_clean_end": "00000000000000000000000000000009",
+                "clean_percent": "0000000000000000000000000000000a",
+                "current_room": "0000000000000000000000000000000b",
+                "mop_intensity": "0000000000000000000000000000000c",
+                "mop_route": "0000000000000000000000000000000d",
+                "cleaning_mode": "0000000000000000000000000000000e",
+                "selected_map": "0000000000000000000000000000000f",
+                "in_cleaning": "00000000000000000000000000000010",
+                "mop_attached": "00000000000000000000000000000011",
+                "water_box_attached": "00000000000000000000000000000012",
+                "water_shortage": "00000000000000000000000000000013",
+                "dirty_box_full": "00000000000000000000000000000014",
+                "clean_box_empty": "00000000000000000000000000000015",
+                "clean_fluid_empty": "00000000000000000000000000000016"
+              },
+              "ambiguous_roles": [],
+              "protocol": "roborock_v1"
+            }
+          ],
+          "commit_id": 9,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 19,
+          "server_time": "2026-03-14T09:38:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 77,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_templates",
+        "parameters": {
+          "offset": 0,
+          "limit": 100
+        }
+      }
+    },
+    {
+      "receive": {
+        "id": 77,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "total": 0,
+          "offset": 0,
+          "limit": 100,
+          "templates": [],
+          "commit_id": 9,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 19,
+          "server_time": "2026-03-14T09:38:53.589793+00:00"
+        }
+      }
+    },
+    {
+      "send": {
+        "id": 78,
+        "type": "vacuum_orchestrator/configuration/get",
+        "query": "get_setup",
+        "parameters": {}
+      }
+    },
+    {
+      "receive": {
+        "id": 78,
+        "type": "result",
+        "success": true,
+        "result": {
+          "api_version": 4,
+          "assistant_pending": true,
+          "completed_at": null,
+          "steps": {
+            "robots": {
+              "robot_ids": [
+                "01J00000000000000000000003"
+              ]
+            },
+            "rooms": {
+              "room_ids": [
+                "00000000-0000-4000-8000-000000000002",
+                "00000000-0000-4000-8000-000000000003",
+                "00000000-0000-4000-8000-000000000004",
+                "00000000-0000-4000-8000-000000000005"
+              ],
+              "unreachable_room_ids": [
+                "00000000-0000-4000-8000-000000000005"
+              ]
+            },
+            "defaults": {
+              "configured": false
+            },
+            "queue": {
+              "grace_seconds": 900,
+              "start_delay_seconds": 5.0
+            }
+          },
+          "commit_id": 9,
+          "runtime_id": "00000000-0000-4000-8000-000000000001",
+          "runtime_sequence": 19,
+          "server_time": "2026-03-14T09:38:53.589793+00:00"
+        }
+      }
+    },
+    {
       "advance": 60
     },
     {
@@ -8014,7 +13393,7 @@
     },
     {
       "send": {
-        "id": 37,
+        "id": 79,
         "type": "vacuum_orchestrator/queue/get",
         "offset": 0,
         "limit": 25
@@ -8022,7 +13401,7 @@
     },
     {
       "receive": {
-        "id": 37,
+        "id": 79,
         "type": "result",
         "success": true,
         "result": {
@@ -8082,7 +13461,7 @@
     },
     {
       "send": {
-        "id": 38,
+        "id": 80,
         "type": "vacuum_orchestrator/jobs/list",
         "offset": 0,
         "limit": 100,
@@ -8096,7 +13475,7 @@
     },
     {
       "receive": {
-        "id": 38,
+        "id": 80,
         "type": "result",
         "success": true,
         "result": {
@@ -8114,7 +13493,7 @@
     },
     {
       "send": {
-        "id": 39,
+        "id": 81,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_rooms",
         "parameters": {
@@ -8125,7 +13504,7 @@
     },
     {
       "receive": {
-        "id": 39,
+        "id": 81,
         "type": "result",
         "success": true,
         "result": {
@@ -8490,7 +13869,7 @@
     },
     {
       "send": {
-        "id": 40,
+        "id": 82,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robots",
         "parameters": {
@@ -8501,7 +13880,7 @@
     },
     {
       "receive": {
-        "id": 40,
+        "id": 82,
         "type": "result",
         "success": true,
         "result": {
@@ -8706,7 +14085,7 @@
     },
     {
       "send": {
-        "id": 41,
+        "id": 83,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_robot_candidates",
         "parameters": {
@@ -8717,7 +14096,7 @@
     },
     {
       "receive": {
-        "id": 41,
+        "id": 83,
         "type": "result",
         "success": true,
         "result": {
@@ -8765,7 +14144,7 @@
     },
     {
       "send": {
-        "id": 42,
+        "id": 84,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_templates",
         "parameters": {
@@ -8776,7 +14155,7 @@
     },
     {
       "receive": {
-        "id": 42,
+        "id": 84,
         "type": "result",
         "success": true,
         "result": {
@@ -8794,7 +14173,7 @@
     },
     {
       "send": {
-        "id": 43,
+        "id": 85,
         "type": "vacuum_orchestrator/configuration/get",
         "query": "get_setup",
         "parameters": {}
@@ -8802,7 +14181,7 @@
     },
     {
       "receive": {
-        "id": 43,
+        "id": 85,
         "type": "result",
         "success": true,
         "result": {
