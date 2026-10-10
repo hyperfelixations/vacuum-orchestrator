@@ -27,7 +27,7 @@ async def test_an_empty_running_queue_is_on_standby_until_its_grace_ends(
     ) == timedelta(seconds=600)
 
     room = (await call(hass, "create_room", name="Office"))["room_id"]
-    await call(hass, "release_room", room_id=room, kind="permanent")
+    await call(hass, "release_room", rooms=[room], kind="permanent")
     job = (await call(hass, "create_job", areas=[room]))["job_id"]
     assert (await call(hass, "get_job", job_id=job))["waiting"]["code"] == (
         "no_robot_configured"

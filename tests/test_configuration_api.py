@@ -199,15 +199,15 @@ async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
         "vacuum_seconds"
     ] == 7200
     grant = await call(
-        hass, "release_room", room_id=room, kind="timed", duration_seconds=7200
+        hass, "release_room", rooms=[room], kind="timed", duration_seconds=7200
     )
-    assert grant["grant_id"]
+    assert len(grant["grant_ids"]) == 1
     assert (await call(hass, "get_room", room_id=room))["released"]
-    revoked = await call(hass, "revoke_room", room_id=room)
+    revoked = await call(hass, "revoke_room", rooms=[room])
     assert revoked == {
         "api_version": 4,
         "commit_id": async_get_runtime(hass).orchestrator.state.commit_id,
-        "room_id": room,
+        "room_ids": [room],
     }
     assert revoked["commit_id"] > grant["commit_id"]
     assert not (await call(hass, "get_room", room_id=room))["released"]
@@ -231,7 +231,7 @@ async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
             hass, "update_room", room_id=room, configuration={"last_cleaning": {}}
         )
     with raises_code("release_duration_mismatch"):
-        await call(hass, "release_room", room_id=room, kind="once", duration_seconds=10)
+        await call(hass, "release_room", rooms=[room], kind="once", duration_seconds=10)
     with raises_code("unknown_room"):
         await call(hass, "get_room", room_id="missing")
 
@@ -373,7 +373,7 @@ async def test_configuration_websocket_uses_action_schemas(hass, configured):
         {
             "id": 5,
             "command": "release_room",
-            "parameters": {"room_id": "absent", "kind": "permanent"},
+            "parameters": {"rooms": ["absent"], "kind": "permanent"},
         },
     )
     websocket_configuration_command(
@@ -602,7 +602,7 @@ async def test_preview_and_robot_capabilities_use_the_ladders(hass, configured):
         }
     ]
     await core.rooms.async_grant(room, ReleaseKind.PERMANENT)
-    ready = await call(hass, "preview_job", areas="all")
+    ready = await call(hass, "preview_job", all_rooms=True)
     assert ready["startable_now"] and ready["reason"] is None
     attic = (await call(hass, "create_room", name="Attic"))["room_id"]
     mixed = await call(hass, "preview_job", areas=[room, attic], vacuum_power="high")
@@ -610,7 +610,7 @@ async def test_preview_and_robot_capabilities_use_the_ladders(hass, configured):
     assert mixed["settings"]["vacuum_power"]["requested"] == "high"
     await call(hass, "disable_room", room_id=attic)
     await call(hass, "disable_room", room_id=room)
-    assert (await call(hass, "preview_job", areas="all"))["reason"] == (
+    assert (await call(hass, "preview_job", all_rooms=True))["reason"] == (
         "no_active_rooms"
     )
     connection = Connection()
@@ -711,10 +711,7 @@ async def test_job_request_origin_survives_queueing_and_reaches_physical_calls(
         configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
     )
     await hass.async_block_till_done()
-    room_id = configured.runtime_data.orchestrator.rooms.registry.resolve(
-        area.id
-    ).room_id
-    await call(hass, "release_room", room_id=room_id, kind="permanent")
+    await call(hass, "release_room", areas=[area.id], kind="permanent")
     observed = []
 
     async def clean(call: ServiceCall):

@@ -1,6 +1,7 @@
 """Authenticated room, robot and recovery actions sharing canonical validators."""
 
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, cast
 
 import probatio
@@ -18,12 +19,16 @@ from ..adapters.discovery import discover_robots
 from ..application.explanation import explain_job
 from ..application.preview import JobPreview, preview_draft
 from ..application.tracing import incident_record
-from ..configuration import configure_robot, require_idle_robot, robot_name
+from ..configuration import (
+    configure_robot,
+    require_idle_robot,
+    resolve_robot,
+    robot_name,
+)
 from ..const import API_VERSION, DOMAIN
 from ..diagnostics import build_diagnostics
 from ..domain.capabilities import CancelSemantics
 from ..domain.errors import (
-    ConflictError,
     OrchestratorError,
     ValidationError,
     located,
@@ -52,21 +57,23 @@ from ..room_configuration import (
 from ..runtime import async_get_runtime
 from .errors import service_error
 from .job_input import (
-    ALL_ROOMS,
     ATTR_AREAS,
     ATTR_MODE,
     ATTR_MOP_INTENSITY,
     ATTR_MOP_ROUTE,
     ATTR_PASSES,
     ATTR_ROBOT_ID,
+    ATTR_ROOMS,
     ATTR_SETTINGS_POLICY,
     ATTR_VACUUM_POWER,
     CREATE_SCHEMA,
     INTENT_FIELDS,
+    SELECTION,
     _mode,
-    areas,
+    duration_seconds,
     intent_from_data,
     mop_route,
+    references,
     vacuum_level,
     water_level,
 )
@@ -96,16 +103,22 @@ PAGE = {
     ),
 }
 ROOM_ID: dict[Any, Any] = {probatio.Required("room_id"): cv.string}
+# Rooms named by HA area or VOI room; see dev doc "Actions".
+ROOMS: dict[Any, Any] = {
+    probatio.Optional(ATTR_AREAS, default=[]): references,
+    probatio.Optional(ATTR_ROOMS, default=[]): references,
+}
+DURATION = probatio.All(duration_seconds, probatio.Range(min=0.001))
 ROBOT_ID: dict[Any, Any] = {probatio.Required("robot_id"): cv.string}
 COMMANDS: dict[str, probatio.Schema | probatio.All[dict[str, Any]]] = {
     "configure_queue": probatio.All(
         probatio.Schema(
             {
                 probatio.Optional("grace_seconds"): probatio.All(
-                    probatio.Coerce(float), probatio.Range(min=0, max=86400)
+                    duration_seconds, probatio.Range(min=0, max=86400)
                 ),
                 probatio.Optional("start_delay_seconds"): probatio.All(
-                    probatio.Coerce(float),
+                    duration_seconds,
                     probatio.Range(min=0, max=MAX_START_DELAY_SECONDS),
                 ),
             }
@@ -157,16 +170,14 @@ COMMANDS: dict[str, probatio.Schema | probatio.All[dict[str, Any]]] = {
     "enable_room": probatio.Schema(ROOM_ID),
     "release_room": probatio.Schema(
         {
-            **ROOM_ID,
+            **ROOMS,
             probatio.Required("kind"): probatio.In(
                 [kind.value for kind in ReleaseKind]
             ),
-            probatio.Optional("duration_seconds"): probatio.All(
-                probatio.Coerce(float), probatio.Range(min=0.001)
-            ),
+            probatio.Optional("duration_seconds"): DURATION,
         }
     ),
-    "revoke_room": probatio.Schema(ROOM_ID),
+    "revoke_room": probatio.Schema(ROOMS),
     "add_robot": probatio.Schema({probatio.Required("configuration"): dict}),
     "configure_robot": probatio.Schema(
         {**ROBOT_ID, probatio.Required("configuration"): dict}
@@ -197,9 +208,7 @@ CARD_COMMANDS: dict[str, probatio.Schema] = {
                     {
                         probatio.Required("room"): cv.string,
                         probatio.Required("kind"): probatio.Coerce(ReleaseKind),
-                        probatio.Optional("duration_seconds"): probatio.All(
-                            probatio.Coerce(float), probatio.Range(min=0.001)
-                        ),
+                        probatio.Optional("duration_seconds"): DURATION,
                     }
                 )
             ]
@@ -230,11 +239,7 @@ QUERIES: dict[str, probatio.Schema] = {
     ),
     "get_job_execution": probatio.Schema({probatio.Required("job_id"): cv.string}),
     "preview_job": probatio.Schema(
-        {
-            **{key: value for key, value in INTENT_FIELDS.items() if key != ATTR_AREAS},
-            probatio.Optional(ATTR_AREAS): areas,
-            probatio.Optional(ATTR_ROBOT_ID): cv.string,
-        }
+        {**INTENT_FIELDS, probatio.Optional(ATTR_ROBOT_ID): cv.string}
     ),
     "get_trace": probatio.Schema({**PAGE, probatio.Optional("job_id"): cv.string}),
     "get_history": probatio.Schema(PAGE),
@@ -254,7 +259,7 @@ async def async_query_configuration(
     """Include live per-robot explanations without performing physical commands."""
     core = async_get_runtime(hass).orchestrator
     if name == "preview_job":
-        return await _async_preview(core, data)
+        return await _async_preview(hass, core, data)
     if name == "validate":
         return await async_validate(
             hass,
@@ -305,18 +310,27 @@ async def async_query_configuration(
 
 
 async def _async_preview(
-    core: VacuumOrchestrator, data: dict[str, Any]
+    hass: HomeAssistant, core: VacuumOrchestrator, data: dict[str, Any]
 ) -> dict[str, Any]:
     """Observe first; everything after it comes from one state, metadata too."""
-    snapshot = await core.async_observed_snapshot() if ATTR_AREAS in data else None
+    robot = data.get(ATTR_ROBOT_ID)
+    controller = async_get_runtime(hass).controller
+    if robot is not None and controller is not None:
+        robot = resolve_robot(hass, controller.entry, robot)
+    chosen = any(name in data for name in SELECTION)
+    snapshot = await core.async_observed_snapshot() if chosen else None
     defaults = core.state.job_defaults
     intent, area_reason = None, None
-    if ATTR_AREAS in data:
+    if chosen:
         try:
             intent = intent_from_data(
-                data, core.active_room_ids, defaults, core.entity_references
+                data,
+                core.active_room_ids,
+                defaults,
+                core.entity_references,
+                core.rooms.active_room_id,
             )
-        except ConflictError as err:
+        except OrchestratorError as err:
             area_reason = err.code
     preview: JobPreview = preview_draft(
         core,
@@ -328,7 +342,7 @@ async def _async_preview(
             data.get(ATTR_MOP_ROUTE),
         ),
         intent,
-        data.get(ATTR_ROBOT_ID),
+        robot,
     )
     reason = area_reason or preview.reason
     return {
@@ -610,6 +624,22 @@ async def execute_configuration(
         return await _execute_configuration(hass, name, data)
 
 
+@contextmanager
+def _selection_rows(areas: int) -> Iterator[None]:
+    """Point errors about grant or room rows at the `areas` or `rooms` item."""
+    try:
+        yield
+    except OrchestratorError as err:
+        path = err.path
+        if len(path) > 1 and isinstance(path[1], int):
+            index = path[1]
+            item = (ATTR_AREAS, index) if index < areas else (ATTR_ROOMS, index - areas)
+            path = path[2:] if path[2:] == ("duration_seconds",) else item
+        elif path:
+            path = (ATTR_AREAS,)
+        raise type(err)(err.code, err.detail, path=path) from err
+
+
 async def _execute_configuration(
     hass: HomeAssistant, name: str, data: dict[str, Any]
 ) -> dict[str, Any]:
@@ -618,6 +648,9 @@ async def _execute_configuration(
     core = runtime.orchestrator
     room_id = data.get("room_id")
     robot_id = data.get("robot_id")
+    if robot_id is not None and runtime.controller is not None:
+        robot_id = resolve_robot(hass, runtime.controller.entry, robot_id)
+        data = {**data, "robot_id": robot_id}
     result: dict[str, Any] = {"api_version": API_VERSION}
     if name == "complete_setup":
         result["completed_at"] = (await core.async_complete_setup()).isoformat()
@@ -652,6 +685,7 @@ async def _execute_configuration(
                 core.active_room_ids,
                 core.state.job_defaults,
                 core.entity_references,
+                core.rooms.room_id,
             )
         result["template_id"] = await core.templates.async_save(
             data["name"],
@@ -692,11 +726,21 @@ async def _execute_configuration(
     elif name == "enable_room":
         await core.rooms.async_enable(data["room_id"])
     elif name == "release_room":
-        result["grant_id"] = await core.rooms.async_grant(
-            data["room_id"], ReleaseKind(data["kind"]), data.get("duration_seconds")
+        named = [*data[ATTR_AREAS], *data[ATTR_ROOMS]]
+        requests = tuple(
+            GrantRequest(item, ReleaseKind(data["kind"]), data.get("duration_seconds"))
+            for item in named
         )
+        with _selection_rows(len(data[ATTR_AREAS])):
+            result["grant_ids"] = list(await core.rooms.async_grant_many(requests))
+        result["room_ids"] = [core.rooms.room_id(item) for item in named]
     elif name == "revoke_room":
-        await core.rooms.async_revoke(data["room_id"])
+        with _selection_rows(len(data[ATTR_AREAS])):
+            result["room_ids"] = list(
+                await core.rooms.async_revoke_many(
+                    [*data[ATTR_AREAS], *data[ATTR_ROOMS]]
+                )
+            )
     elif name == "release_rooms":
         requests = tuple(
             GrantRequest(item["room"], item["kind"], item.get("duration_seconds"))
@@ -763,9 +807,10 @@ def present_template(
     """Return a reusable public intent without internal execution records."""
     intent = template.intent
     values: dict[str, Any] = {
-        "areas": ALL_ROOMS
+        "areas": []
         if intent.all_rooms
         else [target.area_id for target in intent.areas],
+        "all_rooms": intent.all_rooms,
         "mode": intent.mode.value,
         "passes": intent.passes,
         "settings_policy": intent.settings_policy.value,

@@ -51,6 +51,17 @@ class RoomService:
         """Return the current verified room snapshot."""
         return self._state().room_registry
 
+    def room_id(self, reference: str) -> str:
+        """Name the room of a room or HA area ID."""
+        return self.registry.resolve(reference).room_id
+
+    def active_room_id(self, reference: str) -> str:
+        """Name the room of a room or HA area ID if it may take new jobs."""
+        room = self.registry.resolve(reference)
+        if not room.enabled or room.area_missing:
+            raise ConflictError("room_unavailable", reference)
+        return room.room_id
+
     async def async_create(self, name: str, *, area_id: str | None = None) -> str:
         """Create an unreleased canonical room with an optional HA area alias."""
         room = Room(self._id_factory(), name, area_id=area_id)

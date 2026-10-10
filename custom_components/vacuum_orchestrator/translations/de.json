@@ -106,6 +106,9 @@
     "admission_scope_changed": {
       "message": "Die für diesen Auftrag zugelassenen Räume haben sich geändert"
     },
+    "all_rooms_with_selection": {
+      "message": "Wähle entweder alle Räume oder Bereiche und Räume, nicht beides"
+    },
     "already_configured": {
       "message": "Dieser Roboter ist bereits eingerichtet"
     },

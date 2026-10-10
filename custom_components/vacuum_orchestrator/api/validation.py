@@ -11,7 +11,7 @@ from typing import Any
 import probatio
 from homeassistant.core import HomeAssistant
 
-from ..configuration import prepare_robot
+from ..configuration import prepare_robot, resolve_robot
 from ..configuration_values import schema_path
 from ..const import API_VERSION
 from ..domain.errors import OrchestratorError, ValidationError, located
@@ -80,6 +80,9 @@ async def _check(
     core = runtime.orchestrator
     controller = runtime.controller
     assert controller is not None
+    if values.get("robot_id") is not None:
+        robot_id = resolve_robot(hass, controller.entry, values["robot_id"])
+        values = {**values, "robot_id": robot_id}
     if command == "create_job":
         # Start conditions are no field errors: check the creation only.
         intent = intent_from_data(
@@ -87,13 +90,19 @@ async def _check(
             core.active_room_ids,
             core.state.job_defaults,
             core.entity_references,
+            core.rooms.active_room_id,
         )
         await core.async_dry_run(core.async_create_job(intent))
     elif command == "update_job":
         await core.async_dry_run(
             core.async_update_job(
                 values["job_id"],
-                patch_from_data(values, core.active_room_ids, core.entity_references),
+                patch_from_data(
+                    values,
+                    core.active_room_ids,
+                    core.entity_references,
+                    core.rooms.active_room_id,
+                ),
                 hold_id=values.get("hold_id"),
             )
         )

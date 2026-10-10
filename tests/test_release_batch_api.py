@@ -79,5 +79,5 @@ async def test_an_invalid_row_changes_nothing_and_names_its_field(
     assert field_of(card) == "rooms.1"
     assert (await call(hass, "get_rooms"))["commit_id"] == commit
 
-    await card.command("release_room", room_id="attic", kind="permanent")
-    assert field_of(card) == ""
+    await card.command("release_room", rooms=["attic"], kind="permanent")
+    assert field_of(card) == "rooms.0"

@@ -53,7 +53,7 @@ async def test_jobs_name_their_blockers_and_rooms_their_waiting_jobs(
     rooms = (await call(hass, "get_rooms"))["rooms"]
     assert [item["waiting_job_ids"] for item in rooms] == [[job]]
 
-    await call(hass, "release_room", room_id=room, kind="permanent")
+    await call(hass, "release_room", rooms=[room], kind="permanent")
     assert (await call(hass, "get_room", room_id=room))["waiting_job_ids"] == []
     released = (await call(hass, "get_job", job_id=job))["waiting"]
     assert released["code"] == "no_robot_configured"

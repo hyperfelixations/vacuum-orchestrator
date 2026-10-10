@@ -49,7 +49,7 @@ async def test_waiting_jobs_offer_what_their_commands_accept(
     assert queue["jobs"][1]["actions"]["move_down"]["reason"] == "job_at_bottom"
 
     # Released and reachable: start bypasses the idle queue and the delay.
-    await call(hass, "release_room", room_id=room, kind="permanent")
+    await call(hass, "release_room", rooms=[room], kind="permanent")
     core = async_get_runtime(hass).orchestrator
     adapter = RecordingAdapter(RecordingBackend(), "robot", targets=(room,))
     await core.async_replace_adapters({"robot": adapter})
@@ -99,7 +99,7 @@ async def test_a_finished_job_is_corrected_with_the_correct_job_action(
 ) -> None:
     room = (await call(hass, "create_room", name="Office"))["room_id"]
     job = (await call(hass, "create_job", areas=[room]))["job_id"]
-    await call(hass, "release_room", room_id=room, kind="permanent")
+    await call(hass, "release_room", rooms=[room], kind="permanent")
     core = async_get_runtime(hass).orchestrator
     # The adapter checks the boundary in the runtime's store.
     adapter = RecordingAdapter(MemoryBackend, "robot", targets=(room,))

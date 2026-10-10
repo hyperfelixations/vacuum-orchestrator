@@ -195,7 +195,7 @@ async def test_a_loaded_subscriber_hears_what_others_change(
         Card(hass).command("hold_job", job_id=job, purpose="edit")
     )
     assert {"jobs", "queue", "rooms"} <= await changed(
-        call(hass, "release_room", room_id=room, kind="permanent")
+        call(hass, "release_room", rooms=[room], kind="permanent")
     )
 
 

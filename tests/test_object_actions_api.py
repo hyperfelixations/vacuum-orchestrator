@@ -89,7 +89,7 @@ async def test_robots_offer_configuration_and_return_by_lease_and_capability(
 @pytest.mark.usefixtures("configured")
 async def test_room_views_use_the_orchestrator_clock(hass: HomeAssistant) -> None:
     room = (await call(hass, "create_room", name="Office"))["room_id"]
-    await call(hass, "release_room", room_id=room, kind="timed", duration_seconds=60)
+    await call(hass, "release_room", rooms=[room], kind="timed", duration_seconds=60)
     core = async_get_runtime(hass).orchestrator
     later = core.now() + timedelta(minutes=2)
     core._clock = lambda: later

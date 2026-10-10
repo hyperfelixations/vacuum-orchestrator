@@ -6,7 +6,7 @@ from typing import Any
 import probatio
 from homeassistant.helpers import config_validation as cv
 
-from ..domain.errors import ValidationError
+from ..domain.errors import ValidationError, located
 from ..domain.intents import CleaningPreferences, JobIntent, JobIntentPatch, TargetRef
 from ..domain.job_defaults import JobDefaults
 from ..domain.types import (
@@ -38,7 +38,9 @@ ATTR_OFFSET = "offset"
 ATTR_LIMIT = "limit"
 ATTR_HOLD_ID = "hold_id"
 ATTR_START = "start"
-ALL_ROOMS = "all"
+ATTR_ROOMS = "rooms"
+ATTR_ALL_ROOMS = "all_rooms"
+SELECTION = (ATTR_AREAS, ATTR_ROOMS, ATTR_ALL_ROOMS)
 
 
 def _mode(value: object) -> object:
@@ -65,14 +67,22 @@ water_level = _rung(WATER_LADDER)
 mop_route = _rung(ROUTE_LADDER)
 
 
-def areas(value: object) -> list[str] | str:
-    """Accept room IDs or "all", alone or as the only list item."""
-    selected = probatio.All(cv.ensure_list, [cv.string])(value)
-    return ALL_ROOMS if selected == [ALL_ROOMS] else selected
+references = probatio.All(cv.ensure_list, [cv.string])
 
 
+def duration_seconds(value: object) -> float:
+    """Accept seconds or a duration such as `{minutes: 15}` or `"00:15:00"`."""
+    return float(cv.time_period(value).total_seconds())
+
+
+# Room selection; see dev doc "Jobvertrag".
+SELECTION_FIELDS: dict[Any, Any] = {
+    probatio.Optional(ATTR_AREAS): references,
+    probatio.Optional(ATTR_ROOMS): references,
+    probatio.Optional(ATTR_ALL_ROOMS): cv.boolean,
+}
 INTENT_FIELDS: dict[Any, Any] = {
-    probatio.Required(ATTR_AREAS): areas,
+    **SELECTION_FIELDS,
     probatio.Optional(ATTR_MODE): _mode,
     probatio.Optional(ATTR_NAME): cv.string,
     probatio.Optional(ATTR_VACUUM_POWER): vacuum_level,
@@ -102,7 +112,7 @@ CREATE_JOB_SCHEMA = CREATE_SCHEMA.extend(
 UPDATE_SCHEMA = probatio.Schema(
     {
         probatio.Required(ATTR_JOB_ID): cv.string,
-        probatio.Optional(ATTR_AREAS): areas,
+        **SELECTION_FIELDS,
         probatio.Optional(ATTR_MODE): _mode,
         probatio.Optional(ATTR_NAME): probatio.Any(None, cv.string),
         probatio.Optional(ATTR_VACUUM_POWER): probatio.Any(None, vacuum_level),
@@ -126,12 +136,28 @@ UPDATE_SCHEMA = probatio.Schema(
 )
 
 
-def selected_areas(
-    value: list[str] | str, active_rooms: Callable[[], tuple[str, ...]]
-) -> tuple[TargetRef, ...]:
-    """Snapshot an all-rooms selection or keep the requested references."""
-    room_ids = active_rooms() if value == ALL_ROOMS else value
-    return tuple(TargetRef(room_id) for room_id in room_ids)
+Resolve = Callable[[str], str]
+
+
+def selected_rooms(
+    data: Mapping[str, Any],
+    active_rooms: Callable[[], tuple[str, ...]],
+    resolve: Resolve,
+) -> tuple[tuple[TargetRef, ...], bool]:
+    """Snapshot all active rooms or resolve the named areas and rooms in order.
+
+    `resolve` names the room of an area or room ID and raises at that field.
+    """
+    if data.get(ATTR_ALL_ROOMS):
+        if data.get(ATTR_AREAS) or data.get(ATTR_ROOMS):
+            raise ValidationError("all_rooms_with_selection", path=(ATTR_ALL_ROOMS,))
+        return tuple(TargetRef(room_id) for room_id in active_rooms()), True
+    room_ids: list[str] = []
+    for name in (ATTR_AREAS, ATTR_ROOMS):
+        for index, reference in enumerate(data.get(name, ())):
+            with located(name, index):
+                room_ids.append(resolve(reference))
+    return tuple(TargetRef(room_id) for room_id in dict.fromkeys(room_ids)), False
 
 
 def intent_from_data(
@@ -139,10 +165,12 @@ def intent_from_data(
     active_rooms: Callable[[], tuple[str, ...]],
     defaults: JobDefaults,
     references: EntityReferences,
+    resolve: Resolve,
 ) -> JobIntent:
     """Build the canonical intent; unnamed values come from the job defaults."""
+    targets, all_rooms = selected_rooms(data, active_rooms, resolve)
     return JobIntent(
-        areas=selected_areas(data[ATTR_AREAS], active_rooms),
+        areas=targets,
         mode=data.get(ATTR_MODE, defaults.mode),
         name=data.get(ATTR_NAME),
         preferences=CleaningPreferences(
@@ -157,7 +185,7 @@ def intent_from_data(
         required_on=tuple(map(references.reference, data[ATTR_REQUIRED_ON])),
         required_off=tuple(map(references.reference, data[ATTR_REQUIRED_OFF])),
         settings_policy=data.get(ATTR_SETTINGS_POLICY, defaults.settings_policy),
-        all_rooms=data[ATTR_AREAS] == ALL_ROOMS,
+        all_rooms=all_rooms,
     )
 
 
@@ -165,10 +193,10 @@ def patch_from_data(
     data: Mapping[str, Any],
     active_rooms: Callable[[], tuple[str, ...]],
     references: EntityReferences,
+    resolve: Resolve,
 ) -> JobIntentPatch:
     """Build a job update from the fields an update names."""
     names = {
-        ATTR_AREAS: "areas",
         ATTR_MODE: "mode",
         ATTR_NAME: "name",
         ATTR_VACUUM_POWER: "vacuum_power",
@@ -183,14 +211,15 @@ def patch_from_data(
         ATTR_SETTINGS_POLICY: "settings_policy",
     }
     values: dict[str, object] = {}
+    if any(name in data for name in SELECTION):
+        values["areas"], values["all_rooms"] = selected_rooms(
+            data, active_rooms, resolve
+        )
     for public_name, field_name in names.items():
         if public_name not in data:
             continue
         value = data[public_name]
-        if public_name == ATTR_AREAS:
-            values["all_rooms"] = value == ALL_ROOMS
-            value = selected_areas(value, active_rooms)
-        elif public_name in {ATTR_REQUIRED_ON, ATTR_REQUIRED_OFF}:
+        if public_name in {ATTR_REQUIRED_ON, ATTR_REQUIRED_OFF}:
             value = tuple(map(references.reference, value))
         values[field_name] = value
     return JobIntentPatch(**values)  # type: ignore[arg-type]

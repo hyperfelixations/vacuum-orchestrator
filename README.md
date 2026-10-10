@@ -158,31 +158,34 @@ every robot you want to retain. A room can contain more than one segment.
 
 ### 3. Decide when the room may be cleaned
 
-Release a room using `vacuum_orchestrator.release_room`:
+Release rooms using `vacuum_orchestrator.release_room`. Name them by their
+Home Assistant area in `areas`; a room without an area goes by its room ID in
+`rooms`. All named rooms receive the same permission in one step:
 
 | Permission | Choose | When it ends |
 |---|---|---|
 | Until I lock it again | `permanent` | When you revoke or replace the permission |
 | One job | `once` | After one job has actually started, including all its cleaning phases |
-| For a set time | `timed` | After `duration_seconds`, for example `7200` for two hours |
+| For a set time | `timed` | After `duration_seconds`, for example `{hours: 2}` or `7200` |
 | This queue run | `queue_run` | When the current queue run, or the next one you start, finishes |
 
-Use `revoke_room` to lock a room again. Expiring or revoking permission stops
-new jobs from starting; a job that has already started can finish its remaining
-phases. To stop that job, use `cancel_job`.
+Use `revoke_room` with `areas` or `rooms` to lock rooms again. Expiring or
+revoking permission stops new jobs from starting; a job that has already started
+can finish its remaining phases. To stop that job, use `cancel_job`.
 
 ## Your first cleaning
 
-Replace `ROOM_ID` below with a room ID from `get_rooms`. A linked Home Assistant
-area ID is also accepted. In **Developer tools → Actions**, switch to YAML mode
-and run each action separately.
+Replace `AREA_ID` below with the Home Assistant area of the room; in UI mode
+you pick it from the list. A room without an area goes by its room ID from
+`get_rooms` in `rooms` instead. In **Developer tools → Actions**, switch to
+YAML mode and run each action separately.
 
 **Release the room for this queue run:**
 
 ```yaml
 action: vacuum_orchestrator.release_room
 data:
-  room_id: ROOM_ID
+  areas: [AREA_ID]
   kind: queue_run
 ```
 
@@ -191,15 +194,15 @@ data:
 ```yaml
 action: vacuum_orchestrator.create_job
 data:
-  areas: [ROOM_ID]
+  areas: [AREA_ID]
   mode: vacuum
   name: First room cleaning
 ```
 
-Use `areas: all` for every enabled room that at least one robot can clean. The
-job keeps the rooms selected at creation. A template saved with `areas: all`,
-or from a job created that way, selects the rooms again each time it creates a
-job.
+Use `all_rooms: true` instead of `areas` and `rooms` for every enabled room
+whose area still exists. The job keeps the rooms selected at creation. A
+template saved with `all_rooms: true`, or from a job created that way, selects
+the rooms again each time it creates a job.
 
 **Start processing the queue:**
 
@@ -254,7 +257,7 @@ cleaning mode.
 
 | What you want to do | Action and fields |
 |---|---|
-| Add a job | `create_job`: `areas`, optional `mode`, `name` and settings |
+| Add a job | `create_job`: `areas`, `rooms` or `all_rooms`, optional `mode`, `name` and settings |
 | Add a job and start it now | `create_job` with `start: true`, optional `robot_id` |
 | Set the job defaults | `configure_job_defaults`: the defaults to change |
 | Edit a waiting job | `update_job`: `job_id` and the fields to change |
@@ -269,7 +272,8 @@ cleaning mode.
 | Correct what a finished job achieved | `correct_job`: `job_id`, `outcome: completed` or `failed` |
 | Remove a waiting or finished job | `delete_job`: `job_id` |
 
-All action names use the prefix `vacuum_orchestrator.`. Pausing lets already
+All action names use the prefix `vacuum_orchestrator.`. A `robot_id` field
+takes the robot's vacuum entity or its VOI robot ID. Pausing lets already
 started jobs finish, including their remaining phases.
 
 `create_job` with `start: true` creates the job and reserves a robot in one
@@ -326,7 +330,8 @@ for that queue run are locked again. **Blocked jobs may remain in the queue.**
 
 Pausing keeps the run and its permissions open. After resuming, a new quiet
 period is required. Use `configure_queue` with `grace_seconds` to change the
-duration for future runs; `900` means 15 minutes, and `0` means no extra wait.
+duration for future runs, for example `{minutes: 15}` or `900`; `0` means no
+extra wait.
 
 ### Add door or robot conditions
 
@@ -393,7 +398,7 @@ action: vacuum_orchestrator.save_template
 data:
   name: Regular vacuuming
   intent:
-    areas: [ROOM_ID]
+    areas: [AREA_ID]
     mode: vacuum
   automatic: false
 ```

@@ -40,7 +40,6 @@ async def test_a_job_draft_is_checked_like_create_job(hass: HomeAssistant) -> No
     assert await validate(hass, "create_job", passes=11, colour="red") == [
         ("passes", "out_of_range"),
         ("colour", "unknown_field"),
-        ("areas", "required_field"),
     ]
     assert await validate(hass, "create_job", areas=[room], mode="sweep") == [
         ("mode", "invalid_value")

@@ -1,4 +1,4 @@
-"""Actions accept "all" as every active room for jobs and templates."""
+"""Actions select every active room with `all_rooms` for jobs and templates."""
 
 from __future__ import annotations
 
@@ -31,13 +31,12 @@ from tests.errors import raises_code
 from tests.test_runtime import MemoryBackend
 
 
-def test_schema_accepts_all_as_string_or_single_item() -> None:
-    assert CREATE_SCHEMA({"areas": "all", "mode": "vacuum"})["areas"] == "all"
-    assert CREATE_SCHEMA({"areas": ["all"], "mode": "vacuum"})["areas"] == "all"
-    assert CREATE_SCHEMA({"areas": "kitchen", "mode": "vacuum"})["areas"] == ["kitchen"]
-    assert CREATE_SCHEMA({"areas": [], "mode": "vacuum"})["areas"] == []
+def test_schema_takes_areas_and_rooms_as_lists_and_all_rooms_as_flag() -> None:
+    selection = CREATE_SCHEMA({"areas": "kitchen", "rooms": "attic"})
+    assert (selection["areas"], selection["rooms"]) == (["kitchen"], ["attic"])
+    assert CREATE_SCHEMA({"all_rooms": "yes"})["all_rooms"] is True
     with pytest.raises(probatio.Invalid):
-        CREATE_SCHEMA({"areas": [{"id": "all"}], "mode": "vacuum"})
+        CREATE_SCHEMA({"areas": [{"id": "kitchen"}]})
 
 
 async def call(hass: HomeAssistant, action: str, **data: object) -> dict:
@@ -96,30 +95,34 @@ async def test_jobs_and_templates_can_target_all_rooms(
     await async_setup_orchestrator(hass, entry)
     await hass.async_block_till_done()
 
-    job = await call(hass, "create_job", areas="all", mode="vacuum")
+    job = await call(hass, "create_job", all_rooms=True, mode="vacuum")
     detail = await call(hass, "get_job", job_id=job["job_id"])
     assert (detail["areas"], detail["all_rooms"]) == ([kitchen.id, cellar.id], True)
     await call(hass, "update_job", job_id=job["job_id"], areas=[kitchen.id])
     assert not (await call(hass, "get_job", job_id=job["job_id"]))["all_rooms"]
-    await call(hass, "update_job", job_id=job["job_id"], areas="all")
+    await call(hass, "update_job", job_id=job["job_id"], all_rooms=True)
     assert (await call(hass, "get_job", job_id=job["job_id"]))["all_rooms"]
     from_job = await call(
         hass, "save_job_as_template", job_id=job["job_id"], name="From job"
     )
     template = await call(
-        hass, "save_template", name="All", intent={"areas": "all", "mode": "vacuum"}
+        hass,
+        "save_template",
+        name="All",
+        intent={"all_rooms": True, "mode": "vacuum"},
     )
     templates = {
         item["template_id"]: item
         for item in (await call(hass, "get_templates"))["templates"]
     }
-    assert templates[template["template_id"]]["intent"]["areas"] == "all"
-    assert templates[from_job["template_id"]]["intent"]["areas"] == "all"
+    for saved in (template, from_job):
+        intent = templates[saved["template_id"]]["intent"]
+        assert (intent["areas"], intent["all_rooms"]) == ([], True)
 
     rooms = (await call(hass, "get_job", job_id=job["job_id"]))["room_ids"]
     await call(hass, "delete_job", job_id=job["job_id"])
     for room in rooms:
         await call(hass, "disable_room", room_id=room)
     with raises_code("no_active_rooms"):
-        await call(hass, "create_job", areas=["all"], mode="vacuum")
+        await call(hass, "create_job", all_rooms=True, mode="vacuum")
     await async_unload_orchestrator(hass, entry)

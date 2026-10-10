@@ -106,6 +106,9 @@
     "admission_scope_changed": {
       "message": "The rooms admitted for this job changed"
     },
+    "all_rooms_with_selection": {
+      "message": "Choose either all rooms or areas and rooms, not both"
+    },
     "already_configured": {
       "message": "This robot is already configured"
     },

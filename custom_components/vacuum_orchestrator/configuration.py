@@ -319,6 +319,18 @@ def require_robot(entry: ConfigEntry, robot_id: str) -> ConfigSubentry:
     return subentry
 
 
+def resolve_robot(hass: HomeAssistant, entry: ConfigEntry, value: str) -> str:
+    """Return the robot ID named by itself or by its vacuum entity."""
+    if value in entry.subentries:
+        return value
+    registered = er.async_get(hass).async_get(value)
+    if registered is not None:
+        for subentry_id, subentry in entry.subentries.items():
+            if subentry.data.get(CONF_ROBOT_REGISTRY_ID) == registered.id:
+                return subentry_id
+    return value
+
+
 def require_idle_robot(entry: ConfigEntry, robot_id: str) -> ConfigSubentry:
     """Validate mutation ownership for both configuration flows and public commands."""
     subentry = require_robot(entry, robot_id)

@@ -15,6 +15,7 @@ from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util.json import JsonObjectType, JsonValueType
 
+from ..configuration import resolve_robot
 from ..const import (
     API_VERSION,
     DOMAIN,
@@ -130,21 +131,22 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
 
     async def create_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
-        intent = intent_from_data(
-            dict(call.data),
-            runtime.orchestrator.active_room_ids,
-            runtime.orchestrator.state.job_defaults,
-            runtime.orchestrator.entity_references,
-        )
-        if not call.data[ATTR_START]:
-            job_id = await _translate_errors(
-                runtime.orchestrator.async_create_job(intent)
+        core = runtime.orchestrator
+        try:
+            intent = intent_from_data(
+                dict(call.data),
+                core.active_room_ids,
+                core.state.job_defaults,
+                core.entity_references,
+                core.rooms.active_room_id,
             )
+        except OrchestratorError as err:
+            raise service_error(err) from err
+        if not call.data[ATTR_START]:
+            job_id = await _translate_errors(core.async_create_job(intent))
             return _command_response(call, runtime, {ATTR_JOB_ID: job_id})
         job_id, assignment = await _translate_errors(
-            runtime.orchestrator.async_create_and_start_job(
-                intent, call.data.get(ATTR_ROBOT_ID)
-            )
+            core.async_create_and_start_job(intent, _robot(hass, runtime, call))
         )
         return _command_response(
             call,
@@ -158,15 +160,19 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
 
     async def update_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
+        core = runtime.orchestrator
+        try:
+            patch = patch_from_data(
+                call.data,
+                core.active_room_ids,
+                core.entity_references,
+                core.rooms.active_room_id,
+            )
+        except OrchestratorError as err:
+            raise service_error(err) from err
         await _translate_errors(
-            runtime.orchestrator.async_update_job(
-                call.data[ATTR_JOB_ID],
-                patch_from_data(
-                    call.data,
-                    runtime.orchestrator.active_room_ids,
-                    runtime.orchestrator.entity_references,
-                ),
-                hold_id=call.data.get(ATTR_HOLD_ID),
+            core.async_update_job(
+                call.data[ATTR_JOB_ID], patch, hold_id=call.data.get(ATTR_HOLD_ID)
             )
         )
         return _command_response(call, runtime, {ATTR_JOB_ID: call.data[ATTR_JOB_ID]})
@@ -193,7 +199,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         runtime = await _runtime_for_call(hass, call)
         assignment = await _translate_errors(
             runtime.orchestrator.async_start_job(
-                call.data[ATTR_JOB_ID], call.data.get(ATTR_ROBOT_ID)
+                call.data[ATTR_JOB_ID], _robot(hass, runtime, call)
             )
         )
         return _command_response(
@@ -254,12 +260,10 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
 
     async def return_robot(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
-        await _translate_errors(
-            runtime.orchestrator.async_return_robot(call.data[ATTR_ROBOT_ID])
-        )
-        return _command_response(
-            call, runtime, {ATTR_ROBOT_ID: call.data[ATTR_ROBOT_ID]}
-        )
+        robot_id = _robot(hass, runtime, call)
+        assert robot_id is not None
+        await _translate_errors(runtime.orchestrator.async_return_robot(robot_id))
+        return _command_response(call, runtime, {ATTR_ROBOT_ID: robot_id})
 
     async def retry_job(call: ServiceCall) -> ServiceResponse | None:
         runtime = await _runtime_for_call(hass, call)
@@ -335,6 +339,17 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
     _register(hass, SERVICE_CORRECT_JOB, correct_job, CORRECT_SCHEMA)
     _register_query(hass, SERVICE_GET_QUEUE, get_queue, GET_QUEUE_SCHEMA)
     _register_query(hass, SERVICE_GET_JOB, get_job, JOB_SCHEMA)
+
+
+def _robot(
+    hass: HomeAssistant, runtime: VacuumOrchestratorRuntime, call: ServiceCall
+) -> str | None:
+    """Name the robot a call selects by robot ID or vacuum entity."""
+    value = call.data.get(ATTR_ROBOT_ID)
+    controller = runtime.controller
+    if value is None or controller is None:
+        return value
+    return resolve_robot(hass, controller.entry, value)
 
 
 def _register(

@@ -4,12 +4,23 @@ create_job:
     settings, passes and settings policy take the job defaults.
   fields:
     areas:
-      name: Room or area IDs
-      description: Canonical VOI room IDs or Home Assistant area IDs, or "all" for
-        every enabled room whose area exists. Use get_rooms to discover IDs.
-      required: true
+      name: Areas
+      description: Home Assistant areas to clean, in this order. VOI room IDs are
+        accepted as well.
       selector:
-        object: {}
+        area:
+          multiple: true
+    rooms:
+      name: Rooms without area
+      description: VOI room IDs of rooms that have no Home Assistant area.
+      selector:
+        text:
+          multiple: true
+    all_rooms:
+      name: All rooms
+      description: Clean every active room instead of naming areas or rooms.
+      selector:
+        boolean: {}
     mode:
       name: Cleaning mode
       selector:
@@ -95,10 +106,13 @@ create_job:
       selector:
         boolean: {}
     robot_id:
-      name: Robot ID
-      description: Only with start; otherwise VOI chooses the robot.
+      name: Robot
+      description: Only with start; otherwise VOI chooses the robot. Its vacuum or
+        its robot ID.
       selector:
-        text: {}
+        entity:
+          filter:
+            domain: vacuum
 update_job:
   name: Update job
   description: Change only the supplied fields of a queued job.
@@ -109,12 +123,23 @@ update_job:
       selector:
         text: null
     areas:
-      name: Room or area IDs
-      description: Canonical VOI room IDs or Home Assistant area IDs, or "all" for
-        every enabled room whose area exists. Use get_rooms to discover IDs.
-      required: false
+      name: Areas
+      description: Home Assistant areas to clean, in this order. VOI room IDs are
+        accepted as well.
       selector:
-        object: {}
+        area:
+          multiple: true
+    rooms:
+      name: Rooms without area
+      description: VOI room IDs of rooms that have no Home Assistant area.
+      selector:
+        text:
+          multiple: true
+    all_rooms:
+      name: All rooms
+      description: Clean every active room instead of naming areas or rooms.
+      selector:
+        boolean: {}
     mode:
       name: Cleaning mode
       selector:
@@ -220,9 +245,12 @@ start_job:
   fields:
     job_id: *id002
     robot_id:
-      name: Robot ID
+      name: Robot
+      description: Its vacuum or its robot ID.
       selector:
-        text: null
+        entity:
+          filter:
+            domain: vacuum
 run_queue:
   name: Run queue
   description: Enable automatic queue processing and dispatch safe jobs.
@@ -273,10 +301,13 @@ return_robot:
   description: Send a robot that is not running a job back to its dock.
   fields:
     robot_id:
-      name: Robot ID
+      name: Robot
+      description: Its vacuum or its robot ID.
       required: true
       selector:
-        text: {}
+        entity:
+          filter:
+            domain: vacuum
 retry_job:
   name: Retry job
   description: Create a new queued job from a terminal job.
@@ -325,25 +356,20 @@ configure_queue:
     of new and edited jobs; give at least one.
   fields:
     grace_seconds:
-      name: Grace period (seconds)
-      description: How long an idle run stays open; blocked pending jobs do not keep
-        a run open.
+      name: Grace period
+      description: How long an idle run stays open, at most one day; blocked pending
+        jobs do not keep a run open.
       required: false
       selector:
-        number:
-          min: 0
-          max: 86400
-          mode: box
+        duration: {}
     start_delay_seconds:
-      name: Start delay (seconds)
-      description: How long the queue waits before automatically starting a job that
-        was just added or edited. Starting a job directly skips the delay.
+      name: Start delay
+      description: How long the queue waits, at most 10 minutes, before automatically
+        starting a job that was just added or edited. Starting a job directly skips
+        the delay.
       required: false
       selector:
-        number:
-          min: 0
-          max: 600
-          mode: box
+        duration: {}
 configure_job_defaults:
   name: Configure job defaults
   description: Set the robot-neutral values new jobs receive when they name none;
@@ -427,11 +453,23 @@ enable_room:
   description: Make a disabled room available for new jobs again.
   fields: *id005
 release_room:
-  name: Release room
-  description: Allow new jobs permanently, for exactly one started job, for a duration,
-    or until the current/next queue run ends.
+  name: Release rooms
+  description: Allow new jobs in the rooms permanently, for exactly one started job,
+    for a duration, or until the current/next queue run ends.
   fields:
-    room_id: *id004
+    areas:
+      name: Areas
+      description: Home Assistant areas of the rooms. VOI room IDs are accepted as
+        well.
+      selector:
+        area:
+          multiple: true
+    rooms:
+      name: Rooms without area
+      description: VOI room IDs of rooms that have no Home Assistant area.
+      selector:
+        text:
+          multiple: true
     kind:
       name: Release type
       required: true
@@ -445,13 +483,25 @@ release_room:
     duration_seconds:
       name: Duration (timed only)
       selector:
-        number:
-          min: 0.001
-          mode: box
+        duration: {}
 revoke_room:
-  name: Revoke room release
-  description: Block new jobs. Already started jobs may finish all phases.
-  fields: *id005
+  name: Revoke room releases
+  description: Block new jobs in the rooms. Already started jobs may finish all
+    phases.
+  fields:
+    areas:
+      name: Areas
+      description: Home Assistant areas of the rooms. VOI room IDs are accepted as
+        well.
+      selector:
+        area:
+          multiple: true
+    rooms:
+      name: Rooms without area
+      description: VOI room IDs of rooms that have no Home Assistant area.
+      selector:
+        text:
+          multiple: true
 add_robot:
   name: Add robot
   description: Add a registered HA vacuum through the shared robot validator.
@@ -467,10 +517,13 @@ configure_robot:
     preferences.
   fields:
     robot_id: &id006
-      name: Robot ID
+      name: Robot
+      description: Its vacuum or its robot ID.
       required: true
       selector:
-        text: {}
+        entity:
+          filter:
+            domain: vacuum
     configuration:
       name: Configuration
       required: true
@@ -665,11 +718,23 @@ preview_job:
     could start now.
   fields:
     areas:
-      name: Room or area IDs
-      description: Optional while no room is chosen yet; "all" selects every active
-        room.
+      name: Areas
+      description: Home Assistant areas to clean, in this order. VOI room IDs are
+        accepted as well.
       selector:
-        object: {}
+        area:
+          multiple: true
+    rooms:
+      name: Rooms without area
+      description: VOI room IDs of rooms that have no Home Assistant area.
+      selector:
+        text:
+          multiple: true
+    all_rooms:
+      name: All rooms
+      description: Clean every active room instead of naming areas or rooms.
+      selector:
+        boolean: {}
     mode:
       name: Cleaning mode
       selector:
@@ -719,6 +784,9 @@ preview_job:
         entity:
           multiple: true
     robot_id:
-      name: Robot ID
+      name: Robot
+      description: Its vacuum or its robot ID.
       selector:
-        text: {}
+        entity:
+          filter:
+            domain: vacuum
