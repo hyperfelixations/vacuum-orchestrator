@@ -300,6 +300,15 @@ Faults of another operation, such as an empty water tank during vacuuming, do
 not stop a job, and a fault that first appears after the robot finished
 cleaning does not count against that run.
 
+Roborock robots also report a water shortage, a removed mop or water tank and
+an empty clean water tank, a full dirty water tank or an empty cleaning fluid
+tank of the station. These keep mopping jobs from starting; vacuuming goes on.
+An empty tank needs your attention at once. A removed mop or water tank needs
+it only once a mopping job waits for it, since you may have removed it on
+purpose. If your station refills the robot, only the station's tank counts. To
+ignore one of these sensors, set it to `null` in the robot profile's
+**Advanced** field, for example `roles: {mop_attached: null}`.
+
 Every action can return a response, for example through `response_variable` in
 a script. Commands return `api_version`, `commit_id` and the affected IDs, such
 as `job_id`.

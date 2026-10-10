@@ -49,6 +49,7 @@ def setup_robot(
     config=None,
     unbound=(),
     target_areas=("kitchen", "upstairs"),
+    sensors=None,
 ):
     registry = er.async_get(hass)
     vacuum = registry.async_get_or_create(
@@ -73,6 +74,10 @@ def setup_robot(
         "in_cleaning": ("binary_sensor", "off", None),
         "error": ("sensor", "none", None),
         "dock_error": ("sensor", "ok", None),
+        **{
+            role: ("binary_sensor", value, None)
+            for role, value in (sensors or {}).items()
+        },
     }
     for role, (domain, value, options) in values.items():
         entity = registry.async_get_or_create(
@@ -831,3 +836,64 @@ async def test_b01_shows_its_one_map_image_without_an_inventory(
     assert maps.maps == ()
     assert maps.current_image_ref == image
     assert maps.unavailable_reason is MapsUnavailable.NOT_SUPPORTED
+
+
+SENSORS = {
+    "mop_attached": "on",
+    "water_box_attached": "on",
+    "water_shortage": "off",
+    "dirty_box_full": "off",
+    "clean_fluid_empty": "off",
+}
+
+
+@pytest.mark.parametrize(
+    ("role", "problem", "fault"),
+    [
+        ("mop_attached", "off", ("mop_detached", "robot", "mop", False)),
+        ("water_box_attached", "off", ("water_box_detached", "robot", "mop", False)),
+        ("water_shortage", "on", ("water_shortage", "robot", "mop", True)),
+        ("dirty_box_full", "on", ("dirty_water_full", "dock", "station_mop", True)),
+        ("clean_fluid_empty", "on", ("cleaning_fluid_empty", "dock", "notice", True)),
+    ],
+)
+async def test_tank_mop_and_station_sensors_are_faults(
+    hass: HomeAssistant, role: str, problem: str, fault: tuple
+) -> None:
+    adapter, _, _ = setup_robot(hass, sensors=SENSORS)
+    assert (await adapter.async_observe()).faults == ()
+    hass.states.async_set(f"binary_sensor.{role}", problem)
+    observed = await adapter.async_observe()
+    (reported,) = observed.faults
+    assert (
+        reported.code,
+        reported.source.value,
+        reported.scope.value,
+        reported.needs_action,
+    ) == fault
+    assert reported.entity_id == f"binary_sensor.{role}"
+    assert observed.state is RobotAvailabilityState.AVAILABLE
+    for unusable in ("unknown", "unavailable"):
+        hass.states.async_set(f"binary_sensor.{role}", unusable)
+        assert (await adapter.async_observe()).faults == ()
+
+
+async def test_a_refilling_dock_reports_its_own_tank_instead_of_the_robots(
+    hass: HomeAssistant,
+) -> None:
+    adapter, _, _ = setup_robot(
+        hass, sensors={**SENSORS, "water_shortage": "on", "clean_box_empty": "on"}
+    )
+    (reported,) = (await adapter.async_observe()).faults
+    assert (reported.code, reported.source, reported.scope) == (
+        "clean_water_empty",
+        FaultSource.DOCK,
+        FaultScope.STATION_MOP,
+    )
+
+
+async def test_a_deselected_sensor_role_reports_nothing(hass: HomeAssistant) -> None:
+    adapter, _, _ = setup_robot(
+        hass, sensors={**SENSORS, "mop_attached": "off"}, unbound=("mop_attached",)
+    )
+    assert (await adapter.async_observe()).faults == ()

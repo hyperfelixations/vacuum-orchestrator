@@ -507,6 +507,7 @@ def query_configuration(
                         "source": fault.source.value,
                         "operations": sorted(item.value for item in fault.operations),
                         "entity_id": fault.entity_id,
+                        "needs_action": fault.needs_action,
                     }
                     for fault in observation.faults
                 ],

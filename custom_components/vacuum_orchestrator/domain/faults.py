@@ -44,12 +44,17 @@ _OPERATIONS = {
 
 @dataclass(frozen=True, slots=True)
 class Fault:
-    """One active device fault; `entity_id` is the entity reporting it."""
+    """One active device fault; `entity_id` is the entity reporting it.
+
+    `needs_action` is false for a state a person may have chosen, such as a
+    removed mop; it needs attention only once a job runs into or waits for it.
+    """
 
     code: str
     source: FaultSource
     scope: FaultScope
     entity_id: str | None = None
+    needs_action: bool = True
 
     @property
     def operations(self) -> frozenset[OperationKind]:

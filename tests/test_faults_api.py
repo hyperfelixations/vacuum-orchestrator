@@ -54,6 +54,7 @@ async def test_a_fault_is_shown_and_signalled_without_a_commit(
             "source": "robot",
             "operations": ["mop", "vacuum", "vacuum_and_mop"],
             "entity_id": vacuum.entity_id,
+            "needs_action": True,
         }
     ]
     queue = await call(hass, "get_queue")

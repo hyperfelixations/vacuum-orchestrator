@@ -12,6 +12,7 @@ from custom_components.vacuum_orchestrator.adapters.roborock_faults import (
     DOCK_NEUTRAL,
     ROBOT_FAULTS,
     ROBOT_NEUTRAL,
+    SENSOR_FAULTS,
 )
 from custom_components.vacuum_orchestrator.domain.faults import (
     Fault,
@@ -34,6 +35,11 @@ def test_tables_cover_exactly_the_core_options() -> None:
     assert set(DOCK_FAULTS) | DOCK_NEUTRAL == _options("dock_error")
     assert not set(ROBOT_FAULTS) & ROBOT_NEUTRAL
     assert not set(DOCK_FAULTS) & DOCK_NEUTRAL
+
+
+def test_sensor_roles_are_core_binary_sensors() -> None:
+    strings = json.loads(CORE.read_text(encoding="utf-8"))
+    assert {row[0] for row in SENSOR_FAULTS} <= set(strings["entity"]["binary_sensor"])
 
 
 @pytest.mark.parametrize(

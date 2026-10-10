@@ -4,7 +4,7 @@ The tables cover exactly the options of the installed core integration; a test
 compares them. Unknown codes are general faults. See dev doc "Gerätefehler".
 """
 
-from ..domain.faults import FaultScope
+from ..domain.faults import FaultScope, FaultSource
 
 GENERAL = FaultScope.GENERAL
 VACUUM = FaultScope.VACUUM
@@ -79,6 +79,19 @@ DOCK_FAULTS: dict[str, FaultScope] = {
     "waste_water_tank_full": STATION_MOP,
     "water_empty": STATION_MOP,
 }
+
+# Binary sensor role, problem state, code, source, scope and whether it needs
+# action on its own. A dock with a clean water tank refills the robot, so the
+# robot's water shortage is no fault there.
+SENSOR_FAULTS: tuple[tuple[str, str, str, FaultSource, FaultScope, bool], ...] = (
+    ("mop_attached", "off", "mop_detached", FaultSource.ROBOT, MOP, False),
+    ("water_box_attached", "off", "water_box_detached", FaultSource.ROBOT, MOP, False),
+    ("water_shortage", "on", "water_shortage", FaultSource.ROBOT, MOP, True),
+    ("clean_box_empty", "on", "clean_water_empty", FaultSource.DOCK, STATION_MOP, True),
+    ("dirty_box_full", "on", "dirty_water_full", FaultSource.DOCK, STATION_MOP, True),
+    ("clean_fluid_empty", "on", "cleaning_fluid_empty", FaultSource.DOCK, NOTICE, True),
+)
+REFILLING_DOCK_ROLE = "clean_box_empty"
 
 # Roborock status values that are faults themselves; `device_offline` is not.
 STATUS_FAULTS = frozenset({"error", "charging_problem", "locked"})

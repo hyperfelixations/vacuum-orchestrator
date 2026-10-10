@@ -20,7 +20,13 @@ from ..domain.types import PassScope, RobotAvailabilityState, RobotPhase
 from ..ha_context import physical_context
 from ..ports.telemetry import TelemetryEvent, report_adapter
 from .home_assistant_vacuum import HomeAssistantVacuumAdapter
-from .roborock_faults import DOCK_FAULTS, ROBOT_FAULTS, STATUS_FAULTS
+from .roborock_faults import (
+    DOCK_FAULTS,
+    REFILLING_DOCK_ROLE,
+    ROBOT_FAULTS,
+    SENSOR_FAULTS,
+    STATUS_FAULTS,
+)
 from .roborock_status import AT_DOCK, STATUS_PHASES
 from .settings import available_options, supported_mapping
 
@@ -318,11 +324,24 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
         table = ROBOT_FAULTS if source is FaultSource.ROBOT else DOCK_FAULTS
         return table.get(code, FaultScope.GENERAL)
 
+    def _sensor_faults(self) -> tuple[Fault, ...]:
+        """Read tank, mop and station sensors; see dev doc "Gerätefehler"."""
+        refilled = self.role_bound(REFILLING_DOCK_ROLE)
+        return tuple(
+            Fault(code, source, scope, self.role_entity(role), needs_action)
+            for role, problem, code, source, scope, needs_action in SENSOR_FAULTS
+            if self.role_value(role) == problem
+            and not (code == "water_shortage" and refilled)
+        )
+
     async def async_observe(self) -> RobotObservation:
         """Separate floor cleaning from mapping, mop washing and dock activity."""
         observation = await super().async_observe()
         if observation.state is RobotAvailabilityState.UNKNOWN:
             return observation
+        observation = replace(
+            observation, faults=(*observation.faults, *self._sensor_faults())
+        )
         general = any(fault.scope is FaultScope.GENERAL for fault in observation.faults)
         flag = self.role_value("in_cleaning")
         # Bound but unusable roles fail closed; see internal dev doc "Adapter".

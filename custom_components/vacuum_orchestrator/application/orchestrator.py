@@ -29,7 +29,7 @@ from ..domain.errors import (
     located,
 )
 from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun
-from ..domain.faults import blocking
+from ..domain.faults import Fault, blocking
 from ..domain.holds import HoldPurpose, JobHold, lease_end
 from ..domain.intents import UNSET, JobIntent, JobIntentPatch, TargetRef
 from ..domain.monitoring import MonitorAction, next_deadline
@@ -49,7 +49,7 @@ from ..domain.types import (
     QueueMode,
     RobotAvailabilityState,
 )
-from ..domain.waiting import Waiting, pending
+from ..domain.waiting import RobotsState, Waiting, pending
 from ..ports.command_scope import check_command_authorization, command_origin
 from ..ports.entities import EntityReferences, LiteralEntityReferences
 from ..ports.repository import OrchestratorRepository
@@ -215,7 +215,7 @@ class VacuumOrchestrator:
         self._availability: dict[str, bool] = {}
         self._observations: dict[str, RobotObservation] = {}
         # When each robot's current device faults were first observed.
-        self._fault_since: dict[str, datetime] = {}
+        self._fault_since: dict[str, dict[str, datetime]] = {}
         # The observation that sent an attempt into recovery, newest last.
         self._recovery_triggers: OrderedDict[str, TraceRecord] = OrderedDict()
         self.rooms = RoomService(self._mutate, lambda: self.state, clock, id_factory)
@@ -350,12 +350,14 @@ class VacuumOrchestrator:
                 fault
                 for fault in (observation.faults if observation else ())
                 if fault.operations & operations
+                and (fault.needs_action or self._held_up_by(state, robot_id, fault))
             ]
             if faults:
                 lease = state.robot_leases.get(adapter.profile.source_robot_id)
                 waiting = state.attempts[lease.attempt_id] if lease else None
                 if waiting is not None and waiting.fault_since is None:
                     waiting = None
+                since = self._fault_since.get(robot_id, {})
                 entries.append(
                     Attention(
                         AttentionKind.DEVICE_FAULT,
@@ -364,7 +366,14 @@ class VacuumOrchestrator:
                         tuple(fault.code for fault in faults),
                         frozenset().union(*(fault.operations for fault in faults))
                         & operations,
-                        self._fault_since.get(robot_id),
+                        min(
+                            (
+                                since[fault.code]
+                                for fault in faults
+                                if fault.code in since
+                            ),
+                            default=None,
+                        ),
                         waiting.fault_deadline if waiting else None,
                     )
                 )
@@ -398,6 +407,44 @@ class VacuumOrchestrator:
                 )
             )
         return tuple(entries)
+
+    def _held_up_by(
+        self, state: OrchestratorState, robot_id: str, fault: Fault
+    ) -> bool:
+        """Return whether a job on this robot runs into or waits for the fault."""
+        attempt = next(
+            (
+                state.attempts[lease.attempt_id]
+                for lease in state.robot_leases.values()
+                if lease.robot_id == robot_id
+            ),
+            None,
+        )
+        if attempt is not None:
+            job = state.jobs[attempt.job_id]
+            unit = next(
+                item
+                for item in state.plans[job.plan_id or ""].work_units
+                if item.work_unit_id == attempt.work_unit_id
+            )
+            if unit.operation in fault.operations:
+                return True
+        for job in state.jobs.values():
+            waiting = self.waiting(job.job_id)
+            if (
+                waiting is None
+                or waiting.robots.state is not RobotsState.NO_ROBOT_READY
+            ):
+                continue
+            if any(
+                blocker.code == "robot_fault"
+                and fault.code in (blocker.detail or "").split(",")
+                for candidate in waiting.robots.candidates
+                if candidate.robot_id == robot_id
+                for blocker in candidate.blockers
+            ):
+                return True
+        return False
 
     def now(self) -> datetime:
         """Return the clock every deadline and read model is based on."""
@@ -1423,12 +1470,12 @@ class VacuumOrchestrator:
 
     def _record_availability(self, observation: RobotObservation) -> None:
         self._observations[observation.robot_id] = observation
-        if blocking(observation.faults, None):
-            self._fault_since.setdefault(
-                observation.robot_id, observation.observed_at or self._clock()
-            )
-        else:
-            self._fault_since.pop(observation.robot_id, None)
+        known = self._fault_since.get(observation.robot_id, {})
+        seen = observation.observed_at or self._clock()
+        self._fault_since[observation.robot_id] = {
+            fault.code: known.get(fault.code, seen)
+            for fault in blocking(observation.faults, None)
+        }
         online = observation.state not in {
             RobotAvailabilityState.UNKNOWN,
             RobotAvailabilityState.UNAVAILABLE,
