@@ -18,6 +18,7 @@ from tests.contract.recorder import (
     Session,
     deterministic,
     provenance,
+    serve_frontend_messages,
     voi_commit,
 )
 from tests.contract.scenarios import SCENARIOS, Stage, entry, home_of
@@ -43,6 +44,7 @@ async def test_recording_matches_the_integration(
     scenario = SCENARIOS[name]
     home = scenario.household(hass)
     assert await async_setup_component(hass, DOMAIN, {})
+    await serve_frontend_messages(hass)
     session = await Session.connect(hass, hass_ws_client, freezer)
     await scenario.run(Stage(hass, home, session, entry()))
     await session.settle()
@@ -58,6 +60,7 @@ async def test_recording_matches_the_integration(
         "scenario": name,
         "description": scenario.description,
         "home": home_of(home),
+        "hass": session.initial_hass,
         "steps": session.steps,
     }
     if committed is None:

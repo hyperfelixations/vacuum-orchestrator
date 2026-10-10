@@ -35,15 +35,17 @@ class Stage:
         await self.session.settle()
 
     async def open(self) -> None:
-        """Load the integration, then open the card: subscribe and read."""
+        """Load the integration, then open the card: subscribe, check and read."""
         await self.load()
         await self.session.request({"type": f"{DOMAIN}/subscribe"})
+        await self.session.probe()
+        await self.session.read_static()
         await self.session.read()
 
     async def rooms(self) -> dict[str, str]:
         """VOI room IDs by area name, as the card reads them."""
         names = {area_id: name for name, area_id in self.home.areas.items()}
-        rooms = (await self.session.query("get_rooms"))["rooms"]
+        rooms = (await self.session.collection("get_rooms"))["rooms"]
         return {names[room["area_id"]]: room["room_id"] for room in rooms}
 
     async def release(self, *names: str) -> None:
@@ -90,9 +92,10 @@ async def setup(stage: Stage) -> None:
     session = stage.session
     await session.request({"type": f"{DOMAIN}/subscribe"})
     await stage.load()
+    await session.probe()
+    await session.read_static()
     await session.read()
-    await session.query("get_robot_candidates")
-    (robot,) = (await session.query("get_robots"))["robots"]
+    (robot,) = (await session.collection("get_robots"))["robots"]
     await session.command(
         "rename_robot", robot_id=robot["robot_id"], name="Saugi unten"
     )
@@ -311,17 +314,17 @@ async def recovery(stage: Stage) -> None:
     await session.read()
     await session.advance(300)
     await session.read()
-    await session.query("get_trace", job_id=job)
+    await session.read_job(job)
     robot.dock_after_run()
     await session.home("Saugi is back at its dock")
-    (robot_view,) = (await session.query("get_robots"))["robots"]
+    (robot_view,) = (await session.collection("get_robots"))["robots"]
     await session.command(
         "resolve_recovery", robot_id=robot_view["robot_id"], confirm_stopped=True
     )
     await session.read()
     await session.action("correct_job", job_id=job, outcome="completed")
-    await session.request({"type": f"{DOMAIN}/job/get", "job_id": job})
-    await session.query("get_rooms")
+    await session.read_job(job)
+    await session.read()
 
 
 SCENARIOS: dict[str, Scenario] = {

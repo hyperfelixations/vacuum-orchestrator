@@ -1,13 +1,14 @@
-"""Record what a client exchanges with the real integration over HA's WebSocket.
+"""Record what a card exchanges with the real integration over HA's WebSocket.
 
 See dev doc "Aufzeichnungen". Frames are kept as received; only the transport
-message ID is renumbered, because the harness interleaves its own pings.
+message ID is renumbered, because the harness interleaves its own pings. A
+second connection reads what the HA frontend gives a card as `hass`.
 """
 
 from __future__ import annotations
 
 import subprocess
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from itertools import count
@@ -17,8 +18,11 @@ from typing import Any
 import pytest
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.auth.const import GROUP_ID_ADMIN
+from homeassistant.components import websocket_api
+from homeassistant.components.frontend import websocket_get_translations
 from homeassistant.const import __version__ as HA_VERSION
 from homeassistant.core import HomeAssistant
+from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import (
     CLIENT_ID,
     MockUser,
@@ -33,7 +37,13 @@ from custom_components.vacuum_orchestrator.const import API_VERSION, DOMAIN
 
 ROOT = Path(__file__).parents[2]
 RECORDINGS = Path(__file__).parent / "recordings"
-FORMAT = 1
+FORMAT = 2
+# What the card reads, as it reads it; see the card's scope loaders.
+CARD_PAGE_SIZE = 25
+CARD_COLLECTION_LIMIT = 100
+OPEN_JOB_STATES = ["dispatching", "running", "canceling", "needs_attention"]
+CARD_COLLECTIONS = ("get_rooms", "get_robots", "get_robot_candidates", "get_templates")
+CARD_LANGUAGES = ("en", "de")
 # Six real fractional digits, so consumers parse every timestamp they will see.
 FROZEN_NOW = "2026-03-14T09:26:53.589793+00:00"
 USER_ID = "0123456789abcdef0123456789abcdef"
@@ -64,6 +74,17 @@ def deterministic(
     )
 
 
+async def serve_frontend_messages(hass: HomeAssistant) -> None:
+    """Answer what HA's frontend and the card ask besides the integration.
+
+    The current user comes from `auth`, the registry lists from `config`; the
+    error texts from the frontend's own handler, without its web assets.
+    """
+    for component in ("auth", "config"):
+        assert await async_setup_component(hass, component, {})
+    websocket_api.async_register_command(hass, websocket_get_translations)
+
+
 async def admin_token(hass: HomeAssistant) -> str:
     """An access token of an administrator with a fixed user ID."""
     user = MockUser(id=USER_ID, name="Recording")
@@ -80,6 +101,7 @@ class Session:
         self,
         hass: HomeAssistant,
         client: MockHAClientWebSocket,
+        frontend: MockHAClientWebSocket,
         freezer: FrozenDateTimeFactory,
     ) -> None:
         self.hass = hass
@@ -91,6 +113,13 @@ class Session:
         self._recorded: dict[int, int] = {}
         self._results: dict[int, dict[str, Any]] = {}
         self._stalled = False
+        self.frontend = frontend
+        self._frontend_ids = count(1)
+        # What `hass` showed when the recording began, and its latest parts.
+        self.initial_hass: dict[str, Any] = {}
+        self._hass: dict[str, Any] = {}
+        self._registry_read: Any = None
+        self._pending_events: list[dict[str, Any]] = []
 
     @classmethod
     async def connect(
@@ -99,9 +128,99 @@ class Session:
         hass_ws_client: WebSocketGenerator,
         freezer: FrozenDateTimeFactory,
     ) -> Session:
-        """Open an authenticated connection as the card does."""
-        client = await hass_ws_client(hass, await admin_token(hass))
-        return cls(hass, client, freezer)
+        """Open an authenticated connection as the card does, and the frontend's."""
+        token = await admin_token(hass)
+        session = cls(
+            hass,
+            await hass_ws_client(hass, token),
+            await hass_ws_client(hass, token),
+            freezer,
+        )
+        await session._start_frontend()
+        return session
+
+    async def _start_frontend(self) -> None:
+        """Subscribe to entity states as the frontend does and keep the start."""
+        await self._frontend_request({"type": "subscribe_entities"})
+        await self._frontend_request({"type": "ping"})
+        (start,) = self._frontend_events()
+        self._hass = {**await self._hass_parts(), "states": self._states(start["a"])}
+        self.initial_hass = dict(self._hass)
+
+    async def _frontend_request(self, message: dict[str, Any]) -> Any:
+        sent = next(self._frontend_ids)
+        await self.frontend.send_json({"id": sent, **message})
+        while (frame := await self.frontend.receive_json())["type"] == "event" or (
+            frame["id"] != sent
+        ):
+            self._pending_events.append(frame["event"])
+        if frame["type"] == "pong":
+            return None
+        assert frame["success"], frame
+        return frame["result"]
+
+    def _frontend_events(self) -> list[dict[str, Any]]:
+        events, self._pending_events = self._pending_events, []
+        return events
+
+    def _states(self, entity_ids: Iterable[str]) -> dict[str, Any]:
+        """The current states as the frontend receives them, by entity ID.
+
+        Without contexts: HA draws their IDs in varying order and cards do not
+        read them.
+        """
+        return {
+            entity_id: {
+                key: value
+                for key, value in state.as_compressed_state.items()
+                if key != "c"
+            }
+            for entity_id in sorted(entity_ids)
+            if (state := self.hass.states.get(entity_id)) is not None
+        }
+
+    async def _hass_parts(self) -> dict[str, Any]:
+        """The parts of `hass` a card reads, from the frontend's own messages."""
+        config = await self._frontend_request({"type": "get_config"})
+        return {
+            # Only these: the rest names the machine's paths.
+            "config": {
+                "components": sorted(config["components"]),
+                "version": config["version"],
+            },
+            "user": await self._frontend_request({"type": "auth/current_user"}),
+            "areas": await self._frontend_request(
+                {"type": "config/area_registry/list"}
+            ),
+            "entities": await self._frontend_request(
+                {"type": "config/entity_registry/list_for_display"}
+            ),
+            "services": {
+                DOMAIN: sorted(self.hass.services.async_services_for_domain(DOMAIN))
+            },
+        }
+
+    async def _record_hass(self) -> None:
+        """Note what changed in `hass` since the last step."""
+        await self._frontend_request({"type": "ping"})
+        changes: dict[str, Any] = {}
+        # One step for everything that changed meanwhile: HA reports states of
+        # one moment in varying order.
+        changed = {
+            entity_id
+            for event in self._frontend_events()
+            for kind in ("a", "c", "r")
+            for entity_id in event.get(kind, ())
+        }
+        if changed:
+            states = self._states(changed)
+            removed = sorted(changed - states.keys())
+            changes["states"] = {"a": states} | ({"r": removed} if removed else {})
+        for key, value in (await self._hass_parts()).items():
+            if self._hass.get(key) != value:
+                self._hass[key] = changes[key] = value
+        if changes:
+            self.steps.append({"hass": changes})
 
     async def send(self, message: dict[str, Any]) -> int:
         """Send a message without waiting for its answer; return its recorded ID."""
@@ -144,14 +263,54 @@ class Session:
         """Call an action as the card does and return its result frame."""
         return await self.request(action(name, **data))
 
+    async def probe(self) -> None:
+        """Check the integration as a card does before it reads."""
+        await self.request({"type": f"{DOMAIN}/queue/get", "offset": 0, "limit": 1})
+
+    async def read_static(self) -> None:
+        """Read what a card loads once: the integration's error texts."""
+        for language in CARD_LANGUAGES:
+            await self.request(
+                {
+                    "type": "frontend/get_translations",
+                    "language": language,
+                    "category": "exceptions",
+                    "integration": [DOMAIN],
+                }
+            )
+
     async def read(self) -> None:
-        """Load the views the card shows: queue, jobs, rooms, robots, setup."""
-        await self.request({"type": f"{DOMAIN}/queue/get"})
-        jobs = self._success(await self.request({"type": f"{DOMAIN}/jobs/list"}))
-        for job in jobs["jobs"]:
-            await self.request({"type": f"{DOMAIN}/job/get", "job_id": job["job_id"]})
-        for name in ("get_rooms", "get_robots", "get_setup"):
-            await self.query(name)
+        """Read what a card shows on its queue view, as the card asks for it."""
+        await self.request(
+            {"type": f"{DOMAIN}/queue/get", "offset": 0, "limit": CARD_PAGE_SIZE}
+        )
+        await self.request(
+            {
+                "type": f"{DOMAIN}/jobs/list",
+                "offset": 0,
+                "limit": CARD_COLLECTION_LIMIT,
+                "states": OPEN_JOB_STATES,
+            }
+        )
+        for name in CARD_COLLECTIONS:
+            await self.query(name, offset=0, limit=CARD_COLLECTION_LIMIT)
+        await self.query("get_setup")
+        # The card reads the registry again only once it changed.
+        if self._hass["entities"] != self._registry_read:
+            self._registry_read = self._hass["entities"]
+            await self.request({"type": "config/entity_registry/list"})
+
+    async def collection(self, name: str) -> Any:
+        """Read a configuration collection as the card does: its first page."""
+        return await self.query(name, offset=0, limit=CARD_COLLECTION_LIMIT)
+
+    async def read_job(self, job_id: str) -> None:
+        """Read what a card shows on a job's detail page."""
+        await self.request({"type": f"{DOMAIN}/job/get", "job_id": job_id})
+        await self.query("get_job_execution", job_id=job_id)
+        await self.query(
+            "get_trace", offset=0, limit=CARD_COLLECTION_LIMIT, job_id=job_id
+        )
 
     async def home(self, change: str) -> None:
         """Note a change in the home outside the card, then let VOI react."""
@@ -186,6 +345,7 @@ class Session:
         while (frame := await self.client.receive_json())["id"] != ping:
             self._receive(frame)
         assert frame["type"] == "pong"
+        await self._record_hass()
 
     def _receive(self, frame: dict[str, Any]) -> None:
         frame["id"] = self._recorded[frame["id"]]
