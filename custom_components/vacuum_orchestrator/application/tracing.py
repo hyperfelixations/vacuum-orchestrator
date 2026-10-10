@@ -12,9 +12,34 @@ from ..domain.errors import OrchestratorError
 from ..ports.telemetry import TelemetryEvent as TraceEvent
 from ..ports.telemetry import TelemetrySink
 
-__all__ = ["TraceEvent", "TraceRecorder"]
+__all__ = ["ObservationTrace", "TraceEvent", "TraceRecorder"]
 
 _request_id: ContextVar[str | None] = ContextVar("voi_trace_request", default=None)
+
+
+@dataclass(frozen=True, slots=True)
+class ObservationTrace:
+    """Monitor inputs and decision of one observation.
+
+    `faults` lists `code:scope:source` entries separated by commas. See dev doc
+    "Strukturierte HA-Protokollierung".
+    """
+
+    observed_at: str | None = None
+    phase: str | None = None
+    cleaning_active: bool | None = None
+    normal_end: bool | None = None
+    at_dock: bool | None = None
+    completion_confirmed: bool | None = None
+    observed_operation: str | None = None
+    completed_operation: str | None = None
+    faults: str | None = None
+    targets: str | None = None
+    previous_state: str | None = None
+    monitor_action: str | None = None
+    monitor_reason: str | None = None
+    deadline_at: str | None = None
+    terminal_observed_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +67,21 @@ class TraceRecord:
     operation: str | None = None
     exception_type: str | None = None
     frames: str | None = None
+    observed_at: str | None = None
+    phase: str | None = None
+    cleaning_active: bool | None = None
+    normal_end: bool | None = None
+    at_dock: bool | None = None
+    completion_confirmed: bool | None = None
+    observed_operation: str | None = None
+    completed_operation: str | None = None
+    faults: str | None = None
+    targets: str | None = None
+    previous_state: str | None = None
+    monitor_action: str | None = None
+    monitor_reason: str | None = None
+    deadline_at: str | None = None
+    terminal_observed_at: str | None = None
 
 
 class TraceRecorder:
@@ -86,6 +126,7 @@ class TraceRecorder:
         stage: str | None = None,
         operation: str | None = None,
         error: Exception | None = None,
+        observation: ObservationTrace | None = None,
     ) -> None:
         """Append only normalized values chosen by the application."""
         self.sequence += 1
@@ -123,6 +164,7 @@ class TraceRecorder:
             operation,
             type(error).__name__ if error is not None else None,
             ";".join(frames) if frames else None,
+            **(asdict(observation) if observation is not None else {}),
         )
         self._records.append(record)
         if self.sink is not None:
@@ -131,7 +173,9 @@ class TraceRecorder:
             except Exception:
                 self.sink_failures += 1
 
-    def snapshot(self, job_id: str | None = None) -> list[dict[str, str | int | None]]:
+    def snapshot(
+        self, job_id: str | None = None
+    ) -> list[dict[str, str | int | bool | None]]:
         """Return independent records, optionally scoped to one job."""
         return [
             asdict(item)

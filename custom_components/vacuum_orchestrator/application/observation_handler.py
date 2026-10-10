@@ -1,16 +1,31 @@
 """Translate pure monitoring decisions into one atomic ledger transition."""
 
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from ..domain.completion import CleaningReceipt, CleaningSource, CompletionQuality
 from ..domain.correlation import correlate_run
 from ..domain.dispatching import RobotObservation
 from ..domain.execution import RobotRun
-from ..domain.monitoring import MonitorAction, evaluate_observation
+from ..domain.monitoring import MonitorAction, MonitorDecision, evaluate_observation
 from ..domain.queue import OrchestratorState
-from ..domain.types import AttemptState
+from ..domain.types import AttemptState, OperationKind
+
+
+@dataclass(frozen=True, slots=True)
+class ObservationResult:
+    """A candidate state and the monitor decision it came from.
+
+    `targets` compares reported completed targets with the assignment:
+    `none`, `complete`, `partial` or `mismatch`. See dev doc "Strukturierte
+    HA-Protokollierung".
+    """
+
+    state: OrchestratorState
+    decision: MonitorDecision | None = None
+    operation: OperationKind | None = None
+    targets: str | None = None
 
 
 def apply_observation(
@@ -18,11 +33,11 @@ def apply_observation(
     observation: RobotObservation,
     now: datetime,
     id_factory: Callable[[], str],
-) -> OrchestratorState:
+) -> ObservationResult:
     """Keep success receipts and execution state inside the same critical write."""
     lease = state.robot_leases.get(observation.source_robot_id)
     if lease is None:
-        return state
+        return ObservationResult(state)
     attempt = state.attempts[lease.attempt_id]
     job = state.jobs[attempt.job_id]
     plan = state.plans[job.plan_id or ""]
@@ -31,6 +46,39 @@ def apply_observation(
     )
     assignment = state.assignments[attempt.attempt_id]
     decision = evaluate_observation(attempt, unit, assignment, observation, now)
+    reported, assigned = (
+        set(observation.completed_targets),
+        set(assignment.adapter_targets),
+    )
+    return ObservationResult(
+        _transition(state, observation, now, id_factory, decision),
+        decision,
+        unit.operation,
+        targets="none"
+        if not reported
+        else "complete"
+        if reported == assigned
+        else "partial"
+        if reported < assigned
+        else "mismatch",
+    )
+
+
+def _transition(
+    state: OrchestratorState,
+    observation: RobotObservation,
+    now: datetime,
+    id_factory: Callable[[], str],
+    decision: MonitorDecision,
+) -> OrchestratorState:
+    lease = state.robot_leases[observation.source_robot_id]
+    attempt = state.attempts[lease.attempt_id]
+    job = state.jobs[attempt.job_id]
+    plan = state.plans[job.plan_id or ""]
+    unit = next(
+        item for item in plan.work_units if item.work_unit_id == attempt.work_unit_id
+    )
+    assignment = state.assignments[attempt.attempt_id]
     observed_at = observation.observed_at or now
     if decision.action is MonitorAction.WAIT:
         return state

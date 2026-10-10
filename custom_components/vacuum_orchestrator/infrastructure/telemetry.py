@@ -82,6 +82,7 @@ CODES = frozenset(
         "job_prerequisites",
         "loaded",
         "loading",
+        "mismatch",
         "observation_failed",
         "observation_out_of_order",
         "observation_source_mismatch",
@@ -90,6 +91,7 @@ CODES = frozenset(
         "observed_start_and_stable_normal_end",
         "omitted",
         "online",
+        "partial",
         "received",
         "recovery_abandoned",
         "rejected",
@@ -189,6 +191,56 @@ _IDS = frozenset(
     ]
 )
 _NUMBERS = frozenset(["sequence", "commit_id", "runtime_sequence"])
+_CODED = frozenset(
+    {
+        "state",
+        "stage",
+        "reason",
+        "quality",
+        "operation",
+        "phase",
+        "observed_operation",
+        "completed_operation",
+        "targets",
+        "previous_state",
+        "monitor_action",
+        "monitor_reason",
+    }
+)
+# Three-valued observation facts; None stays visible as unknown.
+_FLAGS = frozenset({"cleaning_active", "normal_end", "at_dock", "completion_confirmed"})
+_LOCAL = frozenset(
+    {
+        "timestamp",
+        "runtime_id",
+        "frames",
+        "observed_at",
+        "deadline_at",
+        "terminal_observed_at",
+    }
+)
+# Semantic fields of repeated events; timestamps never make them unique.
+_FINGERPRINT = (
+    "state",
+    "stage",
+    "reason",
+    "attempt_id",
+    "quality",
+    "operation",
+    "phase",
+    "cleaning_active",
+    "normal_end",
+    "at_dock",
+    "completion_confirmed",
+    "observed_operation",
+    "completed_operation",
+    "faults",
+    "targets",
+    "previous_state",
+    "monitor_action",
+    "monitor_reason",
+    "terminal_observed_at",
+)
 _REPEATED = frozenset({"robot_observation", "dispatch_blocked", "availability"})
 
 
@@ -213,7 +265,12 @@ class LoggingSink:
     def sanitize(self, record: Mapping[str, Scalar]) -> dict[str, Scalar]:
         """Render only known fields; unknown text is never copied into an export."""
         result: dict[str, Scalar] = {"diagnostic_version": 1}
+        observation = record.get("event") == TelemetryEvent.OBSERVATION
         for key, value in record.items():
+            if key in _FLAGS:
+                if observation or value is not None:
+                    result[key] = value if isinstance(value, bool) else None
+                continue
             if value is None:
                 continue
             if key in _IDS:
@@ -226,9 +283,17 @@ class LoggingSink:
                 result[key] = value if value in COMMANDS else "unknown"
             elif key == "exception_type":
                 result[key] = value if value in _ERROR_TYPES else "ExternalError"
-            elif key in {"state", "stage", "reason", "quality", "operation"}:
+            elif key in _CODED:
                 result[key] = value if value in self._values else "redacted"
-            elif key in {"timestamp", "runtime_id", "frames"}:
+            elif key == "faults":
+                result[key] = ",".join(
+                    ":".join(
+                        part if part in self._values else "redacted"
+                        for part in str(fault).split(":")
+                    )
+                    for fault in str(value).split(",")
+                )
+            elif key in _LOCAL:
                 # These fields are generated locally, never from device/request data.
                 result[key] = value
         return result
@@ -247,18 +312,7 @@ class LoggingSink:
         if event in _REPEATED:
             key = f"{event}:{clean.get('robot_id')}:{clean.get('job_id')}"
             fingerprint = json.dumps(
-                {
-                    name: clean.get(name)
-                    for name in (
-                        "state",
-                        "stage",
-                        "reason",
-                        "attempt_id",
-                        "quality",
-                        "operation",
-                    )
-                },
-                sort_keys=True,
+                {name: clean.get(name) for name in _FINGERPRINT}, sort_keys=True
             )
             now = monotonic()
             old = self._last.pop(key, None)

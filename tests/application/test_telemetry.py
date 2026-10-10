@@ -386,3 +386,38 @@ def test_own_codes_and_known_vendor_values_stay_readable() -> None:
         "redacted"
     )
     assert sink.sanitize({"reason": "Kitchen door"})["reason"] == "redacted"
+
+
+def test_phase_changes_are_never_folded_into_repetitions(caplog) -> None:
+    sink = LoggingSink(ADAPTER_VALUES)
+    base = {"event": "robot_observation", "robot_id": "robot", "state": "busy"}
+    with caplog.at_level(logging.DEBUG, logger="custom_components.vacuum_orchestrator"):
+        for phase, reason, timestamp in (
+            ("cleaning", "segment_cleaning", "t1"),
+            ("cleaning", "segment_cleaning", "t2"),
+            ("returning", "returning_home", "t3"),
+            ("returning", "vendor text", "t4"),
+            ("cleaning", "other vendor text", "t5"),
+        ):
+            sink.emit(
+                {**base, "phase": phase, "reason": reason, "timestamp": timestamp}
+            )
+    phases = [
+        json.loads(record.getMessage().split(" ", 1)[1])["phase"]
+        for record in caplog.records
+    ]
+    assert phases == ["cleaning", "returning", "returning", "cleaning"]
+
+
+def test_unknown_observation_facts_stay_visible_as_none() -> None:
+    clean = LoggingSink().sanitize(
+        {
+            "event": "robot_observation",
+            "cleaning_active": None,
+            "normal_end": False,
+            "faults": "water_empty:station_mop:dock,Kitchen:general:robot",
+        }
+    )
+    assert clean["cleaning_active"] is None and clean["normal_end"] is False
+    assert clean["faults"] == "redacted:station_mop:dock,redacted:general:robot"
+    assert "cleaning_active" not in LoggingSink().sanitize({"event": "command"})

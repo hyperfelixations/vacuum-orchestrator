@@ -10,6 +10,9 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
+from custom_components.vacuum_orchestrator.adapters.public_values import (
+    ADAPTER_VALUES,
+)
 from custom_components.vacuum_orchestrator.application.orchestrator import (
     VacuumOrchestrator,
 )
@@ -31,8 +34,25 @@ from custom_components.vacuum_orchestrator.domain.types import (
 from custom_components.vacuum_orchestrator.infrastructure.critical_repository import (
     CriticalOrchestratorRepository,
 )
+from custom_components.vacuum_orchestrator.infrastructure.telemetry import (
+    LoggingSink,
+)
 from tests.adapters.test_roborock import setup_robot, simulate_settings
 from tests.application.test_orchestrator import NOW, IdFactory, RecordingBackend
+
+DECISION = (
+    "event",
+    "phase",
+    "reason",
+    "cleaning_active",
+    "normal_end",
+    "completion_confirmed",
+    "operation",
+    "observed_operation",
+    "previous_state",
+    "monitor_action",
+    "monitor_reason",
+)
 
 
 async def _core(backend: RecordingBackend, adapter: object) -> VacuumOrchestrator:
@@ -93,6 +113,20 @@ async def test_a_run_that_returns_home_with_another_mode_setting_completes(
 
     await observe("returning_home", "off", seconds=870)
     assert core.state.jobs[job_id].state is JobState.RUNNING
+    returning = LoggingSink(ADAPTER_VALUES).sanitize(core.trace.snapshot()[-1])
+    assert {key: returning[key] for key in DECISION} == {
+        "event": "robot_observation",
+        "phase": "returning",
+        "reason": "returning_home",
+        "cleaning_active": False,
+        "normal_end": False,
+        "completion_confirmed": False,
+        "operation": "vacuum",
+        "observed_operation": "vacuum_and_mop",
+        "previous_state": "start_confirmed",
+        "monitor_action": "wait",
+        "monitor_reason": "cleaning_not_finished",
+    }
     await observe("charging", "off", seconds=80)
     await observe("emptying_the_bin", "off", seconds=3)
     await observe("charging", "off", seconds=24)

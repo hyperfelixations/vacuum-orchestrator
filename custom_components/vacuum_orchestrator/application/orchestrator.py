@@ -31,6 +31,7 @@ from ..domain.execution import ExecutionAttempt, RobotLease, RobotRun
 from ..domain.faults import blocking
 from ..domain.holds import HoldPurpose, JobHold, lease_end
 from ..domain.intents import UNSET, JobIntent, JobIntentPatch, TargetRef
+from ..domain.monitoring import next_deadline
 from ..domain.permissions import require, returnable
 from ..domain.planning import DispatchAssignment, ExecutionPlan, Planner, WorkUnit
 from ..domain.progress import Progress, job_progress
@@ -54,13 +55,13 @@ from ..ports.repository import OrchestratorRepository
 from ..ports.robot import RobotAdapter
 from ..ports.telemetry import adapter_reporter
 from .external_observations import apply_external_observation
-from .observation_handler import apply_observation
+from .observation_handler import ObservationResult, apply_observation
 from .queue_run_service import QueueRunService, closed_now, has_unfinished_work
 from .robot_session import RobotCommandTicket, RobotSession
 from .room_readiness import RequirementReader, evaluate_room_readiness
 from .room_service import RoomService
 from .template_service import TemplateService
-from .tracing import TraceEvent, TraceRecorder
+from .tracing import ObservationTrace, TraceEvent, TraceRecorder
 from .waiting import awaiting_release, explain_waiting
 
 Clock = Callable[[], datetime]
@@ -1026,22 +1027,21 @@ class VacuumOrchestrator:
             state = self._verified_state()
             self._record_availability(observation)
             lease = state.robot_leases.get(observation.source_robot_id)
-            self.trace.record(
-                TraceEvent.OBSERVATION,
-                self._clock(),
-                robot_id=robot_id,
-                attempt_id=lease.attempt_id if lease else None,
-                job_id=state.attempts[lease.attempt_id].job_id if lease else None,
-                state=observation.state.value,
-                reason=observation.reason,
-            )
-            candidate = (
+            result = (
                 apply_observation(state, observation, self._clock(), self._id_factory)
                 if lease is not None
-                else apply_external_observation(
-                    state, observation, adapter.profile, self._clock(), self._id_factory
+                else ObservationResult(
+                    apply_external_observation(
+                        state,
+                        observation,
+                        adapter.profile,
+                        self._clock(),
+                        self._id_factory,
+                    )
                 )
             )
+            self._trace_observation(robot_id, observation, state, result)
+            candidate = result.state
             if candidate is state:
                 return
             await self._commit_locked(state, candidate)
@@ -1059,6 +1059,60 @@ class VacuumOrchestrator:
                     elif lease.source_robot_id not in candidate.robot_leases:
                         session.release(lease.attempt_id)
         await self.async_dispatch_available()
+
+    def _trace_observation(
+        self,
+        robot_id: str,
+        observation: RobotObservation,
+        state: OrchestratorState,
+        result: ObservationResult,
+    ) -> None:
+        """Record the monitor inputs and the decision actually applied."""
+        lease = state.robot_leases.get(observation.source_robot_id)
+        previous = state.attempts[lease.attempt_id] if lease else None
+        current = result.state.attempts.get(lease.attempt_id) if lease else None
+        deadline = next_deadline(current) if current else None
+        self.trace.record(
+            TraceEvent.OBSERVATION,
+            self._clock(),
+            robot_id=robot_id,
+            attempt_id=previous.attempt_id if previous else None,
+            job_id=previous.job_id if previous else None,
+            state=observation.state.value,
+            reason=observation.reason,
+            operation=result.operation.value if result.operation else None,
+            observation=ObservationTrace(
+                observed_at=observation.observed_at.isoformat()
+                if observation.observed_at
+                else None,
+                phase=observation.phase.value,
+                cleaning_active=observation.cleaning_active,
+                normal_end=observation.normal_end,
+                at_dock=observation.at_dock,
+                completion_confirmed=observation.completion_confirmed,
+                observed_operation=observation.observed_operation.value
+                if observation.observed_operation
+                else None,
+                completed_operation=observation.completed_operation.value
+                if observation.completed_operation
+                else None,
+                faults=",".join(
+                    f"{fault.code}:{fault.scope.value}:{fault.source.value}"
+                    for fault in observation.faults
+                )
+                or None,
+                targets=result.targets,
+                previous_state=previous.state.value if previous else None,
+                monitor_action=result.decision.action.value
+                if result.decision
+                else None,
+                monitor_reason=result.decision.reason if result.decision else None,
+                deadline_at=deadline.isoformat() if deadline else None,
+                terminal_observed_at=current.terminal_observed_at.isoformat()
+                if current and current.terminal_observed_at
+                else None,
+            ),
+        )
 
     async def async_record_robot_run(self, attempt_id: str, run: RobotRun) -> None:
         """Correlate physical evidence, complete the unit, and schedule follow-up."""

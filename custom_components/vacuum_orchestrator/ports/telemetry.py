@@ -5,7 +5,7 @@ from contextvars import ContextVar
 from enum import StrEnum
 from typing import Protocol
 
-Scalar = str | int | None
+Scalar = str | int | bool | None
 
 
 class TelemetryEvent(StrEnum):

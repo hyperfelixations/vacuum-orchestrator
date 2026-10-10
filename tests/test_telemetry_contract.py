@@ -23,8 +23,9 @@ from tests.test_error_translations import (
     _source_codes,
 )
 
-# Fields whose values pass the code allowlist.
-FIELDS = {"reason", "stage", "state", "quality", "operation"}
+# Fields whose values pass the code allowlist, and the calls that set them.
+FIELDS = {"reason", "stage", "state", "quality", "operation", "targets"}
+TRACING = {"record", "ObservationResult"}
 # Calls whose positional argument at this index is a failure code.
 FAILURE_ARGUMENT = {"fail_job": 2, "require_robot_attention": 1}
 
@@ -88,7 +89,7 @@ def _traced_codes() -> set[str]:
                         codes |= _strings(argument, names)
                 for keyword in node.keywords:
                     if keyword.arg == "failure_code" or (
-                        name == "record" and keyword.arg in FIELDS
+                        name in TRACING and keyword.arg in FIELDS
                     ):
                         codes |= _strings(keyword.value, names)
     raised, _dynamic = _source_codes()
