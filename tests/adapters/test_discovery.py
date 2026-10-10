@@ -194,6 +194,7 @@ def test_only_a_chosen_area_list_restricts_the_ha_mapping(
         {"start_timeout_seconds": float("nan")},
         {"return_timeout_seconds": 0},
         {"fault_timeout_seconds": 0},
+        {"connection_timeout_seconds": 0},
         {"vacuum_levels": {"medium": "balanced"}},
         {"water_levels": {"standard": "moderate"}},
         {"mop_routes": {"auto": "smart"}},
@@ -292,7 +293,7 @@ def test_legacy_history_binding_and_matter_mode_discovery(hass: HomeAssistant) -
     assert data["roles"]["last_clean_start"] == history.id
 
 
-def test_return_and_fault_timeouts_default_and_reach_the_execution_policy(
+def test_return_fault_and_connection_timeouts_reach_the_execution_policy(
     hass: HomeAssistant,
 ) -> None:
     entry = MockConfigEntry(domain=DOMAIN)
@@ -303,6 +304,7 @@ def test_return_and_fault_timeouts_default_and_reach_the_execution_policy(
     )
     assert data["return_timeout_seconds"] == 900.0
     assert data["fault_timeout_seconds"] == 900.0
+    assert data["connection_timeout_seconds"] == 600.0
     data = validate_robot_configuration(
         hass,
         entry,
@@ -310,6 +312,7 @@ def test_return_and_fault_timeouts_default_and_reach_the_execution_policy(
             "robot_entity_id": vacuum.entity_id,
             "return_timeout_seconds": 600,
             "fault_timeout_seconds": 300,
+            "connection_timeout_seconds": 120,
         },
     )
     adapter = HomeAssistantVacuumAdapter(
@@ -321,6 +324,7 @@ def test_return_and_fault_timeouts_default_and_reach_the_execution_policy(
     )
     assert adapter.profile.execution_policy.return_seconds == 600.0
     assert adapter.profile.execution_policy.fault_seconds == 300.0
+    assert adapter.profile.execution_policy.connection_seconds == 120.0
 
 
 def test_a_dock_of_another_config_entry_is_never_a_companion(

@@ -299,7 +299,7 @@ async def test_derived_completion_projects_quality_and_preserves_last_confirmed(
     )
 
 
-async def test_disconnect_retains_lease_and_never_writes_a_success_receipt() -> None:
+async def test_a_lasting_disconnect_retains_the_lease_and_writes_no_receipt() -> None:
     backend = RecordingBackend()
     adapter = RecordingAdapter(backend, "robot")
     orchestrator = await _orchestrator(backend, adapter)
@@ -307,10 +307,15 @@ async def test_disconnect_retains_lease_and_never_writes_a_success_receipt() -> 
     await orchestrator.async_start_job(job)
     attempt_id = orchestrator.state.jobs[job].active_attempt_id
     await orchestrator.async_confirm_start(attempt_id)
-    adapter.observation = replace(
-        adapter.observation, state=RobotAvailabilityState.UNKNOWN
-    )
-    await orchestrator.async_process_robot_observation("robot")
+    for seconds in (60, 659, 660):
+        adapter.observation = replace(
+            adapter.observation,
+            state=RobotAvailabilityState.UNKNOWN,
+            observed_at=NOW + timedelta(seconds=seconds),
+        )
+        await orchestrator.async_process_robot_observation("robot")
+        if seconds < 660:
+            assert orchestrator.state.jobs[job].state is JobState.RUNNING
     assert orchestrator.state.jobs[job].state is JobState.NEEDS_ATTENTION
     assert orchestrator.state.blocked_robots == {
         "source-robot": "robot_connection_lost"

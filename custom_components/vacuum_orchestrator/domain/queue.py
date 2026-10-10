@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from types import MappingProxyType
 
 from .completion import (
-    DEVIATIONS,
+    NOTES,
     CleaningReceipt,
     CleaningSource,
     CompletionQuality,
@@ -890,11 +890,29 @@ class OrchestratorState:
         )
 
     def resolve_interrupted_leases(self, now: datetime) -> OrchestratorState:
-        """Finish attempts without a command boundary; isolate all others."""
+        """Keep watching sent and started attempts across a runtime restart.
+
+        Attempts without a command boundary end unstarted; an interrupted
+        cancel needs recovery. See dev doc "Unterbrechungen".
+        """
         state = self
         for lease in tuple(self.robot_leases.values()):
             attempt = state.attempts[lease.attempt_id]
             if attempt.state is AttemptState.RECOVERY_REQUIRED:
+                continue
+            if attempt.state in {
+                AttemptState.START_CONFIRMED,
+                AttemptState.COMPLETION_PENDING,
+            }:
+                watched = replace(
+                    attempt, lost_since=None, gap_since=attempt.gap_since or now
+                )
+                if watched != attempt:
+                    state = state._replace(
+                        attempts={**state.attempts, attempt.attempt_id: watched}
+                    )
+                continue
+            if attempt.state is AttemptState.COMMAND_SENT:
                 continue
             if attempt.command_boundary_at is not None:
                 state = state.require_robot_attention(
@@ -1008,7 +1026,7 @@ class OrchestratorState:
                 for attempt in succeeded
             )
             else CompletionQuality.DERIVED,
-            tuple(code for code in DEVIATIONS if code in codes),
+            tuple(code for code in NOTES if code in codes),
         )
 
     def next_pending_unit(self, job: Job) -> WorkUnit:

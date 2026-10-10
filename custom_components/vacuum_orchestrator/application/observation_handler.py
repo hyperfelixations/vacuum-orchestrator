@@ -4,24 +4,19 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 
-from ..domain.completion import evidenced_operation
+from ..domain.completion import CompletionQuality, evidenced_operation
 from ..domain.correlation import correlate_run
 from ..domain.dispatching import RobotObservation
-from ..domain.execution import ExecutionAttempt, RobotRun
-from ..domain.monitoring import MonitorAction, MonitorDecision, evaluate_observation
+from ..domain.execution import RobotRun
+from ..domain.monitoring import (
+    MonitorAction,
+    MonitorDecision,
+    evaluate_observation,
+    record_observation,
+)
 from ..domain.planning import DispatchAssignment, WorkUnit
 from ..domain.queue import OrchestratorState
 from ..domain.types import AttemptState, OperationKind
-
-# Decisions about observations that cannot describe this attempt's run.
-_UNRELATED = frozenset(
-    {
-        "attempt_not_observing",
-        "observation_out_of_order",
-        "observation_source_mismatch",
-        "observation_timeout",
-    }
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +56,16 @@ def apply_observation(
         set(observation.completed_targets),
         set(assignment.adapter_targets),
     )
-    tracked = _track_operation(state, attempt, observation, decision)
+    recorded = record_observation(
+        attempt,
+        replace(observation, observed_at=observation.observed_at or now),
+        decision,
+    )
+    tracked = (
+        state
+        if recorded == attempt
+        else replace(state, attempts={**state.attempts, attempt.attempt_id: recorded})
+    )
     candidate = _transition(tracked, observation, now, id_factory, decision)
     if candidate is tracked and tracked is not state:
         candidate = replace(tracked, commit_id=state.commit_id + 1)
@@ -76,39 +80,6 @@ def apply_observation(
         else "partial"
         if reported < assigned
         else "mismatch",
-    )
-
-
-def _track_operation(
-    state: OrchestratorState,
-    attempt: ExecutionAttempt,
-    observation: RobotObservation,
-    decision: MonitorDecision,
-) -> OrchestratorState:
-    """Remember each mode the robot cleaned in; see dev doc "Abweichungen"."""
-    operation = observation.observed_operation
-    if (
-        operation is None
-        or observation.cleaning_active is not True
-        or decision.reason in _UNRELATED
-        or operation in attempt.observed_operations
-        or attempt.state
-        not in {
-            AttemptState.COMMAND_SENT,
-            AttemptState.START_CONFIRMED,
-            AttemptState.COMPLETION_PENDING,
-        }
-    ):
-        return state
-    return replace(
-        state,
-        attempts={
-            **state.attempts,
-            attempt.attempt_id: replace(
-                attempt,
-                observed_operations=(*attempt.observed_operations, operation),
-            ),
-        },
     )
 
 
@@ -151,7 +122,13 @@ def _transition(
     if decision.action is MonitorAction.START:
         return state.mark_start_confirmed(attempt.attempt_id, observed_at)
     if decision.action is MonitorAction.FAIL:
-        return state.fail_job(job.job_id, attempt.attempt_id, decision.reason, now)
+        return state.fail_job(
+            job.job_id,
+            attempt.attempt_id,
+            decision.reason,
+            now,
+            never_started=attempt.observed_start_at is None,
+        )
     if decision.action is MonitorAction.FAULT_WAIT:
         return replace(
             state,
@@ -195,7 +172,16 @@ def _transition(
     if confirmed and observation.completed_operation is not None:
         modes = (*modes, observation.completed_operation)
     completed = set(observation.completed_targets) if confirmed else set()
-    deviations = tuple(
+    # An end in a gap; see dev doc "Unterbrechungen".
+    unobserved = (
+        decision.quality is CompletionQuality.DERIVED
+        and attempt.gap_since is not None
+        and (
+            attempt.terminal_observed_at is None
+            or attempt.terminal_observed_at >= attempt.gap_since
+        )
+    )
+    notes = tuple(
         code
         for code, changed in (
             ("mode_changed", any(mode != unit.operation for mode in modes)),
@@ -203,6 +189,7 @@ def _transition(
                 "scope_changed",
                 bool(completed) and completed != set(assignment.adapter_targets),
             ),
+            ("end_not_observed", unobserved),
         )
         if changed
     )
@@ -219,7 +206,5 @@ def _transition(
         canonical_targets=_evidenced_rooms(unit, assignment, completed),
     )
     correlation = correlate_run(attempt, run)
-    correlation = replace(
-        correlation, reason_codes=(*correlation.reason_codes, *deviations)
-    )
+    correlation = replace(correlation, reason_codes=(*correlation.reason_codes, *notes))
     return state.complete_attempt(attempt.attempt_id, run, correlation, now)

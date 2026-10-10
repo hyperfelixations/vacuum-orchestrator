@@ -1,6 +1,6 @@
 """Pure execution monitoring; evidence quality is independent of cleaning mode."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from enum import StrEnum
 
@@ -54,7 +54,11 @@ def next_deadline(attempt: ExecutionAttempt) -> datetime | None:
             seconds=attempt.policy.run_seconds
         )
         if attempt.fault_since is not None:
-            return min(limit, _fault_limit(attempt))
+            limit = min(limit, _fault_limit(attempt))
+        if attempt.connection_deadline is not None:
+            limit = min(limit, attempt.connection_deadline)
+        if attempt.fault_since is not None:
+            return limit
         if attempt.terminal_observed_at is not None:
             return min(
                 limit,
@@ -112,11 +116,14 @@ def evaluate_observation(
         return _evaluate_cancel(attempt, observation, observed_at, now)
     if attempt.state is AttemptState.COMMAND_SENT:
         if now >= (next_deadline(attempt) or now):
+            # A robot proven to rest never started; see dev doc "Unterbrechungen".
+            if stopped and not lost:
+                return MonitorDecision(MonitorAction.FAIL, "start_not_observed")
             return MonitorDecision(MonitorAction.ATTENTION, "start_timeout")
         if faulted:
             return MonitorDecision(MonitorAction.WAIT, "robot_fault")
         if lost:
-            return MonitorDecision(MonitorAction.ATTENTION, "robot_connection_lost")
+            return MonitorDecision(MonitorAction.WAIT, "robot_connection_lost")
         if observation.cleaning_active is True:
             return MonitorDecision(MonitorAction.START, "cleaning_start_observed")
         return MonitorDecision(MonitorAction.WAIT, "awaiting_cleaning_start")
@@ -131,7 +138,11 @@ def evaluate_observation(
             return _fault_timeout(stopped)
         return MonitorDecision(MonitorAction.WAIT, "robot_fault")
     if lost:
-        return MonitorDecision(MonitorAction.ATTENTION, "robot_connection_lost")
+        # Connection window; see dev doc "Unterbrechungen".
+        deadline = attempt.connection_deadline
+        if deadline is not None and now >= deadline:
+            return MonitorDecision(MonitorAction.ATTENTION, "robot_connection_lost")
+        return MonitorDecision(MonitorAction.WAIT, "robot_connection_lost")
     if attempt.fault_since is not None and observation.cleaning_active is not True:
         if _confirmed(observation):
             return _confirmed_completion(observation, unit, assignment)
@@ -140,6 +151,8 @@ def evaluate_observation(
         return MonitorDecision(MonitorAction.WAIT, "awaiting_cleaning_after_fault")
     if attempt.fault_since is not None:
         return MonitorDecision(MonitorAction.RESUME, "fault_cleared")
+    if attempt.gap_since is not None and observation.cleaning_active is True:
+        return MonitorDecision(MonitorAction.RESUME, "cleaning_observed_after_gap")
     if not observation.normal_end or observation.cleaning_active is not False:
         return MonitorDecision(
             MonitorAction.RESUME
@@ -159,6 +172,57 @@ def evaluate_observation(
         MonitorAction.COMPLETE,
         "observed_start_and_stable_normal_end",
         CompletionQuality.DERIVED,
+    )
+
+
+# Decisions about observations that cannot describe this attempt's run.
+_UNRELATED = frozenset(
+    {
+        "attempt_not_observing",
+        "observation_out_of_order",
+        "observation_source_mismatch",
+        "observation_timeout",
+    }
+)
+_WATCHED = frozenset(
+    {
+        AttemptState.COMMAND_SENT,
+        AttemptState.START_CONFIRMED,
+        AttemptState.COMPLETION_PENDING,
+    }
+)
+
+
+def record_observation(
+    attempt: ExecutionAttempt,
+    observation: RobotObservation,
+    decision: MonitorDecision,
+) -> ExecutionAttempt:
+    """Keep what a run's observations showed between transitions.
+
+    Modes set while cleaning (dev doc "Abweichungen") and observation gaps
+    (dev doc "Unterbrechungen").
+    """
+    if attempt.state not in _WATCHED or decision.reason in _UNRELATED:
+        return attempt
+    observed_at = observation.observed_at
+    lost = decision.reason == "robot_connection_lost"
+    cleaning = observation.cleaning_active is True
+    operation = observation.observed_operation
+    started = attempt.state is not AttemptState.COMMAND_SENT
+    return replace(
+        attempt,
+        observed_operations=(*attempt.observed_operations, operation)
+        if cleaning
+        and operation is not None
+        and operation not in attempt.observed_operations
+        else attempt.observed_operations,
+        lost_since=(attempt.lost_since or observed_at) if lost else None,
+        gap_since=None
+        if cleaning
+        else (attempt.gap_since or observed_at)
+        if lost and started
+        else attempt.gap_since,
     )
 
 

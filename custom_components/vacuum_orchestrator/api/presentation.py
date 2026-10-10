@@ -231,7 +231,7 @@ def present_job(
         if completion is None
         else {
             "quality": completion.quality.value,
-            "deviations": list(completion.deviations),
+            "notes": list(completion.notes),
         },
         "actions": None if actions is None else present_actions(actions),
         "active_attempt_id": job.active_attempt_id,

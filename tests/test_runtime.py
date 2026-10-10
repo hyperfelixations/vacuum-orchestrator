@@ -283,7 +283,9 @@ async def test_room_state_change_wakes_queue_and_unload_fences_active_job(
     assert orchestrator.state.jobs[job].state is JobState.RUNNING
     assert orchestrator.rooms.registry.resolve(room.room_id).release.consumed
     await async_unload_orchestrator(hass, entry)
-    assert orchestrator.state.jobs[job].state is JobState.NEEDS_ATTENTION
+    # A reload keeps watching a sent attempt; see dev doc "Unterbrechungen".
+    assert orchestrator.state.jobs[job].state is JobState.RUNNING
+    assert orchestrator.state.robot_leases
     hass.states.async_set("binary_sensor.door", "off")
     await hass.async_block_till_done()
     assert len(calls) == 1

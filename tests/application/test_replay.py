@@ -43,7 +43,7 @@ async def test_replay_with_virtual_time_and_durable_restart(scenario, monkeypatc
         return adapter.observation
 
     monkeypatch.setattr(adapter, "async_observe", observe)
-    for event in scenario["events"]:
+    for index, event in enumerate(scenario["events"]):
         adapter.observation = replace(
             adapter.observation,
             observed_at=NOW + timedelta(seconds=event["seconds"]),
@@ -53,6 +53,9 @@ async def test_replay_with_virtual_time_and_durable_restart(scenario, monkeypatc
             completion_confirmed=False,
         )
         await core.async_process_robot_observation("robot")
+        if index == scenario.get("restart_after_event"):
+            await core.async_shutdown()
+            core = await _orchestrator(backend, adapter)
     assert core.state.jobs[job].state.value == scenario["job_state"]
     assert len(core.rooms.registry.receipts) == scenario["receipts"]
 

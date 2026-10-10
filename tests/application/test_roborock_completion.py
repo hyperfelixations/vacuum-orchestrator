@@ -166,7 +166,7 @@ async def test_a_run_that_returns_home_with_another_mode_setting_completes(
     assert attempt().observed_operations == (OperationKind.VACUUM,)
     assert present_job_view(core, core.state.jobs[job_id])["completion"] == {
         "quality": "derived",
-        "deviations": [],
+        "notes": [],
     }
     stamp = core.state.room_registry.rooms["kitchen"].last_cleaning
     assert OperationKind.VACUUM in stamp
@@ -205,7 +205,7 @@ async def test_a_mode_changed_while_cleaning_completes_with_what_both_covered(
     assert receipt.evidence == ("derived_completion", "mode_changed")
     assert present_job_view(core, core.state.jobs[job_id])["completion"] == {
         "quality": "derived",
-        "deviations": ["mode_changed"],
+        "notes": ["mode_changed"],
     }
     reloaded = await _core(backend, adapter)
     assert reloaded.state.attempts == core.state.attempts
@@ -227,7 +227,7 @@ async def test_a_run_switched_to_another_operation_completes_without_a_receipt(
     (run,) = core.state.robot_runs.values()
     assert (run.operation, run.canonical_targets) == (None, ("kitchen",))
     assert core.state.completion(job_id) is not None
-    assert core.state.completion(job_id).deviations == ("mode_changed",)
+    assert core.state.completion(job_id).notes == ("mode_changed",)
     assert not core.state.robot_leases
 
 

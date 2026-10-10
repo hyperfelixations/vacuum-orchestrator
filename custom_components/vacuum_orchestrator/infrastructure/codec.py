@@ -1120,6 +1120,7 @@ def _encode_attempt(attempt: ExecutionAttempt) -> JsonObject:
             "settle_seconds": attempt.policy.settle_seconds,
             "return_seconds": attempt.policy.return_seconds,
             "fault_seconds": attempt.policy.fault_seconds,
+            "connection_seconds": attempt.policy.connection_seconds,
         },
         "terminal_observed_at": _encode_optional_datetime(attempt.terminal_observed_at),
         "last_observation_at": _encode_optional_datetime(attempt.last_observation_at),
@@ -1130,6 +1131,8 @@ def _encode_attempt(attempt: ExecutionAttempt) -> JsonObject:
         "recovery_resolution": _enum_value(attempt.recovery_resolution),
         "fault_since": _encode_optional_datetime(attempt.fault_since),
         "observed_operations": [item.value for item in attempt.observed_operations],
+        "lost_since": _encode_optional_datetime(attempt.lost_since),
+        "gap_since": _encode_optional_datetime(attempt.gap_since),
     }
 
 
@@ -1156,6 +1159,7 @@ def _decode_attempt(data: JsonObject) -> ExecutionAttempt:
             _number(policy.get("settle_seconds", 30)),
             _number(policy.get("return_seconds", 900)),
             _number(policy.get("fault_seconds", 900)),
+            _number(policy.get("connection_seconds", 600)),
         ),
         _decode_optional_datetime(data.get("terminal_observed_at")),
         _decode_optional_datetime(data.get("last_observation_at")),
@@ -1169,6 +1173,8 @@ def _decode_attempt(data: JsonObject) -> ExecutionAttempt:
             _enum(OperationKind, item)
             for item in _string_list(data.get("observed_operations", []))
         ),
+        _decode_optional_datetime(data.get("lost_since")),
+        _decode_optional_datetime(data.get("gap_since")),
     )
 
 

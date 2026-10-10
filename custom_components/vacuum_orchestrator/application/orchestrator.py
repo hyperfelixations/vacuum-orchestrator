@@ -305,6 +305,10 @@ class VacuumOrchestrator:
                     generation,
                     needs_attention=source_robot_id in loaded.blocked_robots,
                 )
+            for lease in loaded.robot_leases.values():
+                session = self._sessions.get(lease.source_robot_id)
+                if session is not None and not session.needs_attention:
+                    session.reserve(lease.attempt_id)
             self._state = loaded
             self.trace.commit_id = loaded.commit_id
             self.trace.run_id = loaded.queue_run.run_id if loaded.queue_run else None

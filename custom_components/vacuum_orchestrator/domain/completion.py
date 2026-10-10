@@ -16,9 +16,9 @@ class CompletionQuality(StrEnum):
     DERIVED = "derived"
 
 
-# Evidence codes that tell a person how a run differed; see dev doc
+# Evidence codes a person should see with a completion; see dev doc
 # "Abweichungen". All other evidence codes describe the proof itself.
-DEVIATIONS = ("mode_changed", "scope_changed")
+NOTES = ("mode_changed", "scope_changed", "end_not_observed")
 
 _COVERED = {
     OperationKind.VACUUM: frozenset({OperationKind.VACUUM}),
@@ -46,10 +46,10 @@ def evidenced_operation(
 
 @dataclass(frozen=True, slots=True)
 class JobCompletion:
-    """How a completed job was proven and how its runs differed from the plan."""
+    """How a completed job was proven and what a person should know about it."""
 
     quality: CompletionQuality
-    deviations: tuple[str, ...]
+    notes: tuple[str, ...]
 
 
 class CleaningSource(StrEnum):

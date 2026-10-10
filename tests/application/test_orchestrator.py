@@ -479,17 +479,21 @@ async def test_physical_failure_isolates_only_affected_robot() -> None:
     assert (await orchestrator.async_start_job(healthy_job)).robot_id == "healthy"
 
 
-async def test_restart_with_active_lease_fences_only_that_robot() -> None:
+async def test_restart_keeps_watching_a_sent_attempt_on_its_robot() -> None:
     backend = RecordingBackend()
     adapter = RecordingAdapter(backend, "robot")
     first = await _orchestrator(backend, adapter)
     job_id = await first.async_create_job(_intent())
     await first.async_start_job(job_id)
+    await first.async_shutdown()
     restarted_adapter = RecordingAdapter(backend, "robot")
     restarted = await _orchestrator(backend, restarted_adapter)
 
-    assert restarted.state.jobs[job_id].state is JobState.NEEDS_ATTENTION
-    assert restarted.state.blocked_robots == {"source-robot": "runtime_interrupted"}
+    assert restarted.state.jobs[job_id].state is JobState.RUNNING
+    assert restarted.state.blocked_robots == {}
+    assert restarted.state.robot_leases
+    with pytest.raises(ConflictError, match="robot_already_executing"):
+        await restarted.async_return_robot("robot")
 
 
 async def test_simple_job_commands_need_no_public_revision() -> None:

@@ -28,6 +28,8 @@ class ExecutionPolicy:
     return_seconds: float = 900
     # How long a running job waits for a device fault to clear.
     fault_seconds: float = 900
+    # How long a running job waits for a lost robot to report again.
+    connection_seconds: float = 600
 
     def __post_init__(self) -> None:
         for value in (
@@ -37,6 +39,7 @@ class ExecutionPolicy:
             self.settle_seconds,
             self.return_seconds,
             self.fault_seconds,
+            self.connection_seconds,
         ):
             seconds(value, positive=True)
 
@@ -69,6 +72,9 @@ class ExecutionAttempt:
     fault_since: datetime | None = None
     # Modes set while the robot cleaned; see dev doc "Abweichungen".
     observed_operations: tuple[OperationKind, ...] = ()
+    # Observation gaps; see dev doc "Unterbrechungen".
+    lost_since: datetime | None = None
+    gap_since: datetime | None = None
 
     @property
     def fault_deadline(self) -> datetime | None:
@@ -76,6 +82,13 @@ class ExecutionAttempt:
         if self.fault_since is None:
             return None
         return self.fault_since + timedelta(seconds=self.policy.fault_seconds)
+
+    @property
+    def connection_deadline(self) -> datetime | None:
+        """Return when a running job stops waiting for a lost robot."""
+        if self.lost_since is None:
+            return None
+        return self.lost_since + timedelta(seconds=self.policy.connection_seconds)
 
 
 @dataclass(frozen=True, slots=True)

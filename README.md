@@ -426,7 +426,7 @@ permission types through `release_room`.
 | No robot can run the job | Check room targeting, supported mode, charge, availability and any required device settings. Discovery alone does not establish compatibility. |
 | Queue is paused or idle | Use `resume_queue` or `run_queue` when ready. Creating jobs alone does not start an idle queue. |
 | Room became locked after a run | Check whether its permission was `once`, `timed` or `queue_run`. |
-| A job needs attention after a restart or lost connection | Check the physical robot first, then the integration's Repair message and `get_queue` recovery information. |
+| A job needs attention after a lost connection | The robot did not report for 10 minutes (`connection_timeout_seconds`). Check the physical robot first, then the integration's Repair message and `get_queue` recovery information. |
 | No new automatic job appears | Check the template is enabled and automatic, the room is due, and there is no overlapping job or demand suppression from an earlier attempt. |
 | Room entities are missing | They are disabled by default; enable the ones you want in the entity list. |
 
@@ -440,11 +440,20 @@ room as successfully cleaned.
 For cleaning started by VOI, an observed start followed by a stable normal end
 may be recorded as **derived** completion. **Confirmed** means stronger evidence
 is available. The room keeps the most recent effective result and the most recent
-confirmed result separately. An error, connection loss or timeout is not success.
+confirmed result separately. An error, a lasting connection loss or a timeout is
+not success.
+
+Restarting Home Assistant or reloading VOI does not stop a running job; VOI
+watches it again afterwards. If the robot stops reporting, for example during a
+short Wi-Fi outage, the job waits up to 10 minutes (`connection_timeout_seconds`
+per robot) and then needs your attention. When a run ended while VOI could not
+see the robot, the job completes with the note `end_not_observed`. A robot that
+never starts cleaning after the start command and rests at the start deadline
+fails the job with `start_not_observed`; you can retry it.
 
 Changing the cleaning mode while the robot cleans, for example in the
 manufacturer's app, is not a fault: the job goes on, completes and is marked as
-changed (`completion.deviations` of the job contains `mode_changed`). Rooms count
+changed (`completion.notes` of the job contains `mode_changed`). Rooms count
 only what the whole run covered. Switching from vacuuming to vacuuming and
 mopping counts as vacuuming; switching to mopping only completes the job without
 recording a cleaning for its rooms. A robot that confirms other rooms than

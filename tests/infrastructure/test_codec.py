@@ -500,7 +500,7 @@ def test_fault_window_round_trips_and_is_optional_in_older_snapshots() -> None:
     assert older.fault_since is None and older.policy.fault_seconds == 900
 
 
-def test_observed_operations_round_trip_and_are_optional_in_older_snapshots() -> None:
+def test_run_observations_round_trip_and_are_optional_in_older_snapshots() -> None:
     sent = _state().mark_command_sent("attempt", NOW)
     changed = replace(
         sent,
@@ -508,13 +508,22 @@ def test_observed_operations_round_trip_and_are_optional_in_older_snapshots() ->
             "attempt": replace(
                 sent.attempts["attempt"],
                 observed_operations=(OperationKind.VACUUM, OperationKind.MOP),
+                lost_since=NOW,
+                gap_since=NOW,
+                policy=replace(sent.attempts["attempt"].policy, connection_seconds=120),
             )
         },
     )
     data = encode_orchestrator_state(changed)
     assert decode_orchestrator_state(data) == changed
-    del data["attempts"]["attempt"]["observed_operations"]
-    assert decode_orchestrator_state(data).attempts["attempt"].observed_operations == ()
+    stored = data["attempts"]["attempt"]
+    for name in ("observed_operations", "lost_since", "gap_since"):
+        del stored[name]
+    del stored["policy"]["connection_seconds"]
+    older = decode_orchestrator_state(data).attempts["attempt"]
+    assert older.observed_operations == ()
+    assert (older.lost_since, older.gap_since) == (None, None)
+    assert older.policy.connection_seconds == 600
 
 
 def test_setup_completion_round_trips_and_is_optional_in_older_snapshots() -> None:

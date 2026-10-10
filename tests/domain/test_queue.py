@@ -1,7 +1,7 @@
 """Tests for the global registry, pending queue, and execution ledger."""
 
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -366,12 +366,47 @@ def test_cancel_preconditions_reject_incoherent_ownership() -> None:
         without_lease.request_cancel("a", NOW)
 
 
-def test_restart_attention_reserves_targets_and_skips_existing_fence() -> None:
+def test_restart_keeps_watching_sent_and_started_attempts() -> None:
     prepared, _ = _prepared()
     sent = prepared.mark_command_sent("attempt", NOW)
-    blocked = sent.resolve_interrupted_leases(NOW)
+    assert sent.resolve_interrupted_leases(NOW) is sent
+
+    started = sent.mark_start_confirmed("attempt", NOW)
+    lost = replace(
+        started,
+        attempts={"attempt": replace(started.attempts["attempt"], lost_since=NOW)},
+    )
+    later = NOW + timedelta(minutes=5)
+    watched = lost.resolve_interrupted_leases(later)
+    attempt = watched.attempts["attempt"]
+    assert (attempt.state, attempt.lost_since, attempt.gap_since) == (
+        AttemptState.START_CONFIRMED,
+        None,
+        later,
+    )
+    assert not watched.needs_attention
+    assert watched.active_target_sets() == (frozenset({"kitchen"}),)
+    assert watched.resolve_interrupted_leases(later + timedelta(minutes=1)) is watched
+
+
+def test_restart_of_a_sent_cancel_needs_attention_once() -> None:
+    prepared, _ = _prepared()
+    sent = prepared.mark_command_sent("attempt", NOW)
+    canceling = replace(
+        sent,
+        jobs={"a": replace(sent.jobs["a"], state=JobState.CANCELING)},
+        attempts={
+            "attempt": replace(
+                sent.attempts["attempt"],
+                state=AttemptState.CANCEL_PENDING,
+                cancel_requested_at=NOW,
+            )
+        },
+    )
+    blocked = canceling.resolve_interrupted_leases(NOW)
 
     assert blocked.needs_attention
+    assert blocked.blocked_robots == {"source": "runtime_interrupted"}
     assert blocked.active_target_sets() == (frozenset({"kitchen"}),)
     assert blocked.resolve_interrupted_leases(NOW) is blocked
 

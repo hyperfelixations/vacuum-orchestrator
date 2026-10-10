@@ -21,6 +21,7 @@ from custom_components.vacuum_orchestrator.domain.monitoring import (
     MonitorAction,
     evaluate_observation,
     next_deadline,
+    record_observation,
 )
 from custom_components.vacuum_orchestrator.domain.planning import (
     DispatchAssignment,
@@ -173,7 +174,21 @@ def test_errors_and_connection_loss_never_become_success(state, fault_decision) 
 
 def test_start_run_and_cancel_deadlines_are_persistent_and_distinct() -> None:
     assert next_deadline(ATTEMPT) == NOW + timedelta(seconds=180)
-    assert evaluate(now=NOW + timedelta(seconds=180)).reason == "start_timeout"
+    deadline = NOW + timedelta(seconds=180)
+    resting = evaluate(now=deadline)
+    assert (resting.action, resting.reason) == (
+        MonitorAction.FAIL,
+        "start_not_observed",
+    )
+    for unclear in (
+        replace(IDLE, normal_end=False),
+        replace(IDLE, state=RobotAvailabilityState.UNKNOWN),
+    ):
+        decision = evaluate(observation=unclear, now=deadline)
+        assert (decision.action, decision.reason) == (
+            MonitorAction.ATTENTION,
+            "start_timeout",
+        )
     running = replace(
         ATTEMPT, state=AttemptState.START_CONFIRMED, observed_start_at=NOW
     )
@@ -580,3 +595,69 @@ def test_a_resting_robot_cancels_inside_a_fault_window() -> None:
     assert mopping(canceling, resting, later).action is MonitorAction.CANCEL
     moving = replace(MOPPING, observed_at=later, faults=(TANK,))
     assert mopping(canceling, moving, later).reason == "robot_reported_error"
+
+
+LOST = replace(
+    IDLE,
+    state=RobotAvailabilityState.UNKNOWN,
+    cleaning_active=None,
+    normal_end=False,
+)
+
+
+def test_a_lost_robot_gets_a_connection_window_and_its_gap_is_kept() -> None:
+    started = replace(
+        ATTEMPT, state=AttemptState.START_CONFIRMED, observed_start_at=NOW
+    )
+    later = NOW + timedelta(seconds=60)
+    lost = replace(LOST, observed_at=later)
+    decision = evaluate(started, lost, later)
+    assert (decision.action, decision.reason) == (
+        MonitorAction.WAIT,
+        "robot_connection_lost",
+    )
+    waiting = record_observation(started, lost, decision)
+    assert (waiting.lost_since, waiting.gap_since) == (later, later)
+    deadline = later + timedelta(seconds=600)
+    assert waiting.connection_deadline == deadline
+    assert next_deadline(waiting) == deadline
+    assert record_observation(
+        waiting, replace(lost, observed_at=deadline), decision
+    ) == (waiting)
+    assert evaluate(waiting, replace(lost, observed_at=deadline), deadline).action is (
+        MonitorAction.ATTENTION
+    )
+
+    back = replace(IDLE, observed_at=later + timedelta(seconds=60))
+    resting = evaluate(waiting, back, back.observed_at)
+    assert resting.action is MonitorAction.SETTLE
+    returned = record_observation(waiting, back, resting)
+    assert (returned.lost_since, returned.gap_since) == (None, later)
+    assert next_deadline(returned) == NOW + timedelta(seconds=14400)
+
+    cleaning = replace(back, cleaning_active=True, normal_end=False)
+    again = evaluate(waiting, cleaning, back.observed_at)
+    assert (again.action, again.reason) == (
+        MonitorAction.RESUME,
+        "cleaning_observed_after_gap",
+    )
+    assert record_observation(waiting, cleaning, again).gap_since is None
+
+
+def test_a_lost_robot_before_its_start_waits_for_the_start_deadline() -> None:
+    decision = evaluate(observation=LOST)
+    assert (decision.action, decision.reason) == (
+        MonitorAction.WAIT,
+        "robot_connection_lost",
+    )
+    recorded = record_observation(ATTEMPT, LOST, decision)
+    assert (recorded.lost_since, recorded.gap_since) == (NOW, None)
+    assert next_deadline(recorded) == NOW + timedelta(seconds=180)
+
+
+def test_unrelated_observations_leave_the_attempt_unchanged() -> None:
+    stale = replace(LOST, source_robot_id="other")
+    decision = evaluate(observation=stale)
+    assert record_observation(ATTEMPT, stale, decision) is ATTEMPT
+    done = replace(ATTEMPT, state=AttemptState.SUCCEEDED)
+    assert record_observation(done, LOST, evaluate(done, LOST)) is done
