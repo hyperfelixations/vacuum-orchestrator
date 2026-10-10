@@ -83,6 +83,7 @@ class RuntimeController:
         self.installation_id = installation_id
         self.aliases = aliases
         self._unsubscribers: list[Callable[[], None]] = []
+        self._stop_listener: Callable[[], None] | None = None
         self._registry_dirty = True
         self._changed: set[str] = set()
         self._watched: set[str] = set()
@@ -123,9 +124,6 @@ class RuntimeController:
         self._unsubscribers.extend(
             [
                 self.hass.bus.async_listen(EVENT_STATE_CHANGED, self._state_changed),
-                self.hass.bus.async_listen_once(
-                    EVENT_HOMEASSISTANT_STOP, self._stopping
-                ),
                 self.hass.bus.async_listen(
                     ar.EVENT_AREA_REGISTRY_UPDATED, self._registry_changed
                 ),
@@ -140,9 +138,14 @@ class RuntimeController:
                 self.entry.add_update_listener(self._entry_updated),
             ]
         )
+        self._stop_listener = self.hass.bus.async_listen_once(
+            EVENT_HOMEASSISTANT_STOP, self._stopping
+        )
         self.scheduler.notify()
 
     async def _stopping(self, _event: Event[Any]) -> None:
+        # HA removed the one-time listener when it fired.
+        self._stop_listener = None
         await self.async_close()
 
     @callback
@@ -618,6 +621,9 @@ class RuntimeController:
         for unsubscribe in self._unsubscribers:
             unsubscribe()
         self._unsubscribers.clear()
+        if self._stop_listener is not None:
+            self._stop_listener()
+            self._stop_listener = None
         self.repairs.close()
         try:
             try:

@@ -343,7 +343,9 @@ async def test_occupancy_binding_follows_rename_and_never_reuses_deleted_entity(
 
 
 async def test_home_assistant_stop_closes_runtime_before_later_unload(
-    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ):
     MemoryBackend.data = None
     monkeypatch.setattr(
@@ -362,6 +364,8 @@ async def test_home_assistant_stop_closes_runtime_before_later_unload(
             JobIntent((TargetRef("room"),), CleaningMode.VACUUM)
         )
     await async_unload_orchestrator(hass, entry)
+    # HA dropped the one-time stop listener when it fired.
+    assert "Unable to remove unknown job listener" not in caplog.text
 
 
 async def test_view_subscription_survives_runtime_reload(
