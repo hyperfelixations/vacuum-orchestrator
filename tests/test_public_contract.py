@@ -1,6 +1,7 @@
 """Consumer fixtures and shipped HA metadata must match real public responses."""
 
 import json
+import re
 from pathlib import Path
 
 import yaml
@@ -63,6 +64,23 @@ async def test_all_actions_are_translated_with_icons_and_valid_selectors(hass):
                     options = strings["selector"][select["translation_key"]]
                     assert set(options["options"]) == set(select["options"])
                     assert all(options["options"].values())
+
+
+async def test_readme_examples_are_valid_calls_of_existing_actions(hass):
+    await async_setup_actions(hass)
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    examples = [
+        yaml.safe_load(block)
+        for block in re.findall(r"```yaml\n(.*?)```", readme, re.S)
+    ]
+    assert examples
+    registered = hass.services.async_services_for_domain(DOMAIN)
+    for example in examples:
+        domain, name = example["action"].split(".")
+        assert domain == DOMAIN and name in registered, example["action"]
+        schema = registered[name].schema
+        assert schema is not None, name
+        schema(example.get("data") or {})
 
 
 def test_distribution_metadata_and_translations_are_consistent():
