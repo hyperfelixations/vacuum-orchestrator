@@ -205,7 +205,11 @@ async def test_setup_never_moves_foreign_entities_or_devices_into_areas(
         if item.config_entry_id == entry.entry_id
     ]
     assert own
-    assert all(item.device_id is None and item.area_id is None for item in own)
+    service = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, DOMAIN), entry.entry_id
+    )
+    assert service is not None and service.area_id is None
+    assert all(item.device_id == service.id and item.area_id is None for item in own)
 
 
 async def test_room_state_change_wakes_queue_and_unload_fences_active_job(

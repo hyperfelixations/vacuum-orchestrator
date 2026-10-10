@@ -1756,5 +1756,71 @@
         "queue_run": "For this queue run"
       }
     }
+  },
+  "device": {
+    "orchestrator": {
+      "name": "Vacuum Orchestrator"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "needs_attention": {
+        "name": "Needs attention"
+      }
+    },
+    "sensor": {
+      "queue_mode": {
+        "name": "Queue mode",
+        "state": {
+          "idle": "Idle",
+          "running": "Running",
+          "paused": "Paused"
+        }
+      },
+      "queue_length": {
+        "name": "Waiting jobs"
+      },
+      "active_jobs": {
+        "name": "Active jobs"
+      },
+      "attention_jobs": {
+        "name": "Jobs needing clarification"
+      },
+      "vacuum_last_cleaning": {
+        "name": "{room} last vacuumed"
+      },
+      "vacuum_elapsed_seconds": {
+        "name": "{room} time since vacuuming"
+      },
+      "vacuum_due": {
+        "name": "{room} vacuuming due",
+        "state": {
+          "disabled": "Disabled",
+          "fresh": "Not due",
+          "due": "Due",
+          "unknown": "Unknown"
+        }
+      },
+      "mop_last_cleaning": {
+        "name": "{room} last mopped"
+      },
+      "mop_elapsed_seconds": {
+        "name": "{room} time since mopping"
+      },
+      "mop_due": {
+        "name": "{room} mopping due",
+        "state": {
+          "disabled": "Disabled",
+          "fresh": "Not due",
+          "due": "Due",
+          "unknown": "Unknown"
+        }
+      }
+    },
+    "switch": {
+      "release": {
+        "name": "{room} release"
+      }
+    }
   }
 }

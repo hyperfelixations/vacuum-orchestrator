@@ -9,9 +9,11 @@ from homeassistant.core import callback
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.typing import UNDEFINED, UndefinedType
 
 from .const import DOMAIN
 from .domain.rooms import Room
+from .entity import OrchestratorEntity
 from .runtime import VacuumOrchestratorRuntime
 
 
@@ -38,12 +40,10 @@ def setup_room_entities(
     reconcile()
 
 
-class RoomEntity(Entity):
+class RoomEntity(OrchestratorEntity):
     """Stable room identity and event-driven read model with no duplicate storage."""
 
-    _attr_should_poll = False
     _attr_entity_registry_enabled_default = False
-    _attr_has_entity_name = False
 
     def __init__(
         self, runtime: VacuumOrchestratorRuntime, room_id: str, key: str
@@ -52,6 +52,7 @@ class RoomEntity(Entity):
         self.room_id = room_id
         self.key = key
         self._attr_unique_id = f"{DOMAIN}_room_{room_id}_{key}"
+        self._attr_translation_key = key
 
     @property
     def room(self) -> Room:
@@ -59,9 +60,11 @@ class RoomEntity(Entity):
         return self.runtime.orchestrator.rooms.registry.resolve(self.room_id)
 
     @property
-    def name(self) -> str:
-        """Follow current room labels while retaining stable registry identity."""
-        return f"{self.room.name} {self.key.replace('_', ' ')}"
+    def name(self) -> str | UndefinedType | None:
+        """Fill the current room name into the translated name on every write."""
+        key = self._name_translation_key if self.platform_data else None
+        template = key and self.platform_data.platform_translations.get(key)
+        return template.format(room=self.room.name) if template else UNDEFINED
 
     @property
     def available(self) -> bool:

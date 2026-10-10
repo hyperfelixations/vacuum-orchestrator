@@ -1756,5 +1756,71 @@
         "queue_run": "Für diesen Warteschlangenlauf"
       }
     }
+  },
+  "device": {
+    "orchestrator": {
+      "name": "Vacuum Orchestrator"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "needs_attention": {
+        "name": "Braucht Aufmerksamkeit"
+      }
+    },
+    "sensor": {
+      "queue_mode": {
+        "name": "Warteschlangenmodus",
+        "state": {
+          "idle": "Aus",
+          "running": "Läuft",
+          "paused": "Pausiert"
+        }
+      },
+      "queue_length": {
+        "name": "Wartende Aufträge"
+      },
+      "active_jobs": {
+        "name": "Aktive Aufträge"
+      },
+      "attention_jobs": {
+        "name": "Aufträge mit Klärungsbedarf"
+      },
+      "vacuum_last_cleaning": {
+        "name": "{room} zuletzt gesaugt"
+      },
+      "vacuum_elapsed_seconds": {
+        "name": "{room} Zeit seit dem Saugen"
+      },
+      "vacuum_due": {
+        "name": "{room} Saugen fällig",
+        "state": {
+          "disabled": "Deaktiviert",
+          "fresh": "Nicht fällig",
+          "due": "Fällig",
+          "unknown": "Unbekannt"
+        }
+      },
+      "mop_last_cleaning": {
+        "name": "{room} zuletzt gewischt"
+      },
+      "mop_elapsed_seconds": {
+        "name": "{room} Zeit seit dem Wischen"
+      },
+      "mop_due": {
+        "name": "{room} Wischen fällig",
+        "state": {
+          "disabled": "Deaktiviert",
+          "fresh": "Nicht fällig",
+          "due": "Fällig",
+          "unknown": "Unbekannt"
+        }
+      }
+    },
+    "switch": {
+      "release": {
+        "name": "{room} Freigabe"
+      }
+    }
   }
 }

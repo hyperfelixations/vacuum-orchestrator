@@ -12,6 +12,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
+from .entity import OrchestratorEntity
 from .runtime import VacuumOrchestratorRuntime
 
 
@@ -25,12 +26,11 @@ async def async_setup_entry(
     async_add_entities((OrchestratorAttentionSensor(runtime),))
 
 
-class OrchestratorAttentionSensor(BinarySensorEntity):
+class OrchestratorAttentionSensor(OrchestratorEntity, BinarySensorEntity):
     """Expose whether a person has to act; see dev doc "Aufmerksamkeit"."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_has_entity_name = True
-    _attr_name = "Needs attention"
+    _attr_translation_key = "needs_attention"
     _attr_unique_id = f"{DOMAIN}_needs_attention"
 
     def __init__(self, runtime: VacuumOrchestratorRuntime) -> None:

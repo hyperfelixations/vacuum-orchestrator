@@ -1,4 +1,64 @@
 {
+  "entity": {
+    "binary_sensor": {
+      "needs_attention": {
+        "default": "mdi:check-circle-outline",
+        "state": {
+          "on": "mdi:alert-circle"
+        }
+      }
+    },
+    "sensor": {
+      "queue_mode": {
+        "default": "mdi:playlist-play",
+        "state": {
+          "idle": "mdi:stop-circle-outline",
+          "paused": "mdi:pause-circle-outline"
+        }
+      },
+      "queue_length": {
+        "default": "mdi:format-list-numbered"
+      },
+      "active_jobs": {
+        "default": "mdi:robot-vacuum"
+      },
+      "attention_jobs": {
+        "default": "mdi:help-circle-outline"
+      },
+      "vacuum_last_cleaning": {
+        "default": "mdi:calendar-check"
+      },
+      "vacuum_elapsed_seconds": {
+        "default": "mdi:timer-sand"
+      },
+      "vacuum_due": {
+        "default": "mdi:calendar-clock",
+        "state": {
+          "due": "mdi:calendar-alert"
+        }
+      },
+      "mop_last_cleaning": {
+        "default": "mdi:calendar-check"
+      },
+      "mop_elapsed_seconds": {
+        "default": "mdi:timer-sand"
+      },
+      "mop_due": {
+        "default": "mdi:calendar-clock",
+        "state": {
+          "due": "mdi:calendar-alert"
+        }
+      }
+    },
+    "switch": {
+      "release": {
+        "default": "mdi:lock-open-variant",
+        "state": {
+          "off": "mdi:lock"
+        }
+      }
+    }
+  },
   "services": {
     "create_job": {
       "service": "mdi:playlist-plus"

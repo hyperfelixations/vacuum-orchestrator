@@ -14,6 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .domain.types import OperationKind
+from .entity import OrchestratorEntity
 from .room_entities import RoomEntity, setup_room_entities
 from .runtime import VacuumOrchestratorRuntime
 
@@ -91,16 +92,15 @@ class RoomCleaningSensor(RoomEntity, SensorEntity):
         }
 
 
-class _OrchestratorSensor(SensorEntity):
+class _OrchestratorSensor(OrchestratorEntity, SensorEntity):
     """Subscribe one sensor to verified orchestrator commits."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_has_entity_name = True
 
-    def __init__(self, runtime: VacuumOrchestratorRuntime, key: str, name: str) -> None:
+    def __init__(self, runtime: VacuumOrchestratorRuntime, key: str) -> None:
         self._runtime = runtime
         self._attr_unique_id = f"{DOMAIN}_{key}"
-        self._attr_name = name
+        self._attr_translation_key = key
         self._unsubscribe: Callable[[], None] | None = None
 
     async def async_added_to_hass(self) -> None:
@@ -123,7 +123,7 @@ class QueueModeSensor(_OrchestratorSensor):
     """Expose the persistent automatic queue mode."""
 
     def __init__(self, runtime: VacuumOrchestratorRuntime) -> None:
-        super().__init__(runtime, "queue_mode", "Queue mode")
+        super().__init__(runtime, "queue_mode")
 
     @property
     def native_value(self) -> str:
@@ -135,7 +135,7 @@ class QueueLengthSensor(_OrchestratorSensor):
     """Expose the bounded count of pending jobs."""
 
     def __init__(self, runtime: VacuumOrchestratorRuntime) -> None:
-        super().__init__(runtime, "queue_length", "Queue length")
+        super().__init__(runtime, "queue_length")
 
     @property
     def native_value(self) -> int:
@@ -147,7 +147,7 @@ class ActiveJobCountSensor(_OrchestratorSensor):
     """Expose active job count without embedding job data in attributes."""
 
     def __init__(self, runtime: VacuumOrchestratorRuntime) -> None:
-        super().__init__(runtime, "active_jobs", "Active jobs")
+        super().__init__(runtime, "active_jobs")
 
     @property
     def native_value(self) -> int:
@@ -159,7 +159,7 @@ class AttentionJobCountSensor(_OrchestratorSensor):
     """Expose unresolved job count."""
 
     def __init__(self, runtime: VacuumOrchestratorRuntime) -> None:
-        super().__init__(runtime, "attention_jobs", "Jobs needing attention")
+        super().__init__(runtime, "attention_jobs")
 
     @property
     def native_value(self) -> int:
