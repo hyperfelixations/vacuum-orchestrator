@@ -169,6 +169,8 @@ class RuntimeController:
     @callback
     def _registry_changed(self, event: Event[Any]) -> None:
         """Rename robots for naming changes; rebuild adapters for anything else."""
+        if self._own(event):
+            return
         fields = _NAME_FIELDS.get(event.event_type)
         if (
             fields is not None
@@ -179,6 +181,16 @@ class RuntimeController:
         else:
             self._registry_dirty = True
         self.scheduler.notify()
+
+    def _own(self, event: Event[Any]) -> bool:
+        """Whether a registry change concerns only this integration's entities."""
+        if event.event_type == er.EVENT_ENTITY_REGISTRY_UPDATED:
+            entity = er.async_get(self.hass).async_get(event.data["entity_id"])
+            return entity is not None and entity.platform == DOMAIN
+        if event.event_type == dr.EVENT_DEVICE_REGISTRY_UPDATED:
+            device = dr.async_get(self.hass).async_get(event.data["device_id"])
+            return device is not None and device.config_entry_id == self.entry.entry_id
+        return False
 
     async def _entry_updated(self, _hass: HomeAssistant, _entry: ConfigEntry) -> None:
         """Adopt robot entries renamed in HA; only configuration changes rebuild."""

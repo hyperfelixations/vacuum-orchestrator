@@ -22,6 +22,7 @@ from custom_components.vacuum_orchestrator.api.websocket import (
     TYPE_SUBSCRIBE,
     websocket_subscribe,
 )
+from custom_components.vacuum_orchestrator.const import DOMAIN
 from custom_components.vacuum_orchestrator.runtime import async_get_runtime
 from tests.errors import raises_code
 from tests.test_configuration_api import add_robot, call, configured  # noqa: F401
@@ -250,3 +251,38 @@ async def test_a_robot_added_with_a_name_keeps_it_and_its_last_name_after_remova
         "home_assistant",
         None,
     )
+
+
+@pytest.mark.usefixtures("configured")
+async def test_only_registry_changes_outside_the_integration_rebuild_robots(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    entry = _entry(hass)
+    controller = async_get_runtime(hass).controller
+    assert controller is not None
+    rebuilds: list[object] = []
+    rebuild = controller._async_rebuild_adapters
+
+    async def counted(active: frozenset[str]) -> None:
+        rebuilds.append(active)
+        await rebuild(active)
+
+    monkeypatch.setattr(controller, "_async_rebuild_adapters", counted)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, DOMAIN)},
+        entry_type=dr.DeviceEntryType.SERVICE,
+        name="Vacuum Orchestrator",
+    )
+    registry = er.async_get(hass)
+    sensor = registry.async_get_or_create(
+        "sensor", DOMAIN, "queue_mode", config_entry=entry, device_id=device.id
+    )
+    registry.async_update_entity(sensor.entity_id, name="Modus")
+    dr.async_get(hass).async_update_device(device.id, sw_version="1")
+    await hass.async_block_till_done()
+    assert rebuilds == []
+
+    _vacuum(hass)
+    await hass.async_block_till_done()
+    assert rebuilds
