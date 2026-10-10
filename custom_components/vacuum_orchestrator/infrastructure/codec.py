@@ -147,6 +147,7 @@ def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
         "room_registry": encode_room_registry(state.room_registry),
         "queue_grace_seconds": state.queue_grace_seconds,
         "start_delay_seconds": state.start_delay_seconds,
+        "setup_completed_at": _encode_optional_datetime(state.setup_completed_at),
         "job_holds": {
             key: {
                 "hold_id": hold.hold_id,
@@ -239,6 +240,9 @@ def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
             room_registry=decode_room_registry(_object(data["room_registry"])),
             queue_grace_seconds=_number(data.get("queue_grace_seconds", 900)),
             start_delay_seconds=_number(data["start_delay_seconds"]),
+            setup_completed_at=_decode_optional_datetime(
+                data.get("setup_completed_at")
+            ),
             job_holds={
                 key: _decode_hold(_object(value))
                 for key, value in _string_mapping(data["job_holds"]).items()

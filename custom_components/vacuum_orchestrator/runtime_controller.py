@@ -346,6 +346,7 @@ class RuntimeController:
         now = core.now()
         projection = core.view_projection(core.state)
         fingerprint: dict[str, object] = {
+            "setup": projection["setup"],
             "queue": core.attention(),
             "jobs": (
                 projection["jobs"],

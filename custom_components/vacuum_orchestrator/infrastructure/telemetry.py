@@ -145,6 +145,7 @@ COMMANDS = frozenset(
         "release_room",
         "revoke_room",
         "add_robot",
+        "complete_setup",
         "configure_robot",
         "remove_robot",
         "save_template",

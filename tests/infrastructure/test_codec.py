@@ -500,6 +500,14 @@ def test_fault_window_round_trips_and_is_optional_in_older_snapshots() -> None:
     assert older.fault_since is None and older.policy.fault_seconds == 900
 
 
+def test_setup_completion_round_trips_and_is_optional_in_older_snapshots() -> None:
+    finished = replace(_state(), setup_completed_at=NOW)
+    data = encode_orchestrator_state(finished)
+    assert decode_orchestrator_state(data) == finished
+    del data["setup_completed_at"]
+    assert decode_orchestrator_state(data).setup_completed_at is None
+
+
 def test_job_defaults_round_trip() -> None:
     defaults = JobDefaults(
         CleaningMode.VACUUM_THEN_MOP,

@@ -631,6 +631,10 @@ get_trace:
 get_diagnostics:
   name: Get diagnostics
   description: Return a bounded, anonymized diagnostic export.
+get_setup:
+  name: Get setup
+  description: Return the facts of each setup assistant step and whether it was
+    finished.
 get_job_execution:
   name: Explain job execution
   description: Return current per-robot and per-operation blockers, resolved settings

@@ -108,6 +108,7 @@ class OrchestratorState:
     job_defaults: JobDefaults = field(default_factory=JobDefaults)
     start_delay_seconds: float = START_DELAY_SECONDS
     job_holds: Mapping[str, JobHold] = field(default_factory=dict)
+    setup_completed_at: datetime | None = None
 
     def __post_init__(self) -> None:
         seconds(self.queue_grace_seconds)

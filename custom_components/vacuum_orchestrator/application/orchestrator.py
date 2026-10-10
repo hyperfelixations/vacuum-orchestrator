@@ -41,6 +41,7 @@ from ..domain.queue_runs import RunPhase, run_phase
 from ..domain.readiness import ReadinessEvaluator, ReadinessReport
 from ..domain.requests import CommandOrigin
 from ..domain.requirements import StateObservation
+from ..domain.setup import SetupStatus, evaluate_setup
 from ..domain.types import (
     AttemptState,
     JobState,
@@ -76,7 +77,7 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-VIEW_SCOPES = frozenset({"queue", "jobs", "rooms", "robots", "templates"})
+VIEW_SCOPES = frozenset({"queue", "jobs", "rooms", "robots", "templates", "setup"})
 
 # Set while a command is validated: its first state change ends it unapplied.
 _DRY_RUN: ContextVar[bool] = ContextVar("vacuum_orchestrator_dry_run", default=False)
@@ -112,6 +113,7 @@ SCOPE_FIELDS: Mapping[str, tuple[str, ...]] = MappingProxyType(
         "rooms": ("room_registry",),
         "robots": ("robot_leases", "blocked_robots", "robot_runs"),
         "templates": ("templates",),
+        "setup": ("setup_completed_at",),
     }
 )
 INTERNAL_FIELDS = frozenset({"installation_id", "commit_id", "robot_generations"})
@@ -450,6 +452,26 @@ class VacuumOrchestrator:
         """Return the clock every deadline and read model is based on."""
         return self._clock()
 
+    def setup(self, state: OrchestratorState | None = None) -> SetupStatus:
+        """Describe the setup assistant steps; see dev doc "Einrichtungsstatus"."""
+        return evaluate_setup(
+            self.state if state is None else state,
+            {
+                robot_id: adapter.room_reach()
+                for robot_id, adapter in self._adapters.items()
+            },
+        )
+
+    async def async_complete_setup(self) -> datetime:
+        """Record that a person finished the setup assistant."""
+        now = self._clock()
+        await self._mutate(
+            lambda state: replace(
+                state, commit_id=state.commit_id + 1, setup_completed_at=now
+            )
+        )
+        return now
+
     def active_room_ids(self) -> tuple[str, ...]:
         """Resolve an all-rooms selection; see dev doc "Alle Räume"."""
         rooms = self.state.room_registry.active_room_ids()
@@ -579,6 +601,7 @@ class VacuumOrchestrator:
                 ),
             ),
             "rooms": self.jobs_awaiting_release(state),
+            "setup": self.setup(state),
         }
 
     def _commit_scopes(

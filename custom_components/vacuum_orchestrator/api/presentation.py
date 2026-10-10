@@ -17,6 +17,7 @@ from ..domain.queue import Job, OrchestratorState
 from ..domain.queue_runs import RunPhase
 from ..domain.readiness import ReadinessReport
 from ..domain.rooms import Room
+from ..domain.setup import SetupStatus
 from ..domain.types import JobState
 from ..domain.waiting import Blocker, Waiting
 from ..ports.entities import EntityReferences
@@ -334,4 +335,27 @@ def present_queue(
         "offset": offset,
         "limit": limit,
         "jobs": jobs,
+    }
+
+
+def present_setup(status: SetupStatus) -> dict[str, object]:
+    """Serialize the setup facts the assistant shows."""
+    return {
+        "api_version": API_VERSION,
+        "assistant_pending": status.assistant_pending,
+        "completed_at": status.completed_at.isoformat()
+        if status.completed_at
+        else None,
+        "steps": {
+            "robots": {"robot_ids": list(status.robot_ids)},
+            "rooms": {
+                "room_ids": list(status.room_ids),
+                "unreachable_room_ids": list(status.unreachable_room_ids),
+            },
+            "defaults": {"configured": status.defaults_configured},
+            "queue": {
+                "grace_seconds": status.grace_seconds,
+                "start_delay_seconds": status.start_delay_seconds,
+            },
+        },
     }

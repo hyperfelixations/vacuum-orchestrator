@@ -76,6 +76,7 @@ from .presentation import (
     present_job_view,
     present_references,
     present_settings,
+    present_setup,
     view_metadata,
 )
 from .room_presentation import present_room
@@ -179,6 +180,7 @@ COMMANDS: dict[str, probatio.Schema | probatio.All[dict[str, Any]]] = {
 }
 # WebSocket only, never actions; see dev doc "Kartenbefehle".
 CARD_COMMANDS: dict[str, probatio.Schema] = {
+    "complete_setup": probatio.Schema({}),
     "hold_job": probatio.Schema(
         {
             probatio.Required("job_id"): cv.string,
@@ -236,6 +238,7 @@ QUERIES: dict[str, probatio.Schema] = {
     "get_trace": probatio.Schema({**PAGE, probatio.Optional("job_id"): cv.string}),
     "get_history": probatio.Schema(PAGE),
     "get_diagnostics": probatio.Schema({}),
+    "get_setup": probatio.Schema({}),
     "get_templates": probatio.Schema(PAGE),
     "get_rooms": probatio.Schema(PAGE),
     "get_room": probatio.Schema(ROOM_ID),
@@ -381,6 +384,8 @@ def query_configuration(
     now = core.now()
     if name == "get_diagnostics":
         return build_diagnostics(runtime)
+    if name == "get_setup":
+        return present_setup(core.setup())
     if name == "get_trace":
         records = core.trace.snapshot(data.get("job_id"))
         result = page(list(reversed(records)), data, "records")
@@ -604,7 +609,9 @@ async def _execute_configuration(
     room_id = data.get("room_id")
     robot_id = data.get("robot_id")
     result: dict[str, Any] = {"api_version": API_VERSION}
-    if name == "hold_job":
+    if name == "complete_setup":
+        result["completed_at"] = (await core.async_complete_setup()).isoformat()
+    elif name == "hold_job":
         hold = await core.async_hold_job(data["job_id"], data["purpose"])
         result.update(
             hold_id=hold.hold_id,

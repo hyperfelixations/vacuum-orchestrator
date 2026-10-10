@@ -84,7 +84,8 @@ async def test_commits_report_the_changed_scopes() -> None:
     seen.clear()
     await core.async_configure_job_defaults({"passes": 2})
     await core.async_configure_job_defaults({"passes": 2})
-    assert seen == [frozenset({"queue"})]
+    # Configured defaults are a setup fact too.
+    assert seen == [frozenset({"queue", "setup"})]
 
 
 def test_every_state_field_belongs_to_a_scope_or_is_internal() -> None:
@@ -106,7 +107,7 @@ async def test_holds_and_the_start_delay_signal_their_read_models() -> None:
     await core.async_release_job_hold(hold.hold_id)
     await core.runs.async_configure(start_delay_seconds=30)
 
-    assert seen == [{"jobs", "queue"}, {"jobs", "queue"}, {"queue"}]
+    assert seen == [{"jobs", "queue"}, {"jobs", "queue"}, {"queue", "setup"}]
 
 
 async def test_a_job_waiting_for_a_release_signals_its_room() -> None:
@@ -225,7 +226,7 @@ async def test_a_new_room_signals_the_reach_of_every_robot(hass: HomeAssistant) 
     changed = set().union(
         *(event["changed"] for _id, event in subscriber.events[before:])
     )
-    assert changed == {"rooms", "robots"}
+    assert changed == {"rooms", "robots", "setup"}
     reach = (await call(hass, "get_robots"))["robots"][0]["reach"]
     assert room in {item["room_id"] for item in reach}
 
