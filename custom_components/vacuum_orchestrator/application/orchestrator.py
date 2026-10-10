@@ -1213,6 +1213,20 @@ class VacuumOrchestrator:
             attempt = previous.attempts.get(attempt_id)
             if attempt is None:
                 raise ConflictError("unknown_attempt")
+            if run.operation is None and not run.canonical_targets:
+                # Without mode and scope evidence the plan stands.
+                unit = next(
+                    item
+                    for item in previous.plans[
+                        previous.jobs[attempt.job_id].plan_id or ""
+                    ].work_units
+                    if item.work_unit_id == attempt.work_unit_id
+                )
+                run = replace(
+                    run,
+                    operation=unit.operation,
+                    canonical_targets=unit.canonical_targets,
+                )
             correlation = correlate_run(attempt, run)
             candidate = previous.complete_attempt(
                 attempt_id, run, correlation, self._clock()

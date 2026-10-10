@@ -118,13 +118,6 @@ def evaluate_observation(
         if lost:
             return MonitorDecision(MonitorAction.ATTENTION, "robot_connection_lost")
         if observation.cleaning_active is True:
-            if (
-                observation.observed_operation is not None
-                and observation.observed_operation != unit.operation
-            ):
-                return MonitorDecision(
-                    MonitorAction.ATTENTION, "observed_mode_mismatch"
-                )
             return MonitorDecision(MonitorAction.START, "cleaning_start_observed")
         return MonitorDecision(MonitorAction.WAIT, "awaiting_cleaning_start")
     if now >= (attempt.observed_start_at or attempt.prepared_at) + timedelta(
@@ -140,22 +133,11 @@ def evaluate_observation(
     if lost:
         return MonitorDecision(MonitorAction.ATTENTION, "robot_connection_lost")
     if attempt.fault_since is not None and observation.cleaning_active is not True:
-        if _confirmed(observation, unit, assignment):
-            return MonitorDecision(
-                MonitorAction.COMPLETE,
-                "scope_mode_and_success_confirmed",
-                CompletionQuality.CONFIRMED,
-            )
+        if _confirmed(observation):
+            return _confirmed_completion(observation, unit, assignment)
         if now >= _fault_limit(attempt):
             return _fault_timeout(stopped)
         return MonitorDecision(MonitorAction.WAIT, "awaiting_cleaning_after_fault")
-    # Mode evidence rule; see dev doc "Readiness und Ausführungsbeobachtung".
-    if (
-        observation.cleaning_active is True
-        and observation.observed_operation is not None
-        and observation.observed_operation != unit.operation
-    ):
-        return MonitorDecision(MonitorAction.ATTENTION, "observed_mode_mismatch")
     if attempt.fault_since is not None:
         return MonitorDecision(MonitorAction.RESUME, "fault_cleared")
     if not observation.normal_end or observation.cleaning_active is not False:
@@ -165,24 +147,8 @@ def evaluate_observation(
             else MonitorAction.WAIT,
             "cleaning_not_finished",
         )
-    if (
-        observation.completion_confirmed
-        and observation.completed_operation is not None
-        and observation.completed_operation != unit.operation
-    ):
-        return MonitorDecision(MonitorAction.ATTENTION, "completion_mode_mismatch")
-    if (
-        observation.completion_confirmed
-        and observation.completed_targets
-        and set(observation.completed_targets) != set(assignment.adapter_targets)
-    ):
-        return MonitorDecision(MonitorAction.ATTENTION, "completion_scope_mismatch")
-    if _confirmed(observation, unit, assignment):
-        return MonitorDecision(
-            MonitorAction.COMPLETE,
-            "scope_mode_and_success_confirmed",
-            CompletionQuality.CONFIRMED,
-        )
+    if _confirmed(observation):
+        return _confirmed_completion(observation, unit, assignment)
     if attempt.terminal_observed_at is None:
         return MonitorDecision(MonitorAction.SETTLE, "awaiting_terminal_stability")
     if now < attempt.terminal_observed_at + timedelta(
@@ -196,14 +162,28 @@ def evaluate_observation(
     )
 
 
-def _confirmed(
-    observation: RobotObservation, unit: WorkUnit, assignment: DispatchAssignment
-) -> bool:
-    """Return whether the robot confirms exactly this operation and scope."""
+def _confirmed(observation: RobotObservation) -> bool:
+    """Return whether the robot confirms a finished run with mode and scope."""
     return (
         observation.completion_confirmed
-        and observation.completed_operation == unit.operation
-        and set(observation.completed_targets) == set(assignment.adapter_targets)
+        and observation.completed_operation is not None
+        and bool(observation.completed_targets)
+    )
+
+
+def _confirmed_completion(
+    observation: RobotObservation, unit: WorkUnit, assignment: DispatchAssignment
+) -> MonitorDecision:
+    """Complete on confirmation; see dev doc "Abweichungen" for differences."""
+    exact = observation.completed_operation == unit.operation and set(
+        observation.completed_targets
+    ) == set(assignment.adapter_targets)
+    return MonitorDecision(
+        MonitorAction.COMPLETE,
+        "scope_mode_and_success_confirmed"
+        if exact
+        else "success_confirmed_with_changes",
+        CompletionQuality.CONFIRMED,
     )
 
 

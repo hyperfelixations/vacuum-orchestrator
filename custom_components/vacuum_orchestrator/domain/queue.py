@@ -7,7 +7,13 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from types import MappingProxyType
 
-from .completion import CleaningReceipt, CleaningSource, CompletionQuality
+from .completion import (
+    DEVIATIONS,
+    CleaningReceipt,
+    CleaningSource,
+    CompletionQuality,
+    JobCompletion,
+)
 from .errors import ConflictError, ValidationError
 from .execution import ExecutionAttempt, RobotLease, RobotRun, RunCorrelation
 from .holds import JobHold
@@ -591,19 +597,19 @@ class OrchestratorState:
         leases = dict(self.robot_leases)
         leases.pop(attempt.source_robot_id, None)
         registry = self.room_registry.mark_started(job.job_id)
-        if job.job_id in registry.admissions:
-            unit = next(
-                item
-                for item in plan.work_units
-                if item.work_unit_id == attempt.work_unit_id
-            )
+        # Receipts cover only evidenced work; see dev doc "Abweichungen".
+        if (
+            job.job_id in registry.admissions
+            and run.operation is not None
+            and run.canonical_targets
+        ):
             registry = registry.record(
                 CleaningReceipt(
                     f"attempt:{attempt_id}",
                     CleaningSource.VOI,
                     attempt_id,
-                    unit.canonical_targets,
-                    unit.operation,
+                    run.canonical_targets,
+                    run.operation,
                     run.observed_end or now,
                     quality,
                     correlation.reason_codes,
@@ -977,6 +983,32 @@ class OrchestratorState:
                 and run.observed_end is None
             ),
             None,
+        )
+
+    def completion(self, job_id: str) -> JobCompletion | None:
+        """Summarize a completed job's phases; see dev doc "Abweichungen"."""
+        job = self._job(job_id)
+        succeeded = [
+            attempt
+            for attempt in self.attempts.values()
+            if attempt.job_id == job_id and attempt.state is AttemptState.SUCCEEDED
+        ]
+        if job.state is not JobState.COMPLETED or not succeeded:
+            return None
+        codes = {
+            code
+            for attempt in succeeded
+            if (correlation := self.correlations.get(attempt.attempt_id)) is not None
+            for code in correlation.reason_codes
+        }
+        return JobCompletion(
+            CompletionQuality.CONFIRMED
+            if all(
+                attempt.completion_quality is CompletionQuality.CONFIRMED
+                for attempt in succeeded
+            )
+            else CompletionQuality.DERIVED,
+            tuple(code for code in DEVIATIONS if code in codes),
         )
 
     def next_pending_unit(self, job: Job) -> WorkUnit:

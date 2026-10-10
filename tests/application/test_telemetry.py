@@ -374,7 +374,7 @@ def test_own_codes_and_known_vendor_values_stay_readable() -> None:
         "event": "attempt_transition",
         "command": "end_queue",
         "state": "recovery_required",
-        "reason": "observed_mode_mismatch",
+        "reason": "robot_fault_timeout",
     }
     assert sink.sanitize(record) | {"diagnostic_version": 1} == {
         **record,

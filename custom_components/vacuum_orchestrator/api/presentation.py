@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from ..const import API_VERSION, INTEGRATION_VERSION
 from ..domain.attention import Attention
+from ..domain.completion import JobCompletion
 from ..domain.execution import ExecutionAttempt
 from ..domain.holds import JobHold
 from ..domain.job_defaults import JobDefaults
@@ -135,6 +136,7 @@ def present_job_view(
         hold=core.job_hold(job.job_id),
         waiting=waiting,
         progress=core.progress(job.job_id),
+        completion=state.completion(job.job_id),
         actions=job_actions(state, job, core.now(), waiting),
     )
 
@@ -149,6 +151,7 @@ def present_job(
     hold: JobHold | None = None,
     waiting: Waiting | None = None,
     progress: Progress | None = None,
+    completion: JobCompletion | None = None,
     actions: Mapping[str, Availability] | None = None,
 ) -> dict[str, object]:
     """Serialize one bounded job record; a hold never reveals its token."""
@@ -223,6 +226,12 @@ def present_job(
                 "since": progress.fault.since.isoformat(),
                 "fails_at": progress.fault.fails_at.isoformat(),
             },
+        },
+        "completion": None
+        if completion is None
+        else {
+            "quality": completion.quality.value,
+            "deviations": list(completion.deviations),
         },
         "actions": None if actions is None else present_actions(actions),
         "active_attempt_id": job.active_attempt_id,

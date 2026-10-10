@@ -500,6 +500,23 @@ def test_fault_window_round_trips_and_is_optional_in_older_snapshots() -> None:
     assert older.fault_since is None and older.policy.fault_seconds == 900
 
 
+def test_observed_operations_round_trip_and_are_optional_in_older_snapshots() -> None:
+    sent = _state().mark_command_sent("attempt", NOW)
+    changed = replace(
+        sent,
+        attempts={
+            "attempt": replace(
+                sent.attempts["attempt"],
+                observed_operations=(OperationKind.VACUUM, OperationKind.MOP),
+            )
+        },
+    )
+    data = encode_orchestrator_state(changed)
+    assert decode_orchestrator_state(data) == changed
+    del data["attempts"]["attempt"]["observed_operations"]
+    assert decode_orchestrator_state(data).attempts["attempt"].observed_operations == ()
+
+
 def test_setup_completion_round_trips_and_is_optional_in_older_snapshots() -> None:
     finished = replace(_state(), setup_completed_at=NOW)
     data = encode_orchestrator_state(finished)

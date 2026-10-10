@@ -67,6 +67,8 @@ class ExecutionAttempt:
     return_to_dock: bool = False
     recovery_resolution: RecoveryResolution | None = None
     fault_since: datetime | None = None
+    # Modes set while the robot cleaned; see dev doc "Abweichungen".
+    observed_operations: tuple[OperationKind, ...] = ()
 
     @property
     def fault_deadline(self) -> datetime | None:

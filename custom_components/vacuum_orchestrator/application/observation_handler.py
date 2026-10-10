@@ -4,13 +4,24 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 
-from ..domain.completion import CleaningReceipt, CleaningSource, CompletionQuality
+from ..domain.completion import evidenced_operation
 from ..domain.correlation import correlate_run
 from ..domain.dispatching import RobotObservation
-from ..domain.execution import RobotRun
+from ..domain.execution import ExecutionAttempt, RobotRun
 from ..domain.monitoring import MonitorAction, MonitorDecision, evaluate_observation
+from ..domain.planning import DispatchAssignment, WorkUnit
 from ..domain.queue import OrchestratorState
 from ..domain.types import AttemptState, OperationKind
+
+# Decisions about observations that cannot describe this attempt's run.
+_UNRELATED = frozenset(
+    {
+        "attempt_not_observing",
+        "observation_out_of_order",
+        "observation_source_mismatch",
+        "observation_timeout",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,8 +61,12 @@ def apply_observation(
         set(observation.completed_targets),
         set(assignment.adapter_targets),
     )
+    tracked = _track_operation(state, attempt, observation, decision)
+    candidate = _transition(tracked, observation, now, id_factory, decision)
+    if candidate is tracked and tracked is not state:
+        candidate = replace(tracked, commit_id=state.commit_id + 1)
     return ObservationResult(
-        _transition(state, observation, now, id_factory, decision),
+        candidate,
         decision,
         unit.operation,
         targets="none"
@@ -61,6 +76,53 @@ def apply_observation(
         else "partial"
         if reported < assigned
         else "mismatch",
+    )
+
+
+def _track_operation(
+    state: OrchestratorState,
+    attempt: ExecutionAttempt,
+    observation: RobotObservation,
+    decision: MonitorDecision,
+) -> OrchestratorState:
+    """Remember each mode the robot cleaned in; see dev doc "Abweichungen"."""
+    operation = observation.observed_operation
+    if (
+        operation is None
+        or observation.cleaning_active is not True
+        or decision.reason in _UNRELATED
+        or operation in attempt.observed_operations
+        or attempt.state
+        not in {
+            AttemptState.COMMAND_SENT,
+            AttemptState.START_CONFIRMED,
+            AttemptState.COMPLETION_PENDING,
+        }
+    ):
+        return state
+    return replace(
+        state,
+        attempts={
+            **state.attempts,
+            attempt.attempt_id: replace(
+                attempt,
+                observed_operations=(*attempt.observed_operations, operation),
+            ),
+        },
+    )
+
+
+def _evidenced_rooms(
+    unit: WorkUnit, assignment: DispatchAssignment, completed: set[str]
+) -> tuple[str, ...]:
+    """Return the unit's rooms whose targets the robot confirmed as cleaned."""
+    if not completed or completed >= set(assignment.adapter_targets):
+        return unit.canonical_targets
+    return tuple(
+        room_id
+        for room_id in unit.canonical_targets
+        if (targets := assignment.room_targets.get(room_id))
+        and set(targets) <= completed
     )
 
 
@@ -83,36 +145,9 @@ def _transition(
     if decision.action is MonitorAction.WAIT:
         return state
     if decision.action is MonitorAction.ATTENTION:
-        candidate = state.require_robot_attention(
+        return state.require_robot_attention(
             attempt.attempt_id, decision.reason, None, None, now
         )
-        if (
-            decision.reason == "completion_scope_mismatch"
-            and observation.completed_operation == unit.operation
-            and set(observation.completed_targets) < set(assignment.adapter_targets)
-        ):
-            completed_rooms = tuple(
-                room_id
-                for room_id, targets in assignment.room_targets.items()
-                if set(targets) <= set(observation.completed_targets)
-            )
-            if completed_rooms:
-                candidate = replace(
-                    candidate,
-                    room_registry=candidate.room_registry.record(
-                        CleaningReceipt(
-                            f"attempt:{attempt.attempt_id}:partial",
-                            CleaningSource.VOI,
-                            attempt.attempt_id,
-                            completed_rooms,
-                            unit.operation,
-                            observed_at,
-                            CompletionQuality.CONFIRMED,
-                            ("confirmed_partial_scope",),
-                        )
-                    ),
-                )
-        return candidate
     if decision.action is MonitorAction.START:
         return state.mark_start_confirmed(attempt.attempt_id, observed_at)
     if decision.action is MonitorAction.FAIL:
@@ -154,6 +189,23 @@ def _transition(
         history_start = None
     if history_end == attempt.prior_history_end:
         history_end = None
+    # Deviation rule; see dev doc "Abweichungen".
+    confirmed = observation.completion_confirmed and decision.quality is not None
+    modes = attempt.observed_operations
+    if confirmed and observation.completed_operation is not None:
+        modes = (*modes, observation.completed_operation)
+    completed = set(observation.completed_targets) if confirmed else set()
+    deviations = tuple(
+        code
+        for code, changed in (
+            ("mode_changed", any(mode != unit.operation for mode in modes)),
+            (
+                "scope_changed",
+                bool(completed) and completed != set(assignment.adapter_targets),
+            ),
+        )
+        if changed
+    )
     run = RobotRun(
         id_factory(),
         attempt.source_robot_id,
@@ -163,8 +215,11 @@ def _transition(
         history_end=history_end,
         cleaning_activity_seen=True,
         completion_quality=decision.quality,
-        operation=unit.operation,
-        canonical_targets=unit.canonical_targets,
+        operation=evidenced_operation(unit.operation, modes),
+        canonical_targets=_evidenced_rooms(unit, assignment, completed),
     )
     correlation = correlate_run(attempt, run)
+    correlation = replace(
+        correlation, reason_codes=(*correlation.reason_codes, *deviations)
+    )
     return state.complete_attempt(attempt.attempt_id, run, correlation, now)

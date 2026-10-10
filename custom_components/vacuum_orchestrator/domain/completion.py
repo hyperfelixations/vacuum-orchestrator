@@ -16,6 +16,42 @@ class CompletionQuality(StrEnum):
     DERIVED = "derived"
 
 
+# Evidence codes that tell a person how a run differed; see dev doc
+# "Abweichungen". All other evidence codes describe the proof itself.
+DEVIATIONS = ("mode_changed", "scope_changed")
+
+_COVERED = {
+    OperationKind.VACUUM: frozenset({OperationKind.VACUUM}),
+    OperationKind.MOP: frozenset({OperationKind.MOP}),
+    OperationKind.VACUUM_AND_MOP: frozenset({OperationKind.VACUUM, OperationKind.MOP}),
+}
+
+
+def evidenced_operation(
+    planned: OperationKind, observed: tuple[OperationKind, ...]
+) -> OperationKind | None:
+    """Return what every observed mode covered of the planned operation.
+
+    Without mode evidence the planned operation stands. Vacuuming and mopping
+    together covers either alone.
+    """
+    covered = set(_COVERED[planned])
+    for operation in observed:
+        covered &= _COVERED[operation]
+    return next(
+        (operation for operation, parts in _COVERED.items() if parts == covered),
+        None,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class JobCompletion:
+    """How a completed job was proven and how its runs differed from the plan."""
+
+    quality: CompletionQuality
+    deviations: tuple[str, ...]
+
+
 class CleaningSource(StrEnum):
     """Origin of a physical cleaning run."""
 

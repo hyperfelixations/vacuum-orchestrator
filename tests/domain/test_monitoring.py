@@ -90,7 +90,7 @@ def test_availability_does_not_substitute_for_cleaning_start(state) -> None:
     )
 
 
-def test_confirmed_completion_requires_exact_mode_scope_and_start() -> None:
+def test_a_confirmed_completion_needs_a_start_and_may_deviate() -> None:
     complete = replace(
         IDLE,
         completion_confirmed=True,
@@ -105,16 +105,17 @@ def test_confirmed_completion_requires_exact_mode_scope_and_start() -> None:
     result = evaluate(started, complete)
     assert result.action is MonitorAction.COMPLETE
     assert result.quality is CompletionQuality.CONFIRMED
-    assert (
-        evaluate(started, replace(complete, completed_targets=("other",))).reason
-        == "completion_scope_mismatch"
-    )
-    assert (
-        evaluate(
-            started, replace(complete, completed_operation=OperationKind.MOP)
-        ).reason
-        == "completion_mode_mismatch"
-    )
+    assert result.reason == "scope_mode_and_success_confirmed"
+    for changed in (
+        replace(complete, completed_targets=("other",)),
+        replace(complete, completed_operation=OperationKind.MOP),
+    ):
+        deviation = evaluate(started, changed)
+        assert (deviation.action, deviation.reason, deviation.quality) == (
+            MonitorAction.COMPLETE,
+            "success_confirmed_with_changes",
+            CompletionQuality.CONFIRMED,
+        )
     unrecorded = evaluate(started, replace(complete, completed_operation=None))
     assert (unrecorded.action, unrecorded.quality) == (MonitorAction.SETTLE, None)
 
@@ -380,14 +381,6 @@ def test_out_of_order_observations_do_not_advance_and_cannot_evade_timeouts() ->
         evaluate(replace(ATTEMPT, state=AttemptState.RECOVERY_REQUIRED)).reason
         == "attempt_not_observing"
     )
-    assert (
-        evaluate(
-            observation=replace(
-                IDLE, cleaning_active=True, observed_operation=OperationKind.MOP
-            )
-        ).reason
-        == "observed_mode_mismatch"
-    )
 
 
 def test_invalid_execution_policy_rejects_nonfinite_timeouts() -> None:
@@ -418,9 +411,7 @@ def test_only_faults_of_the_running_operation_stop_it() -> None:
     ).action is (MonitorAction.SETTLE)
 
 
-def test_a_mode_setting_counts_only_while_cleaning_or_with_confirmed_completion() -> (
-    None
-):
+def test_a_changed_mode_never_stops_the_run() -> None:
     started = replace(
         ATTEMPT, state=AttemptState.START_CONFIRMED, observed_start_at=NOW
     )
@@ -433,8 +424,11 @@ def test_a_mode_setting_counts_only_while_cleaning_or_with_confirmed_completion(
     )
     returning = replace(cleaning, cleaning_active=False, observed_operation=other)
 
+    assert evaluate(ATTEMPT, replace(cleaning, observed_operation=other)).action is (
+        MonitorAction.START
+    )
     assert evaluate(started, replace(cleaning, observed_operation=other)).reason == (
-        "observed_mode_mismatch"
+        "cleaning_not_finished"
     )
     decision = evaluate(started, returning)
     assert (decision.action, decision.reason) == (

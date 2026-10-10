@@ -17,6 +17,7 @@ from custom_components.vacuum_orchestrator.adapters.public_values import (
     ADAPTER_VALUES,
 )
 from custom_components.vacuum_orchestrator.adapters.roborock import RoborockAdapter
+from custom_components.vacuum_orchestrator.api.presentation import present_job_view
 from custom_components.vacuum_orchestrator.application.orchestrator import (
     VacuumOrchestrator,
 )
@@ -161,6 +162,12 @@ async def test_a_run_that_returns_home_with_another_mode_setting_completes(
 
     assert core.state.jobs[job_id].state is JobState.COMPLETED
     assert attempt().completion_quality is CompletionQuality.DERIVED
+    # A setting changed after cleaning is no deviation of the run.
+    assert attempt().observed_operations == (OperationKind.VACUUM,)
+    assert present_job_view(core, core.state.jobs[job_id])["completion"] == {
+        "quality": "derived",
+        "deviations": [],
+    }
     stamp = core.state.room_registry.rooms["kitchen"].last_cleaning
     assert OperationKind.VACUUM in stamp
     await observe("charging", "off", seconds=30)
@@ -170,7 +177,41 @@ async def test_a_run_that_returns_home_with_another_mode_setting_completes(
     assert reloaded.state.jobs[job_id].state is JobState.COMPLETED
 
 
-async def test_a_recovery_export_shows_its_cause_and_triggering_observation(
+async def _finish(observe: Callable[..., Awaitable[None]]) -> None:
+    await observe("returning_home", "off", seconds=300)
+    await observe("charging", "off", seconds=60)
+    await observe("charging", "off", seconds=30)
+
+
+async def test_a_mode_changed_while_cleaning_completes_with_what_both_covered(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    core, job_id, backend, adapter = await _started(hass, freezer)
+    observe = _observer(hass, freezer, core)
+    await observe("segment_cleaning", "on")
+    _set_mode(hass, "vac_and_mop")
+    await observe("segment_cleaning", "on", seconds=60)
+    assert core.state.jobs[job_id].state is JobState.RUNNING
+    await _finish(observe)
+
+    assert core.state.jobs[job_id].state is JobState.COMPLETED
+    (attempt,) = core.state.attempts.values()
+    assert attempt.observed_operations == (
+        OperationKind.VACUUM,
+        OperationKind.VACUUM_AND_MOP,
+    )
+    (receipt,) = core.state.room_registry.receipts.values()
+    assert (receipt.operation, receipt.room_ids) == (OperationKind.VACUUM, ("kitchen",))
+    assert receipt.evidence == ("derived_completion", "mode_changed")
+    assert present_job_view(core, core.state.jobs[job_id])["completion"] == {
+        "quality": "derived",
+        "deviations": ["mode_changed"],
+    }
+    reloaded = await _core(backend, adapter)
+    assert reloaded.state.attempts == core.state.attempts
+
+
+async def test_a_run_switched_to_another_operation_completes_without_a_receipt(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
     core, job_id, _backend, _adapter = await _started(hass, freezer)
@@ -178,7 +219,29 @@ async def test_a_recovery_export_shows_its_cause_and_triggering_observation(
     await observe("segment_cleaning", "on")
     _set_mode(hass, "mop")
     await observe("segment_cleaning", "on", seconds=60)
+    await _finish(observe)
+
+    assert core.state.jobs[job_id].state is JobState.COMPLETED
+    assert core.state.room_registry.receipts == {}
+    assert core.state.room_registry.rooms["kitchen"].last_cleaning == {}
+    (run,) = core.state.robot_runs.values()
+    assert (run.operation, run.canonical_targets) == (None, ("kitchen",))
+    assert core.state.completion(job_id) is not None
+    assert core.state.completion(job_id).deviations == ("mode_changed",)
+    assert not core.state.robot_leases
+
+
+async def test_a_recovery_export_shows_its_cause_and_triggering_observation(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    core, job_id, _backend, _adapter = await _started(hass, freezer)
+    observe = _observer(hass, freezer, core)
+    await observe("segment_cleaning", "on")
+    hass.states.async_set("sensor.error", "main_brush_jammed")
+    await observe("segment_cleaning", "on", seconds=60)
+    await observe("segment_cleaning", "on", seconds=900)
     assert core.state.jobs[job_id].state is JobState.NEEDS_ATTENTION
+    hass.states.async_set("sensor.error", "none")
     await observe("charging", "off", seconds=600)
     await core.async_resolve_recovery("robot")
 
@@ -191,7 +254,7 @@ async def test_a_recovery_export_shows_its_cause_and_triggering_observation(
         attempt["state"],
         attempt["failure_code"],
         attempt["recovery_resolution"],
-    ) == ("failed", "observed_mode_mismatch", "verified_stopped")
+    ) == ("failed", "robot_fault_timeout", "verified_stopped")
     trigger = attempt["recovery_trigger"]
     assert (
         trigger["phase"],
@@ -200,7 +263,7 @@ async def test_a_recovery_export_shows_its_cause_and_triggering_observation(
         trigger["operation"],
         trigger["monitor_action"],
         trigger["monitor_reason"],
-    ) == ("cleaning", True, "mop", "vacuum", "attention", "observed_mode_mismatch")
+    ) == ("cleaning", True, "vacuum", "vacuum", "attention", "robot_fault_timeout")
     window = export["trace_window"]
     assert window["capacity"] == 512 and window["first_sequence"] == 1
     assert window["last_sequence"] == window["recorded"]

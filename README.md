@@ -442,6 +442,15 @@ may be recorded as **derived** completion. **Confirmed** means stronger evidence
 is available. The room keeps the most recent effective result and the most recent
 confirmed result separately. An error, connection loss or timeout is not success.
 
+Changing the cleaning mode while the robot cleans, for example in the
+manufacturer's app, is not a fault: the job goes on, completes and is marked as
+changed (`completion.deviations` of the job contains `mode_changed`). Rooms count
+only what the whole run covered. Switching from vacuuming to vacuuming and
+mopping counts as vacuuming; switching to mopping only completes the job without
+recording a cleaning for its rooms. A robot that confirms other rooms than
+planned completes the job the same way with `scope_changed`, and only the
+confirmed rooms count. Settings such as suction power are not tracked.
+
 Cleaning started from a manufacturer's app appears in history, and the robot
 shows it as external activity until it ends; VOI creates no job for it. Room values
 change only when the room, mode and successful completion are all proven. The

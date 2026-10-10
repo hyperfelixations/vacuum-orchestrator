@@ -1129,6 +1129,7 @@ def _encode_attempt(attempt: ExecutionAttempt) -> JsonObject:
         "return_to_dock": attempt.return_to_dock,
         "recovery_resolution": _enum_value(attempt.recovery_resolution),
         "fault_since": _encode_optional_datetime(attempt.fault_since),
+        "observed_operations": [item.value for item in attempt.observed_operations],
     }
 
 
@@ -1164,6 +1165,10 @@ def _decode_attempt(data: JsonObject) -> ExecutionAttempt:
         _bool(data.get("return_to_dock", False)),
         _optional_enum(RecoveryResolution, data.get("recovery_resolution")),
         _decode_optional_datetime(data.get("fault_since")),
+        tuple(
+            _enum(OperationKind, item)
+            for item in _string_list(data.get("observed_operations", []))
+        ),
     )
 
 

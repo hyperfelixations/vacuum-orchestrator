@@ -395,7 +395,7 @@ async def test_prestart_error_conflicting_with_observed_start_requires_recovery(
     "targets,expected_rooms",
     [(("a",), ()), (("a", "b"), ("kitchen",)), (("a", "foreign"), ())],
 )
-async def test_partial_completion_books_only_fully_proven_room_scope(
+async def test_a_changed_confirmed_scope_completes_and_books_only_proven_rooms(
     monkeypatch, targets, expected_rooms
 ):
     backend = RecordingBackend()
@@ -425,7 +425,9 @@ async def test_partial_completion_books_only_fully_proven_room_scope(
 
     monkeypatch.setattr(adapter, "async_observe", observe)
     await core.async_process_robot_observation("robot")
-    assert core.state.jobs[job].state is JobState.NEEDS_ATTENTION
+    assert core.state.jobs[job].state is JobState.COMPLETED
+    (correlation,) = core.state.correlations.values()
+    assert correlation.reason_codes == ("confirmed_completion", "scope_changed")
     assert (
         tuple(
             room_id
@@ -435,12 +437,12 @@ async def test_partial_completion_books_only_fully_proven_room_scope(
         == expected_rooms
     )
     if expected_rooms:
-        assert (
-            core.rooms.registry.resolve("kitchen")
-            .last_confirmed[OperationKind.VACUUM]
-            .quality
-            is CompletionQuality.CONFIRMED
-        )
+        stamp = core.rooms.registry.resolve("kitchen").last_confirmed[
+            OperationKind.VACUUM
+        ]
+        assert stamp.quality is CompletionQuality.CONFIRMED
+        (receipt,) = core.rooms.registry.receipts.values()
+        assert receipt.evidence == correlation.reason_codes
 
 
 async def test_late_proof_upgrades_same_receipt_without_counting_cleaning_twice():

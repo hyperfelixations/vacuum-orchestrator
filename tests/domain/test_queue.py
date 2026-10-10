@@ -465,18 +465,18 @@ def test_recovery_keeps_the_cause_and_records_how_it_ended(
         "attempt", NOW
     )
     blocked = started.require_robot_attention(
-        "attempt", "observed_mode_mismatch", None, None, NOW
+        "attempt", "robot_reported_error", None, None, NOW
     )
-    assert blocked.jobs["a"].failure_code == "observed_mode_mismatch"
-    assert blocked.blocked_robots == {"source": "observed_mode_mismatch"}
+    assert blocked.jobs["a"].failure_code == "robot_reported_error"
+    assert blocked.blocked_robots == {"source": "robot_reported_error"}
 
     resolved = blocked.resolve_recovery("source", NOW, assumed_stopped=assumed)
 
     attempt = resolved.attempts["attempt"]
     assert (attempt.state, attempt.failure_code, attempt.recovery_resolution) == (
         AttemptState.FAILED,
-        "observed_mode_mismatch",
+        "robot_reported_error",
         resolution,
     )
     assert resolved.jobs["a"].state is JobState.FAILED
-    assert resolved.jobs["a"].failure_code == "observed_mode_mismatch"
+    assert resolved.jobs["a"].failure_code == "robot_reported_error"
