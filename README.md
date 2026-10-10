@@ -266,6 +266,7 @@ cleaning mode.
 | Cancel one job | `cancel_job`: `job_id`, optional `after_cancel: stay` or `return_to_dock` |
 | Send an idle robot home | `return_robot`: `robot_id` |
 | Try a failed or cancelled job again | `retry_job`: `job_id` |
+| Correct what a finished job achieved | `correct_job`: `job_id`, `outcome: completed` or `failed` |
 | Remove a waiting or finished job | `delete_job`: `job_id` |
 
 All action names use the prefix `vacuum_orchestrator.`. Pausing lets already
@@ -459,6 +460,12 @@ mopping counts as vacuuming; switching to mopping only completes the job without
 recording a cleaning for its rooms. A robot that confirms other rooms than
 planned completes the job the same way with `scope_changed`, and only the
 confirmed rooms count. Settings such as suction power are not tracked.
+
+You can correct a finished job afterwards. `correct_job` with
+`outcome: completed` marks it as completed and records the cleaning VOI could
+not prove for its rooms (note `reported_by_user`, quality derived). With
+`outcome: failed` the job counts as failed (`reported_failed`) and its rooms
+forget its cleaning; they fall back to their previous cleaning.
 
 Cleaning started from a manufacturer's app appears in history, and the robot
 shows it as external activity until it ends; VOI creates no job for it. Room values

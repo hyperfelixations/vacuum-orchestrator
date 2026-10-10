@@ -32,6 +32,7 @@ SERVICE_END_QUEUE = "end_queue"
 SERVICE_CANCEL_JOB = "cancel_job"
 SERVICE_RETURN_ROBOT = "return_robot"
 SERVICE_RETRY_JOB = "retry_job"
+SERVICE_CORRECT_JOB = "correct_job"
 SERVICE_GET_QUEUE = "get_queue"
 SERVICE_GET_JOB = "get_job"
 

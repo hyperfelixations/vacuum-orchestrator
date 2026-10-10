@@ -10,6 +10,7 @@ from custom_components.vacuum_orchestrator.runtime import async_get_runtime
 from tests.application.test_orchestrator import RecordingAdapter, RecordingBackend
 from tests.test_configuration_api import call, configured  # noqa: F401
 from tests.test_job_holds_api import Card
+from tests.test_runtime import MemoryBackend
 
 
 def offered(actions: dict[str, Any]) -> dict[str, str | None]:
@@ -41,6 +42,7 @@ async def test_waiting_jobs_offer_what_their_commands_accept(
         "cancel": "job_not_started",
         "start": "job_not_startable",
         "retry": "job_not_retryable",
+        "correct": "job_not_correctable",
         "move_up": "job_at_top",
         "move_down": None,
     }
@@ -81,7 +83,43 @@ async def test_commands_refuse_with_the_reason_their_action_names(
     await Card(hass).command("hold_job", job_id=job, purpose="confirm")
     actions = (await call(hass, "get_job", job_id=job))["actions"]
 
-    for action, service in (("retry", "retry_job"), ("delete", "delete_job")):
+    for action, service, data in (
+        ("retry", "retry_job", {}),
+        ("delete", "delete_job", {}),
+        ("correct", "correct_job", {"outcome": "completed"}),
+    ):
         with pytest.raises(ServiceValidationError) as refused:
-            await call(hass, service, job_id=job)
+            await call(hass, service, job_id=job, **data)
         assert refused.value.translation_key == actions[action]["reason"]
+
+
+@pytest.mark.usefixtures("configured")
+async def test_a_finished_job_is_corrected_with_the_correct_job_action(
+    hass: HomeAssistant,
+) -> None:
+    room = (await call(hass, "create_room", name="Office"))["room_id"]
+    job = (await call(hass, "create_job", areas=[room]))["job_id"]
+    await call(hass, "release_room", room_id=room, kind="permanent")
+    core = async_get_runtime(hass).orchestrator
+    # The adapter checks the boundary in the runtime's store.
+    adapter = RecordingAdapter(MemoryBackend, "robot", targets=(room,))
+    await core.async_replace_adapters({"robot": adapter})
+    await core.async_observed_snapshot()
+    await call(hass, "start_job", job_id=job)
+    await core.async_confirm_start(core.state.jobs[job].active_attempt_id)
+    await call(hass, "cancel_job", job_id=job)
+    await core.async_confirm_cancel(job)
+    cancelled = await call(hass, "get_job", job_id=job)
+    assert cancelled["actions"]["correct"]["available"] is True
+    assert (cancelled["completion"], cancelled["corrected_at"]) == (None, None)
+
+    response = await call(hass, "correct_job", job_id=job, outcome="completed")
+
+    assert response["job_id"] == job
+    detail = await call(hass, "get_job", job_id=job)
+    assert detail["state"] == "completed"
+    assert detail["corrected_at"] is not None
+    assert detail["completion"] == {
+        "quality": "derived",
+        "notes": ["reported_by_user"],
+    }

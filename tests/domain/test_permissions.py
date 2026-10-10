@@ -58,6 +58,7 @@ def test_a_waiting_job_is_edited_deleted_or_started_but_not_cancelled() -> None:
         "cancel": "job_not_started",
         "start": None,
         "retry": "job_not_retryable",
+        "correct": "job_not_correctable",
         "move_up": None,
         "move_down": None,
     }
@@ -108,12 +109,17 @@ def test_started_work_is_cancelled_and_finished_work_retried() -> None:
         "cancel": None,
         "start": "job_not_waiting",
         "retry": "job_not_retryable",
+        "correct": "job_not_correctable",
         "move_up": "job_not_movable",
         "move_down": "job_not_movable",
     }
     done = replace(started.jobs["a"], state=JobState.COMPLETED)
     actions = job_actions(started, done, NOW, None)
-    assert (actions["delete"], actions["retry"]) == (AVAILABLE, AVAILABLE)
+    assert (actions["delete"], actions["retry"], actions["correct"]) == (
+        AVAILABLE,
+        AVAILABLE,
+        AVAILABLE,
+    )
     assert actions["cancel"] == unavailable("job_not_cancellable")
 
 

@@ -385,6 +385,9 @@
     "invalid_job_hold": {
       "message": "Stored data is invalid: a job protection does not match its job"
     },
+    "invalid_correction_outcome": {
+      "message": "A correction is either completed or failed"
+    },
     "invalid_job_provenance": {
       "message": "The stored job origin is invalid"
     },
@@ -522,6 +525,9 @@
     },
     "job_not_movable": {
       "message": "Only waiting jobs can be moved"
+    },
+    "job_not_correctable": {
+      "message": "Only finished jobs can be corrected"
     },
     "job_not_retryable": {
       "message": "Only finished jobs can be retried"

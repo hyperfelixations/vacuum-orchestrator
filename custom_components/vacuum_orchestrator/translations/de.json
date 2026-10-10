@@ -385,6 +385,9 @@
     "invalid_job_hold": {
       "message": "Gespeicherte Daten sind ungültig: Ein Auftragsschutz passt nicht zu seinem Auftrag"
     },
+    "invalid_correction_outcome": {
+      "message": "Eine Korrektur lautet erfolgreich oder fehlgeschlagen"
+    },
     "invalid_job_provenance": {
       "message": "Die gespeicherte Herkunft des Auftrags ist ungültig"
     },
@@ -522,6 +525,9 @@
     },
     "job_not_movable": {
       "message": "Nur wartende Aufträge können verschoben werden"
+    },
+    "job_not_correctable": {
+      "message": "Nur beendete Aufträge können korrigiert werden"
     },
     "job_not_retryable": {
       "message": "Nur beendete Aufträge können wiederholt werden"

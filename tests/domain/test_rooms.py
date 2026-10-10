@@ -423,3 +423,37 @@ def test_explicit_freshness_requires_a_valid_source_timestamp(
     assert result.state is (
         RequirementState.READY if reported_at == NOW else RequirementState.STALE
     )
+
+
+def test_withdrawn_receipts_fall_back_to_the_latest_remaining_ones() -> None:
+    confirmed = receipt("confirmed", at=NOW)
+    derived = receipt(
+        "derived", at=NOW + timedelta(hours=1), quality=CompletionQuality.DERIVED
+    )
+    older = receipt("older", at=NOW - timedelta(hours=1))
+    registry = (
+        RoomRegistry({"room": Room("room", "Room")})
+        .record(older)
+        .record(confirmed)
+        .record(derived)
+    )
+    room = registry.rooms["room"]
+    assert room.last_cleaning[OperationKind.VACUUM].receipt_id == "derived"
+    held = room.last_confirmed[OperationKind.VACUUM]
+    assert held.receipt_id == "confirmed"
+
+    # The confirmed stamp is still held and keeps its occupied-time baseline.
+    without_derived = registry.withdraw(frozenset({"derived"}))
+    assert without_derived.rooms["room"].last_cleaning[OperationKind.VACUUM] == held
+    assert set(without_derived.receipts) == {"older", "confirmed"}
+
+    # Older receipts have no held stamp; their baseline is unknown.
+    fallback = registry.withdraw(frozenset({"derived", "confirmed"})).rooms["room"]
+    stamp = fallback.last_cleaning[OperationKind.VACUUM]
+    assert (stamp.receipt_id, stamp.occupancy_baseline_known) == ("older", False)
+    assert fallback.last_confirmed[OperationKind.VACUUM] == stamp
+
+    empty = registry.withdraw(frozenset({"older", "confirmed", "derived"}))
+    assert empty.rooms["room"].last_cleaning == {}
+    assert empty.rooms["room"].last_confirmed == {}
+    assert registry.withdraw(frozenset({"unknown"})) is registry

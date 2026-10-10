@@ -82,6 +82,15 @@ def retryable(job: Job) -> Availability:
     )
 
 
+def correctable(job: Job) -> Availability:
+    """`correct_job`: finished jobs that were planned."""
+    return (
+        AVAILABLE
+        if job.state in TERMINAL_STATES and job.plan_id is not None
+        else unavailable("job_not_correctable")
+    )
+
+
 def holdable(job: Job) -> Availability:
     """`hold_job`: only waiting jobs."""
     return AVAILABLE if job.state is JobState.QUEUED else unavailable("job_not_waiting")
@@ -104,6 +113,7 @@ def job_actions(
         "cancel": _cancellable(job),
         "start": unheld(_startable(job, waiting)),
         "retry": retryable(job),
+        "correct": correctable(job),
         "move_up": _boundary(job, position == 0, unavailable("job_at_top")),
         "move_down": _boundary(
             job, position == len(state.queue) - 1, unavailable("job_at_bottom")

@@ -282,6 +282,19 @@ retry_job:
   description: Create a new queued job from a terminal job.
   fields:
     job_id: *id002
+correct_job:
+  name: Correct job outcome
+  description: Record whether a finished job cleaned its rooms; room due times follow.
+  fields:
+    job_id: *id002
+    outcome:
+      name: Outcome
+      required: true
+      selector:
+        select:
+          options:
+            - completed
+            - failed
 get_queue:
   name: Get queue
   description: Return a bounded page from the global pending queue.

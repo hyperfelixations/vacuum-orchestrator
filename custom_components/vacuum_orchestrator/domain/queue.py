@@ -20,6 +20,7 @@ from .holds import JobHold
 from .intents import JobIntent, JobIntentPatch
 from .job_defaults import JobDefaults
 from .permissions import (
+    correctable,
     deletable,
     editable,
     holdable,
@@ -86,6 +87,8 @@ class Job:
     provenance: JobProvenance = JobProvenance()
     # Automatic queue starts wait until then; see dev doc "Startverzögerung".
     start_after: datetime | None = None
+    # Last outcome correction; see dev doc "Korrektur".
+    corrected_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1011,22 +1014,123 @@ class OrchestratorState:
             for attempt in self.attempts.values()
             if attempt.job_id == job_id and attempt.state is AttemptState.SUCCEEDED
         ]
-        if job.state is not JobState.COMPLETED or not succeeded:
+        corrected = job.corrected_at is not None
+        if job.state is not JobState.COMPLETED or not (succeeded or corrected):
             return None
         codes = {
             code
             for attempt in succeeded
             if (correlation := self.correlations.get(attempt.attempt_id)) is not None
             for code in correlation.reason_codes
-        }
+        } | ({"reported_by_user"} if corrected else set())
         return JobCompletion(
             CompletionQuality.CONFIRMED
-            if all(
+            if not corrected
+            and all(
                 attempt.completion_quality is CompletionQuality.CONFIRMED
                 for attempt in succeeded
             )
             else CompletionQuality.DERIVED,
             tuple(code for code in NOTES if code in codes),
+        )
+
+    def correct_job(
+        self, job_id: str, outcome: JobState, now: datetime
+    ) -> OrchestratorState:
+        """Set a finished job's outcome and room receipts; see dev doc "Korrektur"."""
+        job = self._job(job_id)
+        require(correctable(job))
+        if outcome not in {JobState.COMPLETED, JobState.FAILED}:
+            raise ValidationError("invalid_correction_outcome")
+        attempts = [
+            attempt for attempt in self.attempts.values() if attempt.job_id == job_id
+        ]
+        sources = {job_id, *(attempt.attempt_id for attempt in attempts)}
+        own = {
+            key: receipt
+            for key, receipt in self.room_registry.receipts.items()
+            if receipt.source_id in sources
+        }
+        plan = self._plan_for_job(job)
+        if outcome is JobState.FAILED:
+            if job.state is JobState.FAILED and not own:
+                return self
+            return self._replace(
+                jobs={
+                    **self.jobs,
+                    job_id: replace(
+                        job,
+                        state=JobState.FAILED,
+                        revision=job.revision + 1,
+                        failure_code="reported_failed",
+                        updated_at=now,
+                        corrected_at=now,
+                    ),
+                },
+                room_registry=self.room_registry.withdraw(frozenset(own)),
+            )
+        registry = self.room_registry
+        for unit in plan.work_units:
+            rooms = tuple(
+                room_id
+                for room_id in unit.canonical_targets
+                if room_id in registry.rooms
+            )
+            needed = set(CleaningReceipt.covered(unit.operation))
+            if not rooms or any(
+                set(rooms) <= set(receipt.room_ids)
+                and needed <= set(receipt.operations)
+                for receipt in own.values()
+            ):
+                continue
+            ran = [
+                attempt
+                for attempt in attempts
+                if attempt.work_unit_id == unit.work_unit_id
+            ]
+            last = max(ran, key=lambda attempt: attempt.prepared_at, default=None)
+            registry = registry.record(
+                CleaningReceipt(
+                    f"correction:{job_id}:{unit.work_unit_id}",
+                    CleaningSource.VOI,
+                    job_id,
+                    rooms,
+                    unit.operation,
+                    job.updated_at
+                    if last is None
+                    else last.last_observation_at
+                    or last.command_boundary_at
+                    or last.prepared_at,
+                    CompletionQuality.DERIVED,
+                    ("reported_by_user",),
+                )
+            )
+        if job.state is JobState.COMPLETED and registry is self.room_registry:
+            return self
+        return self._replace(
+            jobs={
+                **self.jobs,
+                job_id: replace(
+                    job,
+                    state=JobState.COMPLETED,
+                    revision=job.revision + 1,
+                    active_attempt_id=None,
+                    completed_work_unit_ids=tuple(
+                        unit.work_unit_id for unit in plan.work_units
+                    ),
+                    failure_code=None,
+                    updated_at=now,
+                    corrected_at=now,
+                ),
+            },
+            work_unit_states={
+                **self.work_unit_states,
+                **{
+                    unit.work_unit_id: WorkUnitState.COMPLETED
+                    for unit in plan.work_units
+                },
+            },
+            room_registry=registry,
         )
 
     def next_pending_unit(self, job: Job) -> WorkUnit:

@@ -526,6 +526,17 @@ def test_run_observations_round_trip_and_are_optional_in_older_snapshots() -> No
     assert older.policy.connection_seconds == 600
 
 
+def test_a_correction_round_trips_and_is_optional_in_older_snapshots() -> None:
+    state = _state()
+    corrected = replace(
+        state, jobs={"job": replace(state.jobs["job"], corrected_at=NOW)}
+    )
+    data = encode_orchestrator_state(corrected)
+    assert decode_orchestrator_state(data) == corrected
+    del data["jobs"]["job"]["corrected_at"]
+    assert decode_orchestrator_state(data).jobs["job"].corrected_at is None
+
+
 def test_setup_completion_round_trips_and_is_optional_in_older_snapshots() -> None:
     finished = replace(_state(), setup_completed_at=NOW)
     data = encode_orchestrator_state(finished)

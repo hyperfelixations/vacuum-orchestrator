@@ -19,6 +19,7 @@ from ..const import (
     API_VERSION,
     DOMAIN,
     SERVICE_CANCEL_JOB,
+    SERVICE_CORRECT_JOB,
     SERVICE_CREATE_JOB,
     SERVICE_DELETE_JOB,
     SERVICE_END_QUEUE,
@@ -34,7 +35,7 @@ from ..const import (
     SERVICE_UPDATE_JOB,
 )
 from ..domain.errors import ConflictError, OrchestratorError
-from ..domain.types import MoveDirection, QueueMode
+from ..domain.types import JobState, MoveDirection, QueueMode
 from ..ha_context import request_context
 from ..runtime import VacuumOrchestratorRuntime, async_get_runtime
 from .configuration import setup_configuration_actions
@@ -90,6 +91,13 @@ CANCEL_SCHEMA = probatio.Schema(
     }
 )
 ROBOT_SCHEMA = probatio.Schema({probatio.Required(ATTR_ROBOT_ID): cv.string})
+ATTR_OUTCOME = "outcome"
+CORRECT_SCHEMA = probatio.Schema(
+    {
+        probatio.Required(ATTR_JOB_ID): cv.string,
+        probatio.Required(ATTR_OUTCOME): probatio.In(("completed", "failed")),
+    }
+)
 ATTR_RUNNING_JOBS = "running_jobs"
 END_QUEUE_SCHEMA = probatio.Schema(
     {
@@ -260,6 +268,15 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         )
         return _command_response(call, runtime, {ATTR_JOB_ID: job_id})
 
+    async def correct_job(call: ServiceCall) -> ServiceResponse | None:
+        runtime = await _runtime_for_call(hass, call)
+        await _translate_errors(
+            runtime.orchestrator.async_correct_job(
+                call.data[ATTR_JOB_ID], JobState(call.data[ATTR_OUTCOME])
+            )
+        )
+        return _command_response(call, runtime, {ATTR_JOB_ID: call.data[ATTR_JOB_ID]})
+
     async def get_queue(call: ServiceCall) -> ServiceResponse:
         runtime = await _runtime_for_call(hass, call, require_admin=False)
         state = runtime.orchestrator.state
@@ -315,6 +332,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
     _register(hass, SERVICE_CANCEL_JOB, cancel_job, CANCEL_SCHEMA)
     _register(hass, SERVICE_RETURN_ROBOT, return_robot, ROBOT_SCHEMA)
     _register(hass, SERVICE_RETRY_JOB, retry_job, JOB_SCHEMA)
+    _register(hass, SERVICE_CORRECT_JOB, correct_job, CORRECT_SCHEMA)
     _register_query(hass, SERVICE_GET_QUEUE, get_queue, GET_QUEUE_SCHEMA)
     _register_query(hass, SERVICE_GET_JOB, get_job, JOB_SCHEMA)
 

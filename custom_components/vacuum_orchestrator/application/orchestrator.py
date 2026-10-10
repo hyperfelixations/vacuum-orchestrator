@@ -811,6 +811,12 @@ class VacuumOrchestrator:
         )
         return retry_job_id
 
+    async def async_correct_job(self, job_id: str, outcome: JobState) -> None:
+        """Record what a finished job really achieved; rooms follow."""
+        await self._mutate(
+            lambda state: state.correct_job(job_id, outcome, self._clock())
+        )
+
     async def async_start_job(
         self, job_id: str, robot_id: str | None = None
     ) -> DispatchAssignment:

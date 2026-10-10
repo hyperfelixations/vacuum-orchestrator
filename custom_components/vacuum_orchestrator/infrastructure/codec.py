@@ -861,6 +861,7 @@ def _encode_job(job: Job) -> JsonObject:
             "template_id": job.provenance.template_id,
         },
         "start_after": _encode_optional_datetime(job.start_after),
+        "corrected_at": _encode_optional_datetime(job.corrected_at),
     }
 
 
@@ -888,6 +889,7 @@ def _decode_job(data: JsonObject) -> Job:
         origin=_decode_origin(data.get("origin")),
         provenance=provenance,
         start_after=_decode_optional_datetime(data["start_after"]),
+        corrected_at=_decode_optional_datetime(data.get("corrected_at")),
     )
 
 

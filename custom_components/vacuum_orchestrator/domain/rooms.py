@@ -1,6 +1,6 @@
 """Canonical rooms, robot-specific targeting, and cleaning projections."""
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from types import MappingProxyType
@@ -123,6 +123,64 @@ class Room:
                     confirmed[operation] = stamp
         return replace(
             self, occupancy=occupancy, last_cleaning=effective, last_confirmed=confirmed
+        )
+
+    def without_receipts(
+        self, withdrawn: frozenset[str], remaining: Iterable[CleaningReceipt]
+    ) -> Room:
+        """Fall back to the latest remaining receipts; see dev doc "Korrektur".
+
+        A fallback keeps a stamp still held for the receipt, otherwise its
+        occupied-time baseline is unknown.
+        """
+        held = {
+            stamp.receipt_id: stamp
+            for stamp in (*self.last_cleaning.values(), *self.last_confirmed.values())
+        }
+        candidates = [
+            receipt for receipt in remaining if self.room_id in receipt.room_ids
+        ]
+
+        def fallback(
+            current: Mapping[OperationKind, CleaningStamp], confirmed: bool
+        ) -> dict[OperationKind, CleaningStamp]:
+            result = dict(current)
+            for operation, stamp in current.items():
+                if stamp.receipt_id not in withdrawn:
+                    continue
+                facts = [
+                    receipt
+                    for receipt in candidates
+                    if operation in receipt.operations
+                    and (
+                        not confirmed or receipt.quality is CompletionQuality.CONFIRMED
+                    )
+                ]
+                if not facts:
+                    del result[operation]
+                    continue
+                fact = max(
+                    facts,
+                    key=lambda item: (
+                        item.completed_at,
+                        item.quality is CompletionQuality.CONFIRMED,
+                    ),
+                )
+                result[operation] = held.get(fact.receipt_id) or CleaningStamp(
+                    fact.receipt_id,
+                    fact.completed_at,
+                    fact.quality,
+                    self.occupancy.epoch,
+                    0,
+                    0,
+                    False,
+                )
+            return result
+
+        return replace(
+            self,
+            last_cleaning=fallback(self.last_cleaning, False),
+            last_confirmed=fallback(self.last_confirmed, True),
         )
 
     def released(self, now: datetime) -> bool:

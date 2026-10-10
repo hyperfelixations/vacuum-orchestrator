@@ -18,7 +18,7 @@ class CompletionQuality(StrEnum):
 
 # Evidence codes a person should see with a completion; see dev doc
 # "Abweichungen". All other evidence codes describe the proof itself.
-NOTES = ("mode_changed", "scope_changed", "end_not_observed")
+NOTES = ("mode_changed", "scope_changed", "end_not_observed", "reported_by_user")
 
 _COVERED = {
     OperationKind.VACUUM: frozenset({OperationKind.VACUUM}),
@@ -93,6 +93,11 @@ class CleaningReceipt:
     @property
     def operations(self) -> tuple[OperationKind, ...]:
         """Return the independent room timestamps justified by this receipt."""
-        if self.operation is OperationKind.VACUUM_AND_MOP:
+        return self.covered(self.operation)
+
+    @staticmethod
+    def covered(operation: OperationKind) -> tuple[OperationKind, ...]:
+        """Return the room timestamps an operation justifies."""
+        if operation is OperationKind.VACUUM_AND_MOP:
             return (OperationKind.VACUUM, OperationKind.MOP)
-        return (self.operation,)
+        return (operation,)

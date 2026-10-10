@@ -177,6 +177,20 @@ class RoomRegistry:
             },
         )
 
+    def withdraw(self, receipt_ids: frozenset[str]) -> RoomRegistry:
+        """Remove receipts; rooms fall back to the remaining ones."""
+        withdrawn = frozenset(receipt_ids & self.receipts.keys())
+        if not withdrawn:
+            return self
+        receipts = {
+            key: value for key, value in self.receipts.items() if key not in withdrawn
+        }
+        rooms = {
+            room_id: room.without_receipts(withdrawn, receipts.values())
+            for room_id, room in self.rooms.items()
+        }
+        return replace(self, rooms=rooms, receipts=receipts)
+
     def record(self, receipt: CleaningReceipt) -> RoomRegistry:
         """Apply a unique successful fact, allowing only an evidence upgrade."""
         previous = self.receipts.get(receipt.receipt_id)

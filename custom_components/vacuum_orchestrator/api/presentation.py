@@ -241,6 +241,7 @@ def present_job(
         },
         "retries_job_id": job.retries_job_id,
         "failure_code": job.failure_code,
+        "corrected_at": job.corrected_at.isoformat() if job.corrected_at else None,
         "after_cancel": None
         if canceling is None
         else "return_to_dock"
