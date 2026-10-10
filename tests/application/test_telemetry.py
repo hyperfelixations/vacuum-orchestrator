@@ -8,6 +8,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from custom_components.vacuum_orchestrator.adapters.public_values import (
+    ADAPTER_VALUES,
+)
 from custom_components.vacuum_orchestrator.adapters.settings import async_set_option
 from custom_components.vacuum_orchestrator.api.telemetry import command_trace
 from custom_components.vacuum_orchestrator.application.tracing import (
@@ -363,3 +366,23 @@ async def test_blocked_queue_does_not_alternate_duplicate_log_reasons(caplog):
     blocked = [row for row in rows if row["event"] == "dispatch_blocked"]
     assert len(blocked) == 1
     assert blocked[0]["reason"] == "job_prerequisites"
+
+
+def test_own_codes_and_known_vendor_values_stay_readable() -> None:
+    sink = LoggingSink(ADAPTER_VALUES)
+    record = {
+        "event": "attempt_transition",
+        "command": "end_queue",
+        "state": "recovery_required",
+        "reason": "observed_mode_mismatch",
+    }
+    assert sink.sanitize(record) | {"diagnostic_version": 1} == {
+        **record,
+        "diagnostic_version": 1,
+    }
+    for reason in ("returning_home", "completion_pending", "recovery_abandoned"):
+        assert sink.sanitize({"reason": reason})["reason"] == reason
+    assert LoggingSink().sanitize({"reason": "returning_home"})["reason"] == (
+        "redacted"
+    )
+    assert sink.sanitize({"reason": "Kitchen door"})["reason"] == "redacted"

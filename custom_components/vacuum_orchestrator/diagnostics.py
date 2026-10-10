@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from .adapters.public_values import ADAPTER_VALUES
 from .const import API_VERSION, INTEGRATION_VERSION, STORE_VERSION
 from .infrastructure.telemetry import LoggingSink
 from .runtime import TELEMETRY_KEY, VacuumOrchestratorRuntime, async_get_registry
@@ -19,7 +20,7 @@ def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
     """Anonymize identifiers consistently within one export; exclude configuration."""
     core = runtime.orchestrator
     sink = core.trace.sink
-    sanitizer = sink if isinstance(sink, LoggingSink) else LoggingSink()
+    sanitizer = sink if isinstance(sink, LoggingSink) else LoggingSink(ADAPTER_VALUES)
     anonymize = sanitizer.pseudonym
 
     state = core.state
@@ -101,7 +102,7 @@ async def async_get_config_entry_diagnostics(
     if isinstance(runtime, VacuumOrchestratorRuntime):
         return build_diagnostics(runtime)
     trace = hass.data.get(TELEMETRY_KEY, {}).get(entry.entry_id)
-    sanitizer = trace.sink if trace is not None else LoggingSink()
+    sanitizer = trace.sink if trace is not None else LoggingSink(ADAPTER_VALUES)
     return {
         "version": INTEGRATION_VERSION,
         "runtime_loaded": False,

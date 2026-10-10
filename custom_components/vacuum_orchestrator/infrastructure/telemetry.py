@@ -7,157 +7,118 @@ import logging
 import secrets
 from collections import OrderedDict
 from collections.abc import Mapping
+from enum import StrEnum
+from pathlib import Path
 from time import monotonic
 
+from ..domain.completion import CompletionQuality
+from ..domain.faults import FaultScope, FaultSource
+from ..domain.intents import SETTING_NAMES
+from ..domain.monitoring import MonitorAction
+from ..domain.types import (
+    AttemptState,
+    CleaningMode,
+    JobState,
+    OperationKind,
+    QueueMode,
+    ReadinessState,
+    RecoveryResolution,
+    RobotAvailabilityState,
+    RobotPhase,
+    WorkUnitState,
+)
 from ..ports.telemetry import Scalar, TelemetryEvent
 
 _LOGGER = logging.getLogger(__name__)
-_VALUES = frozenset(
+# Own error codes: the `exceptions` keys, kept equal to the raised codes by
+# tests/test_error_translations.py.
+ERROR_CODES = frozenset(
+    json.loads(
+        (Path(__file__).parents[1] / "strings.json").read_text(encoding="utf-8")
+    )["exceptions"]
+)
+_ENUMS: tuple[type[StrEnum], ...] = (
+    AttemptState,
+    CleaningMode,
+    CompletionQuality,
+    FaultScope,
+    FaultSource,
+    JobState,
+    MonitorAction,
+    OperationKind,
+    QueueMode,
+    ReadinessState,
+    RecoveryResolution,
+    RobotAvailabilityState,
+    RobotPhase,
+    WorkUnitState,
+)
+ENUM_VALUES = frozenset(item.value for enum in _ENUMS for item in enum) | frozenset(
+    (*SETTING_NAMES, "cleaning_mode")
+)
+# Own non-error codes; tests/test_telemetry_contract.py keeps this exact.
+CODES = frozenset(
     [
-        "queued",
-        "dispatching",
-        "running",
-        "canceling",
-        "completed",
-        "failed",
-        "cancelled",
-        "needs_attention",
-        "prepared",
-        "command_sent",
-        "accepted",
-        "start_confirmed",
-        "settling",
-        "succeeded",
-        "cancel_pending",
-        "recovery_required",
-        "available",
-        "unavailable",
-        "unknown",
-        "busy",
-        "ready",
-        "blocked",
-        "idle",
-        "paused",
-        "derived",
-        "confirmed",
-        "vacuum",
-        "mop",
-        "vacuum_and_mop",
-        "vacuum_then_mop",
-        "received",
-        "accepted",
-        "rejected",
-        "returned",
-        "requested",
-        "confirmed",
-        "skipped",
-        "timeout",
-        "stale",
-        "starting",
-        "ready",
-        "closing",
-        "closed",
-        "failed",
-        "loading",
-        "loaded",
-        "committing",
-        "committed",
-        "migrating",
-        "migrated",
-        "started",
-        "waiting",
-        "resumed",
-        "paused",
-        "completed",
-        "idle_reset",
-        "online",
-        "offline",
-        "selected",
-        "omitted",
-        "stopped",
-        "unchanged",
-        "vacuum_power",
-        "mop_intensity",
-        "mop_route",
-        "cleaning_mode",
-        "low",
-        "medium",
-        "high",
-        "max",
-        "off",
-        "fast",
-        "standard",
-        "deep",
-        "strict",
-        "best_effort",
-        "job_prerequisites",
-        "job_blocked",
-        "job_unknown",
-        "job_held",
-        "job_not_waiting",
-        "hold_expired",
-        "duplicate_room",
-        "no_rooms",
-        "job_not_startable",
-        "job_not_dispatchable",
-        "job_conditions_not_satisfied",
-        "no_compatible_robot",
-        "robot_not_available",
-        "observation_failed",
-        "settings_failed",
-        "setting_option_unavailable",
-        "setting_entity_unavailable",
-        "setting_confirmation_timeout",
-        "unsupported_operation",
-        "cleaning_mode_not_confirmed",
-        "cleaning_mode_conflicts_with_fixed_mode",
-        "readiness_changed_before_start",
-        "capabilities_changed_before_dispatch",
-        "operator_assumed_stopped",
-        "verified_stopped",
-        "runtime_reconciliation_failed",
-        "map_inventory_unavailable",
-        "map_inventory_available",
-        "critical_storage_state_uncertain",
-        "critical_commit_missing_after_save",
-        "critical_commit_readback_mismatch",
-        "critical_commit_semantic_mismatch",
-        "installation_storage_ownership_mismatch",
-        "invalid_snapshot",
-        "snapshot_digest_mismatch",
-        "start_timeout",
-        "run_timeout",
+        "abandoned",
+        "attempt_not_observing",
+        "awaiting_cleaning_start",
+        "awaiting_stop",
+        "awaiting_stop_stability",
+        "awaiting_terminal_stability",
         "cancel_timeout",
-        "robot_error",
-        "connection_lost",
-        "unknown_job",
-        "unknown_robot",
-        "unknown_room",
-        "room_locked",
-        "room_unreleased",
-        "room_area_missing",
-        "requirement_unknown",
-        "requirement_blocked",
-        "requirement_stale",
-        "room_requirements",
-        "robot_requirements",
-        "robot_reserved",
-        "target_reserved",
-        "atomic_writes_required",
-        "non_monotonic_commit",
-        "legacy_import_verification_failed",
-        "dispatch_failed",
-        "view_listener_failed",
+        "cleaning_not_finished",
+        "cleaning_start_observed",
+        "closed",
+        "closing",
         "commit_listener_failed",
-        "unsupported_cancel_semantics",
-        "orchestrator_not_loaded",
-        "robot_stopped_confirmation_required",
-        "invalid_parameters",
-        "unauthorized",
-        "error",
+        "committed",
+        "committing",
+        "completion_mode_mismatch",
+        "completion_scope_mismatch",
+        "dispatch_failed",
+        "external_run_interrupted",
+        "idle_reset",
+        "interrupted_before_start",
+        "job_prerequisites",
+        "loaded",
+        "loading",
+        "observation_failed",
+        "observation_out_of_order",
+        "observation_source_mismatch",
+        "observation_timeout",
+        "observed_mode_mismatch",
+        "observed_start_and_stable_normal_end",
+        "omitted",
+        "online",
+        "received",
+        "recovery_abandoned",
+        "rejected",
+        "requested",
+        "resumed",
+        "return",
+        "returned",
+        "robot_connection_lost",
+        "robot_reported_error",
+        "run_correlation_uncertain",
+        "run_timeout",
+        "runtime_interrupted",
+        "runtime_reconciliation_failed",
+        "scope_mode_and_success_confirmed",
+        "selected",
+        "stale",
+        "start_timeout",
+        "started",
+        "stop_not_observed",
+        "stop_observed",
+        "stopped",
+        "timeout",
+        "unchanged",
+        "view_listener_failed",
+        "view_projection_failed",
+        "waiting",
     ]
 )
-_COMMANDS = frozenset(
+COMMANDS = frozenset(
     [
         "create_job",
         "update_job",
@@ -189,6 +150,11 @@ _COMMANDS = frozenset(
         "release_job_hold",
         "release_rooms",
         "revoke_rooms",
+        "end_queue",
+        "return_robot",
+        "configure_job_defaults",
+        "save_job_as_template",
+        "rename_robot",
     ]
 )
 _ERROR_TYPES = frozenset(
@@ -229,8 +195,10 @@ _REPEATED = frozenset({"robot_observation", "dispatch_blocked", "availability"})
 class LoggingSink:
     """Share a runtime-local pseudonym key between logs and diagnostic exports."""
 
-    def __init__(self) -> None:
+    def __init__(self, known_values: frozenset[str] = frozenset()) -> None:
         self._key = secrets.token_bytes(32)
+        # Adapter values are passed in; infrastructure does not import adapters.
+        self._values = ERROR_CODES | ENUM_VALUES | CODES | known_values
         self._last: OrderedDict[str, tuple[str, float, int]] = OrderedDict()
 
     def pseudonym(self, value: str | None) -> str | None:
@@ -255,11 +223,11 @@ class LoggingSink:
             elif key == "event":
                 result[key] = value if value in TelemetryEvent else "unknown"
             elif key == "command":
-                result[key] = value if value in _COMMANDS else "unknown"
+                result[key] = value if value in COMMANDS else "unknown"
             elif key == "exception_type":
                 result[key] = value if value in _ERROR_TYPES else "ExternalError"
             elif key in {"state", "stage", "reason", "quality", "operation"}:
-                result[key] = value if value in _VALUES else "redacted"
+                result[key] = value if value in self._values else "redacted"
             elif key in {"timestamp", "runtime_id", "frames"}:
                 # These fields are generated locally, never from device/request data.
                 result[key] = value

@@ -13,6 +13,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .adapters.entity_references import RegistryEntityReferences
+from .adapters.public_values import ADAPTER_VALUES
 from .application.orchestrator import VacuumOrchestrator
 from .application.robot_session import RobotOwnershipRegistry
 from .application.room_service import AreaSnapshot
@@ -76,7 +77,7 @@ async def async_setup_orchestrator(hass: HomeAssistant, entry: ConfigEntry) -> b
     """Compose robot adapters and initialize the one global state owner."""
     source_ids: list[str] = []
     ownership = _ownership_registry(hass)
-    trace = TraceRecorder(sink=LoggingSink())
+    trace = TraceRecorder(sink=LoggingSink(ADAPTER_VALUES))
     hass.data[TELEMETRY_KEY] = {entry.entry_id: trace}
     trace.record(TraceEvent.LIFECYCLE, datetime.now(UTC), stage="starting")
     try:

@@ -67,7 +67,7 @@ _SETTINGS = (
 )
 
 # HA vacuum activities; see dev doc "Gerätezustand".
-_PHASES = {
+VACUUM_PHASES = {
     "cleaning": RobotPhase.CLEANING,
     "returning": RobotPhase.RETURNING,
     "docked": RobotPhase.DOCKED,
@@ -424,7 +424,7 @@ class HomeAssistantVacuumAdapter:
             faults=faults,
             observed_operation=self.observed_operation(),
             at_dock=state.state == "docked" if usable and state is not None else None,
-            phase=_PHASES.get(state.state, RobotPhase.OTHER)
+            phase=VACUUM_PHASES.get(state.state, RobotPhase.OTHER)
             if usable and state is not None
             else RobotPhase.UNKNOWN,
             **self._clean_percent(),
