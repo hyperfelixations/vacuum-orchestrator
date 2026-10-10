@@ -77,6 +77,7 @@ def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
                 "observed_start_at": time(attempt.observed_start_at),
                 "terminal_observed_at": time(attempt.terminal_observed_at),
                 "last_observation_at": time(attempt.last_observation_at),
+                "fault_since": time(attempt.fault_since),
                 "deadline_at": time(next_deadline(attempt)),
                 "recovery_trigger": sanitizer.sanitize(trigger)
                 if (trigger := core.recovery_trigger(attempt.attempt_id))

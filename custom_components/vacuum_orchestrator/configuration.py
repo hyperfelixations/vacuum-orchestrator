@@ -62,6 +62,7 @@ def validate_robot_configuration(
         "settle_seconds",
         "settings_timeout_seconds",
         "return_timeout_seconds",
+        "fault_timeout_seconds",
         "physical_robot_id",
     }
     if unknown := sorted(set(data) - allowed_fields):
@@ -235,6 +236,7 @@ def validate_robot_configuration(
         "settle_seconds": 30,
         "settings_timeout_seconds": 45,
         "return_timeout_seconds": 900,
+        "fault_timeout_seconds": 900,
     }.items():
         value = data.get(field_name, default)
         with located(field_name):

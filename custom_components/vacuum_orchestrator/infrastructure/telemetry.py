@@ -63,6 +63,7 @@ CODES = frozenset(
     [
         "abandoned",
         "attempt_not_observing",
+        "awaiting_cleaning_after_fault",
         "awaiting_cleaning_start",
         "awaiting_stop",
         "awaiting_stop_stability",
@@ -79,6 +80,7 @@ CODES = frozenset(
         "completion_scope_mismatch",
         "dispatch_failed",
         "external_run_interrupted",
+        "fault_cleared",
         "idle_reset",
         "interrupted_before_start",
         "job_prerequisites",
@@ -102,6 +104,7 @@ CODES = frozenset(
         "return",
         "returned",
         "robot_connection_lost",
+        "robot_fault_timeout",
         "robot_reported_error",
         "run_correlation_uncertain",
         "run_timeout",

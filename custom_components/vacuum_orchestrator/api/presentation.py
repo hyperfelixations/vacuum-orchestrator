@@ -215,6 +215,13 @@ def present_job(
             "robot_id": progress.robot_id,
             "phase_percent": progress.phase_percent,
             "percent": progress.percent,
+            "fault": None
+            if progress.fault is None
+            else {
+                "codes": list(progress.fault.codes),
+                "since": progress.fault.since.isoformat(),
+                "fails_at": progress.fault.fails_at.isoformat(),
+            },
         },
         "actions": None if actions is None else present_actions(actions),
         "active_attempt_id": job.active_attempt_id,
@@ -263,6 +270,7 @@ def present_attention(entries: tuple[Attention, ...]) -> list[dict[str, object]]
             "codes": list(entry.codes),
             "operations": sorted(item.value for item in entry.operations),
             "since": entry.since.isoformat() if entry.since else None,
+            "fails_at": entry.fails_at.isoformat() if entry.fails_at else None,
         }
         for entry in entries
     ]

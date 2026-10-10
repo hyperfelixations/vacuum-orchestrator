@@ -479,6 +479,27 @@ def test_recovery_cause_and_resolution_round_trip() -> None:
     )
 
 
+def test_fault_window_round_trips_and_is_optional_in_older_snapshots() -> None:
+    sent = _state().mark_command_sent("attempt", NOW)
+    attempt = sent.attempts["attempt"]
+    waiting = replace(
+        sent,
+        attempts={
+            "attempt": replace(
+                attempt,
+                fault_since=NOW,
+                policy=replace(attempt.policy, fault_seconds=600),
+            )
+        },
+    )
+    data = encode_orchestrator_state(waiting)
+    assert decode_orchestrator_state(data) == waiting
+    del data["attempts"]["attempt"]["fault_since"]
+    del data["attempts"]["attempt"]["policy"]["fault_seconds"]
+    older = decode_orchestrator_state(data).attempts["attempt"]
+    assert older.fault_since is None and older.policy.fault_seconds == 900
+
+
 def test_job_defaults_round_trip() -> None:
     defaults = JobDefaults(
         CleaningMode.VACUUM_THEN_MOP,

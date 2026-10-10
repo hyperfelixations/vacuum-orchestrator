@@ -46,7 +46,7 @@ def test_each_scope_stops_its_operations() -> None:
     }
 
 
-def test_a_finished_floor_run_ignores_station_faults_only() -> None:
+def test_a_finished_floor_run_counts_only_general_faults() -> None:
     faults = tuple(fault(scope) for scope in FaultScope)
 
     assert [item.scope for item in blocking(faults, MOP)] == [
@@ -55,9 +55,14 @@ def test_a_finished_floor_run_ignores_station_faults_only() -> None:
         FaultScope.STATION,
         FaultScope.STATION_MOP,
     ]
-    assert [item.scope for item in interrupting(faults, MOP, finished=True)] == [
+    assert [item.scope for item in interrupting(faults, MOP, finished=False)] == [
         FaultScope.GENERAL,
         FaultScope.MOP,
+        FaultScope.STATION,
+        FaultScope.STATION_MOP,
+    ]
+    assert [item.scope for item in interrupting(faults, MOP, finished=True)] == [
+        FaultScope.GENERAL
     ]
     assert len(blocking(faults, None)) == len(FaultScope) - 1
 

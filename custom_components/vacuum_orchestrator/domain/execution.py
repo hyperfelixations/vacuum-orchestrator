@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .completion import CleaningSource, CompletionQuality
 from .types import (
@@ -26,6 +26,8 @@ class ExecutionPolicy:
     settle_seconds: float = 30
     # Extra cancel window while the robot drives home and services the mop.
     return_seconds: float = 900
+    # How long a running job waits for a device fault to clear.
+    fault_seconds: float = 900
 
     def __post_init__(self) -> None:
         for value in (
@@ -34,6 +36,7 @@ class ExecutionPolicy:
             self.cancel_seconds,
             self.settle_seconds,
             self.return_seconds,
+            self.fault_seconds,
         ):
             seconds(value, positive=True)
 
@@ -63,6 +66,14 @@ class ExecutionAttempt:
     stop_sent_at: datetime | None = None
     return_to_dock: bool = False
     recovery_resolution: RecoveryResolution | None = None
+    fault_since: datetime | None = None
+
+    @property
+    def fault_deadline(self) -> datetime | None:
+        """Return when a running job stops waiting for its device fault to clear."""
+        if self.fault_since is None:
+            return None
+        return self.fault_since + timedelta(seconds=self.policy.fault_seconds)
 
 
 @dataclass(frozen=True, slots=True)

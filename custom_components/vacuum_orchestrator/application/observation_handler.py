@@ -115,6 +115,19 @@ def _transition(
         return candidate
     if decision.action is MonitorAction.START:
         return state.mark_start_confirmed(attempt.attempt_id, observed_at)
+    if decision.action is MonitorAction.FAIL:
+        return state.fail_job(job.job_id, attempt.attempt_id, decision.reason, now)
+    if decision.action is MonitorAction.FAULT_WAIT:
+        return replace(
+            state,
+            commit_id=state.commit_id + 1,
+            attempts={
+                **state.attempts,
+                attempt.attempt_id: replace(
+                    attempt, fault_since=observed_at, last_observation_at=observed_at
+                ),
+            },
+        )
     if decision.action is MonitorAction.CANCEL:
         return state.confirm_cancel(job.job_id, observed_at)
     if decision.action in {MonitorAction.SETTLE, MonitorAction.RESUME}:
@@ -128,6 +141,7 @@ def _transition(
             else AttemptState.START_CONFIRMED,
             terminal_observed_at=observed_at if settling else None,
             last_observation_at=observed_at,
+            fault_since=None,
         )
         return replace(
             state,

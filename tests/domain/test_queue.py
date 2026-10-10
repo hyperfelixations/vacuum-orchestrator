@@ -340,6 +340,18 @@ def test_failure_and_retry_preconditions_preserve_history() -> None:
         failed.retry_job("a", "a", NOW)
 
 
+def test_a_failed_phase_cancels_the_later_phases() -> None:
+    prepared, unit_id = _prepared(
+        JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM_THEN_MOP)
+    )
+    failed = prepared.fail_job("a", "attempt", "robot_fault_timeout", NOW)
+
+    states = list(failed.work_unit_states.values())
+    assert failed.work_unit_states[unit_id] is WorkUnitState.FAILED
+    assert states.count(WorkUnitState.CANCELLED) == 1
+    assert WorkUnitState.PENDING not in states
+
+
 def test_cancel_preconditions_reject_incoherent_ownership() -> None:
     queued = OrchestratorState.empty("installation").add_job("a", INTENT, NOW)
     cancelled, _ = queued.request_cancel("a", NOW)

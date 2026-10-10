@@ -352,15 +352,20 @@ class VacuumOrchestrator:
                 if fault.operations & operations
             ]
             if faults:
+                lease = state.robot_leases.get(adapter.profile.source_robot_id)
+                waiting = state.attempts[lease.attempt_id] if lease else None
+                if waiting is not None and waiting.fault_since is None:
+                    waiting = None
                 entries.append(
                     Attention(
                         AttentionKind.DEVICE_FAULT,
                         robot_id,
-                        None,
+                        waiting.job_id if waiting else None,
                         tuple(fault.code for fault in faults),
                         frozenset().union(*(fault.operations for fault in faults))
                         & operations,
                         self._fault_since.get(robot_id),
+                        waiting.fault_deadline if waiting else None,
                     )
                 )
         robots = {

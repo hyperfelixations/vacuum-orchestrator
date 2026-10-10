@@ -784,7 +784,13 @@ class OrchestratorState:
             attempt, state=AttemptState.FAILED, failure_code=failure_code
         )
         units = dict(self.work_unit_states)
-        units[attempt.work_unit_id] = WorkUnitState.FAILED
+        for unit in self._plan_for_job(job).work_units:
+            if unit.work_unit_id not in job.completed_work_unit_ids:
+                units[unit.work_unit_id] = (
+                    WorkUnitState.FAILED
+                    if unit.work_unit_id == attempt.work_unit_id
+                    else WorkUnitState.CANCELLED
+                )
         leases = dict(self.robot_leases)
         leases.pop(attempt.source_robot_id, None)
         return self._replace(

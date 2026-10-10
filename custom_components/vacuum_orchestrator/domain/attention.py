@@ -19,7 +19,10 @@ class AttentionKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Attention:
-    """One thing to act on; `operations` are those a device fault stops."""
+    """One thing to act on; `operations` are those a device fault stops.
+
+    `fails_at` is when the robot's running job fails unless the fault clears.
+    """
 
     kind: AttentionKind
     robot_id: str | None
@@ -27,3 +30,4 @@ class Attention:
     codes: tuple[str, ...]
     operations: frozenset[OperationKind] = frozenset()
     since: datetime | None = None
+    fails_at: datetime | None = None

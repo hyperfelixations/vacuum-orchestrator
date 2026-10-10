@@ -5,11 +5,21 @@ from datetime import datetime
 
 from .dispatching import RobotObservation
 from .execution import ExecutionAttempt
+from .faults import blocking
 from .planning import ExecutionPlan
 from .queue import Job
 from .types import JobState, OperationKind
 
 STARTED_STATES = frozenset({JobState.DISPATCHING, JobState.RUNNING, JobState.CANCELING})
+
+
+@dataclass(frozen=True, slots=True)
+class FaultWait:
+    """A running job waiting for a device fault to clear; see dev doc "Gerätefehler"."""
+
+    since: datetime
+    fails_at: datetime
+    codes: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +33,7 @@ class Progress:
     robot_id: str | None
     phase_percent: int | None
     percent: int | None
+    fault: FaultWait | None = None
 
 
 def job_progress(
@@ -69,4 +80,23 @@ def job_progress(
         None
         if phase_percent is None
         else round((index + phase_percent / 100) / len(units) * 100),
+        _fault_wait(units[index].operation, attempt, observation),
+    )
+
+
+def _fault_wait(
+    operation: OperationKind,
+    attempt: ExecutionAttempt | None,
+    observation: RobotObservation | None,
+) -> FaultWait | None:
+    if attempt is None or attempt.fault_since is None:
+        return None
+    fails_at = attempt.fault_deadline
+    assert fails_at is not None
+    return FaultWait(
+        attempt.fault_since,
+        fails_at,
+        ()
+        if observation is None or observation.robot_id != attempt.robot_id
+        else tuple(fault.code for fault in blocking(observation.faults, operation)),
     )

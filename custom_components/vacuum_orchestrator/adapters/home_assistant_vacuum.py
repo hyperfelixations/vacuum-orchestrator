@@ -345,6 +345,7 @@ class HomeAssistantVacuumAdapter:
                 self._configuration.get("cancel_timeout_seconds", 120),
                 self._configuration.get("settle_seconds", 30),
                 self._configuration.get("return_timeout_seconds", 900),
+                self._configuration.get("fault_timeout_seconds", 900),
             ),
         )
 

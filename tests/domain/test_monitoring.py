@@ -144,27 +144,26 @@ def test_derived_completion_waits_for_stability_and_resets_when_cleaning_resumes
 
 
 @pytest.mark.parametrize(
-    "state",
+    ("state", "fault_decision"),
     [
-        AttemptState.COMMAND_SENT,
-        AttemptState.START_CONFIRMED,
-        AttemptState.COMPLETION_PENDING,
-        AttemptState.CANCEL_PENDING,
+        (AttemptState.COMMAND_SENT, (MonitorAction.WAIT, "robot_fault")),
+        (AttemptState.START_CONFIRMED, (MonitorAction.FAULT_WAIT, "robot_fault")),
+        (AttemptState.COMPLETION_PENDING, (MonitorAction.FAULT_WAIT, "robot_fault")),
+        (
+            AttemptState.CANCEL_PENDING,
+            (MonitorAction.ATTENTION, "robot_reported_error"),
+        ),
     ],
 )
-def test_errors_and_connection_loss_never_become_success(state) -> None:
+def test_errors_and_connection_loss_never_become_success(state, fault_decision) -> None:
     attempt = replace(
         ATTEMPT, state=state, observed_start_at=NOW, terminal_observed_at=NOW
     )
-    assert (
-        evaluate(
-            attempt,
-            replace(
-                IDLE, faults=(Fault("stuck", FaultSource.ROBOT, FaultScope.GENERAL),)
-            ),
-        ).reason
-        == "robot_reported_error"
+    decision = evaluate(
+        attempt,
+        replace(IDLE, faults=(Fault("stuck", FaultSource.ROBOT, FaultScope.GENERAL),)),
     )
+    assert (decision.action, decision.reason) == fault_decision
     assert (
         evaluate(attempt, replace(IDLE, state=RobotAvailabilityState.UNKNOWN)).reason
         == "robot_connection_lost"
@@ -407,13 +406,16 @@ def test_only_faults_of_the_running_operation_stop_it() -> None:
     assert evaluate(started, replace(cleaning, faults=(mop,))).action is (
         MonitorAction.WAIT
     )
-    assert evaluate(started, replace(cleaning, faults=(tank,))).reason == (
-        "robot_reported_error"
+    assert evaluate(started, replace(cleaning, faults=(tank,))).action is (
+        MonitorAction.FAULT_WAIT
     )
-    # Once the floor run has ended normally, a station fault is not its failure.
+    # A fault first reported after a normal end did not stop the floor run.
     assert evaluate(started, replace(IDLE, faults=(tank,))).action is (
         MonitorAction.SETTLE
     )
+    assert evaluate(
+        started, replace(IDLE, faults=(replace(mop, scope=FaultScope.STATION_MOP),))
+    ).action is (MonitorAction.SETTLE)
 
 
 def test_a_mode_setting_counts_only_while_cleaning_or_with_confirmed_completion() -> (
@@ -465,3 +467,122 @@ def test_station_activity_after_the_return_restarts_settling() -> None:
     )
     assert evaluate(settling, emptying).action is MonitorAction.RESUME
     assert evaluate(started, docked).action is MonitorAction.SETTLE
+
+
+MOP_UNIT = replace(UNIT, operation=OperationKind.MOP)
+TANK = Fault("water_shortage", FaultSource.ROBOT, FaultScope.MOP, "binary_sensor.tank")
+RUNNING = replace(ATTEMPT, state=AttemptState.START_CONFIRMED, observed_start_at=NOW)
+WAITING = replace(RUNNING, fault_since=NOW)
+MOPPING = replace(
+    IDLE, state=RobotAvailabilityState.BUSY, cleaning_active=True, normal_end=False
+)
+FAILS_AT = NOW + timedelta(seconds=900)
+
+
+def mopping(attempt, observation, now=NOW):
+    return evaluate_observation(attempt, MOP_UNIT, ASSIGNMENT, observation, now)
+
+
+def test_a_fault_during_a_run_opens_a_window_that_waits_for_renewed_cleaning() -> None:
+    first = mopping(RUNNING, replace(MOPPING, faults=(TANK,)))
+    assert (first.action, first.reason) == (MonitorAction.FAULT_WAIT, "robot_fault")
+    later = NOW + timedelta(seconds=60)
+    still = mopping(WAITING, replace(MOPPING, observed_at=later, faults=(TANK,)), later)
+    assert (still.action, still.reason) == (MonitorAction.WAIT, "robot_fault")
+    # Clearing, pausing or docking is no evidence that the run went on.
+    for observation in (
+        replace(MOPPING, cleaning_active=False),
+        replace(IDLE, at_dock=True),
+    ):
+        decision = mopping(WAITING, replace(observation, observed_at=later), later)
+        assert (decision.action, decision.reason) == (
+            MonitorAction.WAIT,
+            "awaiting_cleaning_after_fault",
+        )
+    resumed = mopping(WAITING, replace(MOPPING, observed_at=later), later)
+    assert (resumed.action, resumed.reason) == (MonitorAction.RESUME, "fault_cleared")
+
+
+def test_a_fault_that_persists_after_a_normal_end_keeps_the_window_open() -> None:
+    decision = mopping(WAITING, replace(IDLE, at_dock=True, faults=(TANK,)))
+    assert (decision.action, decision.reason) == (MonitorAction.WAIT, "robot_fault")
+
+
+def test_a_fault_window_fails_a_resting_robot_and_recovers_an_active_one() -> None:
+    resting = replace(IDLE, observed_at=FAILS_AT, at_dock=True, faults=(TANK,))
+    decision = mopping(WAITING, resting, FAILS_AT)
+    assert (decision.action, decision.reason) == (
+        MonitorAction.FAIL,
+        "robot_fault_timeout",
+    )
+    cleared = mopping(WAITING, replace(resting, faults=()), FAILS_AT)
+    assert cleared.action is MonitorAction.FAIL
+    stuck = replace(
+        MOPPING,
+        state=RobotAvailabilityState.UNAVAILABLE,
+        observed_at=FAILS_AT,
+        faults=(replace(TANK, scope=FaultScope.GENERAL),),
+    )
+    decision = mopping(WAITING, stuck, FAILS_AT)
+    assert (decision.action, decision.reason) == (
+        MonitorAction.ATTENTION,
+        "robot_fault_timeout",
+    )
+    before = FAILS_AT - timedelta(microseconds=1)
+    assert (
+        mopping(WAITING, replace(resting, observed_at=before), before).action
+        is MonitorAction.WAIT
+    )
+
+
+def test_a_confirmed_completion_wins_over_the_fault_window() -> None:
+    confirmed = replace(
+        IDLE,
+        observed_at=FAILS_AT,
+        completion_confirmed=True,
+        completed_operation=OperationKind.MOP,
+        completed_targets=("16",),
+    )
+    decision = mopping(WAITING, confirmed, FAILS_AT)
+    assert (decision.action, decision.quality) == (
+        MonitorAction.COMPLETE,
+        CompletionQuality.CONFIRMED,
+    )
+
+
+def test_a_fault_before_the_start_waits_for_the_start_deadline() -> None:
+    decision = mopping(ATTEMPT, replace(MOPPING, faults=(TANK,)))
+    assert (decision.action, decision.reason) == (MonitorAction.WAIT, "robot_fault")
+    timeout = NOW + timedelta(seconds=180)
+    decision = mopping(
+        ATTEMPT, replace(MOPPING, observed_at=timeout, faults=(TANK,)), timeout
+    )
+    assert (decision.action, decision.reason) == (
+        MonitorAction.ATTENTION,
+        "start_timeout",
+    )
+
+
+def test_a_fault_window_is_a_persistent_deadline() -> None:
+    assert next_deadline(WAITING) == FAILS_AT
+    short = replace(WAITING, policy=ExecutionPolicy(run_seconds=600))
+    assert next_deadline(short) == NOW + timedelta(seconds=600)
+    assert WAITING.fault_deadline == FAILS_AT
+    assert RUNNING.fault_deadline is None
+    with pytest.raises(Exception, match="invalid_duration"):
+        ExecutionPolicy(fault_seconds=0)
+
+
+def test_a_resting_robot_cancels_inside_a_fault_window() -> None:
+    canceling = replace(
+        WAITING,
+        state=AttemptState.CANCEL_PENDING,
+        cancel_requested_at=NOW,
+        stop_sent_at=NOW,
+        terminal_observed_at=NOW,
+    )
+    later = NOW + timedelta(seconds=30)
+    resting = replace(IDLE, observed_at=later, faults=(TANK,))
+    assert mopping(canceling, resting, later).action is MonitorAction.CANCEL
+    moving = replace(MOPPING, observed_at=later, faults=(TANK,))
+    assert mopping(canceling, moving, later).reason == "robot_reported_error"

@@ -22,6 +22,8 @@ class MonitorAction(StrEnum):
     COMPLETE = "complete"
     CANCEL = "cancel"
     ATTENTION = "attention"
+    FAULT_WAIT = "fault_wait"
+    FAIL = "fail"
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +53,8 @@ def next_deadline(attempt: ExecutionAttempt) -> datetime | None:
         limit = (attempt.observed_start_at or attempt.prepared_at) + timedelta(
             seconds=attempt.policy.run_seconds
         )
+        if attempt.fault_since is not None:
+            return min(limit, _fault_limit(attempt))
         if attempt.terminal_observed_at is not None:
             return min(
                 limit,
@@ -88,19 +92,31 @@ def evaluate_observation(
         return MonitorDecision(MonitorAction.WAIT, "observation_out_of_order")
     if observation.source_robot_id != attempt.source_robot_id:
         return MonitorDecision(MonitorAction.ATTENTION, "observation_source_mismatch")
-    finished = observation.normal_end and observation.cleaning_active is False
-    if interrupting(observation.faults, unit.operation, finished=finished):
-        return MonitorDecision(MonitorAction.ATTENTION, "robot_reported_error")
-    if observation.state in {
+    stopped = observation.normal_end and observation.cleaning_active is False
+    # Fault rule; see dev doc "Gerätefehler".
+    faulted = interrupting(
+        observation.faults,
+        unit.operation,
+        finished=stopped and attempt.fault_since is None,
+    )
+    lost = observation.state in {
         RobotAvailabilityState.UNKNOWN,
         RobotAvailabilityState.UNAVAILABLE,
-    }:
-        return MonitorDecision(MonitorAction.ATTENTION, "robot_connection_lost")
+    }
     if attempt.state is AttemptState.CANCEL_PENDING:
+        # A cancel needs a stop, not a finished run; any resting robot counts.
+        if interrupting(observation.faults, unit.operation, finished=stopped):
+            return MonitorDecision(MonitorAction.ATTENTION, "robot_reported_error")
+        if lost:
+            return MonitorDecision(MonitorAction.ATTENTION, "robot_connection_lost")
         return _evaluate_cancel(attempt, observation, observed_at, now)
     if attempt.state is AttemptState.COMMAND_SENT:
         if now >= (next_deadline(attempt) or now):
             return MonitorDecision(MonitorAction.ATTENTION, "start_timeout")
+        if faulted:
+            return MonitorDecision(MonitorAction.WAIT, "robot_fault")
+        if lost:
+            return MonitorDecision(MonitorAction.ATTENTION, "robot_connection_lost")
         if observation.cleaning_active is True:
             if (
                 observation.observed_operation is not None
@@ -115,6 +131,24 @@ def evaluate_observation(
         seconds=attempt.policy.run_seconds
     ):
         return MonitorDecision(MonitorAction.ATTENTION, "run_timeout")
+    if faulted:
+        if attempt.fault_since is None:
+            return MonitorDecision(MonitorAction.FAULT_WAIT, "robot_fault")
+        if now >= _fault_limit(attempt):
+            return _fault_timeout(stopped)
+        return MonitorDecision(MonitorAction.WAIT, "robot_fault")
+    if lost:
+        return MonitorDecision(MonitorAction.ATTENTION, "robot_connection_lost")
+    if attempt.fault_since is not None and observation.cleaning_active is not True:
+        if _confirmed(observation, unit, assignment):
+            return MonitorDecision(
+                MonitorAction.COMPLETE,
+                "scope_mode_and_success_confirmed",
+                CompletionQuality.CONFIRMED,
+            )
+        if now >= _fault_limit(attempt):
+            return _fault_timeout(stopped)
+        return MonitorDecision(MonitorAction.WAIT, "awaiting_cleaning_after_fault")
     # Mode evidence rule; see dev doc "Readiness und Ausführungsbeobachtung".
     if (
         observation.cleaning_active is True
@@ -122,6 +156,8 @@ def evaluate_observation(
         and observation.observed_operation != unit.operation
     ):
         return MonitorDecision(MonitorAction.ATTENTION, "observed_mode_mismatch")
+    if attempt.fault_since is not None:
+        return MonitorDecision(MonitorAction.RESUME, "fault_cleared")
     if not observation.normal_end or observation.cleaning_active is not False:
         return MonitorDecision(
             MonitorAction.RESUME
@@ -141,11 +177,7 @@ def evaluate_observation(
         and set(observation.completed_targets) != set(assignment.adapter_targets)
     ):
         return MonitorDecision(MonitorAction.ATTENTION, "completion_scope_mismatch")
-    if (
-        observation.completion_confirmed
-        and observation.completed_operation == unit.operation
-        and set(observation.completed_targets) == set(assignment.adapter_targets)
-    ):
+    if _confirmed(observation, unit, assignment):
         return MonitorDecision(
             MonitorAction.COMPLETE,
             "scope_mode_and_success_confirmed",
@@ -161,6 +193,31 @@ def evaluate_observation(
         MonitorAction.COMPLETE,
         "observed_start_and_stable_normal_end",
         CompletionQuality.DERIVED,
+    )
+
+
+def _confirmed(
+    observation: RobotObservation, unit: WorkUnit, assignment: DispatchAssignment
+) -> bool:
+    """Return whether the robot confirms exactly this operation and scope."""
+    return (
+        observation.completion_confirmed
+        and observation.completed_operation == unit.operation
+        and set(observation.completed_targets) == set(assignment.adapter_targets)
+    )
+
+
+def _fault_limit(attempt: ExecutionAttempt) -> datetime:
+    deadline = attempt.fault_deadline
+    assert deadline is not None
+    return deadline
+
+
+def _fault_timeout(stopped: bool) -> MonitorDecision:
+    """Fail only a robot proven to rest; otherwise recovery keeps ownership."""
+    return MonitorDecision(
+        MonitorAction.FAIL if stopped else MonitorAction.ATTENTION,
+        "robot_fault_timeout",
     )
 
 

@@ -40,9 +40,6 @@ _OPERATIONS = {
     FaultScope.STATION_MOP: _MOP,
     FaultScope.NOTICE: frozenset[OperationKind](),
 }
-_STATION = frozenset(
-    {FaultScope.STATION, FaultScope.STATION_VACUUM, FaultScope.STATION_MOP}
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,11 +56,6 @@ class Fault:
         """Return every operation the fault keeps from starting."""
         return _OPERATIONS[self.scope]
 
-    @property
-    def station(self) -> bool:
-        """Return whether the fault concerns the station, not the floor run."""
-        return self.scope in _STATION
-
 
 def blocking(
     faults: Iterable[Fault], operation: OperationKind | None
@@ -79,9 +71,13 @@ def blocking(
 def interrupting(
     faults: Iterable[Fault], operation: OperationKind | None, *, finished: bool
 ) -> tuple[Fault, ...]:
-    """Return the faults that stop a run; a finished floor run ignores the station."""
+    """Return the faults that stop a run.
+
+    A fault first reported after the floor run ended normally did not stop it;
+    only general faults still count then.
+    """
     return tuple(
         fault
         for fault in blocking(faults, operation)
-        if not (finished and fault.station)
+        if not finished or fault.scope is FaultScope.GENERAL
     )
