@@ -36,6 +36,7 @@ from custom_components.vacuum_orchestrator.domain.types import (
     JobState,
     MoveDirection,
     QueueMode,
+    RecoveryResolution,
     WorkUnitState,
 )
 
@@ -192,7 +193,8 @@ def test_uncertain_run_blocks_only_affected_robot() -> None:
     blocked = state.complete_attempt("attempt", run, correlation, NOW)
 
     assert blocked.mode is QueueMode.IDLE
-    assert blocked.blocked_robots == {"source": "physical_run_ownership_uncertain"}
+    assert blocked.blocked_robots == {"source": "run_correlation_uncertain"}
+    assert blocked.jobs["a"].failure_code == "run_correlation_uncertain"
     assert blocked.jobs["a"].state is JobState.NEEDS_ATTENTION
 
 
@@ -434,3 +436,35 @@ def test_stop_boundary_is_recorded_only_while_cancel_is_pending() -> None:
     assert stopped.commit_id == canceling.commit_id + 1
     assert stopped.mark_stop_sent("attempt", NOW) is stopped
     assert sent.mark_stop_sent("attempt", NOW) is sent
+
+
+@pytest.mark.parametrize(
+    ("assumed", "resolution"),
+    [
+        (False, RecoveryResolution.VERIFIED_STOPPED),
+        (True, RecoveryResolution.OPERATOR_ASSUMED_STOPPED),
+    ],
+)
+def test_recovery_keeps_the_cause_and_records_how_it_ended(
+    assumed: bool, resolution: RecoveryResolution
+) -> None:
+    prepared, _unit_id = _prepared()
+    started = prepared.mark_command_sent("attempt", NOW).mark_start_confirmed(
+        "attempt", NOW
+    )
+    blocked = started.require_robot_attention(
+        "attempt", "observed_mode_mismatch", None, None, NOW
+    )
+    assert blocked.jobs["a"].failure_code == "observed_mode_mismatch"
+    assert blocked.blocked_robots == {"source": "observed_mode_mismatch"}
+
+    resolved = blocked.resolve_recovery("source", NOW, assumed_stopped=assumed)
+
+    attempt = resolved.attempts["attempt"]
+    assert (attempt.state, attempt.failure_code, attempt.recovery_resolution) == (
+        AttemptState.FAILED,
+        "observed_mode_mismatch",
+        resolution,
+    )
+    assert resolved.jobs["a"].state is JobState.FAILED
+    assert resolved.jobs["a"].failure_code == "observed_mode_mismatch"

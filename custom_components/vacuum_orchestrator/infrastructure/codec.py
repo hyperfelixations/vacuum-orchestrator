@@ -48,6 +48,7 @@ from ..domain.types import (
     PassScope,
     ProvenanceKind,
     QueueMode,
+    RecoveryResolution,
     SettingsPolicy,
     VacuumLevel,
     WaterLevel,
@@ -1121,6 +1122,7 @@ def _encode_attempt(attempt: ExecutionAttempt) -> JsonObject:
         "cancel_requested_at": _encode_optional_datetime(attempt.cancel_requested_at),
         "stop_sent_at": _encode_optional_datetime(attempt.stop_sent_at),
         "return_to_dock": attempt.return_to_dock,
+        "recovery_resolution": _enum_value(attempt.recovery_resolution),
     }
 
 
@@ -1153,6 +1155,7 @@ def _decode_attempt(data: JsonObject) -> ExecutionAttempt:
         _decode_optional_datetime(data.get("cancel_requested_at")),
         _decode_optional_datetime(data.get("stop_sent_at")),
         _bool(data.get("return_to_dock", False)),
+        _optional_enum(RecoveryResolution, data.get("recovery_resolution")),
     )
 
 

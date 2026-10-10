@@ -975,13 +975,18 @@ class VacuumOrchestrator:
                 ),
             )
             session.fence(candidate.robot_generations[source_id], needs_attention=False)
+            lease = state.robot_leases.get(source_id)
+            attempt = state.attempts[lease.attempt_id] if lease else None
             self.trace.record(
                 TraceEvent.RECOVERY,
                 self._clock(),
                 robot_id=robot_id,
+                job_id=attempt.job_id if attempt else None,
+                attempt_id=attempt.attempt_id if attempt else None,
                 reason="operator_assumed_stopped"
                 if not stopped
                 else "verified_stopped",
+                stage="abandoned" if attempt else None,
             )
         await self.async_dispatch_available()
 
@@ -1391,7 +1396,7 @@ class VacuumOrchestrator:
                 return
             if attempt.observed_start_at is not None:
                 candidate = state.require_robot_attention(
-                    attempt_id, None, None, self._clock()
+                    attempt_id, reason, None, None, self._clock()
                 )
             elif attempt.state is AttemptState.CANCEL_PENDING:
                 candidate = state.confirm_cancel(
@@ -1557,7 +1562,7 @@ class VacuumOrchestrator:
             }:
                 return
             candidate = previous.require_robot_attention(
-                attempt_id, None, None, self._clock()
+                attempt_id, "dispatch_failed", None, None, self._clock()
             )
             session = self._sessions[attempt.source_robot_id]
             try:

@@ -208,6 +208,13 @@ class RobotPhase(StrEnum):
     UNKNOWN = "unknown"
 
 
+class RecoveryResolution(StrEnum):
+    """How a recovery ended; the attempt keeps its original cause."""
+
+    VERIFIED_STOPPED = "verified_stopped"
+    OPERATOR_ASSUMED_STOPPED = "operator_assumed_stopped"
+
+
 class AttemptState(StrEnum):
     """Execution-attempt lifecycle state."""
 

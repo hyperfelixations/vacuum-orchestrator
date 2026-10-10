@@ -35,7 +35,9 @@ def apply_observation(
     if decision.action is MonitorAction.WAIT:
         return state
     if decision.action is MonitorAction.ATTENTION:
-        candidate = state.require_robot_attention(attempt.attempt_id, None, None, now)
+        candidate = state.require_robot_attention(
+            attempt.attempt_id, decision.reason, None, None, now
+        )
         if (
             decision.reason == "completion_scope_mismatch"
             and observation.completed_operation == unit.operation
@@ -62,17 +64,7 @@ def apply_observation(
                         )
                     ),
                 )
-        updated = replace(
-            candidate.attempts[attempt.attempt_id], failure_code=decision.reason
-        )
-        return replace(
-            candidate,
-            attempts={**candidate.attempts, attempt.attempt_id: updated},
-            blocked_robots={
-                **candidate.blocked_robots,
-                attempt.source_robot_id: decision.reason,
-            },
-        )
+        return candidate
     if decision.action is MonitorAction.START:
         return state.mark_start_confirmed(attempt.attempt_id, observed_at)
     if decision.action is MonitorAction.CANCEL:

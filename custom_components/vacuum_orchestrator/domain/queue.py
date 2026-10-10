@@ -37,6 +37,7 @@ from .types import (
     MoveDirection,
     ProvenanceKind,
     QueueMode,
+    RecoveryResolution,
     WorkUnitState,
 )
 from .validation import seconds
@@ -554,7 +555,9 @@ class OrchestratorState:
                 )
             raise ConflictError("run_correlation_identity_conflict")
         if correlation.requires_attention:
-            return self.require_robot_attention(attempt_id, run, correlation, now)
+            return self.require_robot_attention(
+                attempt_id, "run_correlation_uncertain", run, correlation, now
+            )
         if attempt.state not in {
             AttemptState.COMMAND_SENT,
             AttemptState.START_CONFIRMED,
@@ -829,20 +832,24 @@ class OrchestratorState:
     def require_robot_attention(
         self,
         attempt_id: str,
+        reason: str,
         run: RobotRun | None,
         correlation: RunCorrelation | None,
         now: datetime,
     ) -> OrchestratorState:
-        """Fence and isolate one robot after ambiguous physical ownership."""
+        """Fence and isolate one robot; `reason` is the cause kept to the end."""
         attempt = self._attempt(attempt_id)
         job = self._job(attempt.job_id)
         attempts = dict(self.attempts)
-        attempts[attempt_id] = replace(attempt, state=AttemptState.RECOVERY_REQUIRED)
+        attempts[attempt_id] = replace(
+            attempt, state=AttemptState.RECOVERY_REQUIRED, failure_code=reason
+        )
         jobs = dict(self.jobs)
         jobs[job.job_id] = replace(
             job,
             state=JobState.NEEDS_ATTENTION,
             revision=job.revision + 1,
+            failure_code=reason,
             updated_at=now,
         )
         units = dict(self.work_unit_states)
@@ -852,7 +859,7 @@ class OrchestratorState:
             generations.get(attempt.source_robot_id, 0) + 1
         )
         blocked = dict(self.blocked_robots)
-        blocked[attempt.source_robot_id] = "physical_run_ownership_uncertain"
+        blocked[attempt.source_robot_id] = reason
         runs = dict(self.robot_runs)
         correlations = dict(self.correlations)
         if run is not None:
@@ -878,7 +885,7 @@ class OrchestratorState:
                 continue
             if attempt.command_boundary_at is not None:
                 state = state.require_robot_attention(
-                    attempt.attempt_id, None, None, now
+                    attempt.attempt_id, "runtime_interrupted", None, None, now
                 )
             elif state.jobs[attempt.job_id].state is JobState.CANCELING:
                 state = state.confirm_cancel(attempt.job_id, now, never_started=True)
@@ -895,7 +902,11 @@ class OrchestratorState:
     def resolve_recovery(
         self, source_robot_id: str, now: datetime, *, assumed_stopped: bool = False
     ) -> OrchestratorState:
-        """Abandon uncertain work after a verified or operator-confirmed stop."""
+        """Abandon uncertain work after a verified or operator-confirmed stop.
+
+        Job and attempt keep the cause; see dev doc "Readiness und
+        Ausführungsbeobachtung".
+        """
         if source_robot_id not in self.blocked_robots:
             raise ConflictError("robot_not_needing_recovery")
         jobs, attempts, units = (
@@ -909,18 +920,21 @@ class OrchestratorState:
         if lease is not None:
             attempt = attempts[lease.attempt_id]
             job = jobs[attempt.job_id]
-            reason = (
-                "operator_assumed_stopped" if assumed_stopped else "recovery_abandoned"
-            )
+            reason = attempt.failure_code or "recovery_abandoned"
             attempts[attempt.attempt_id] = replace(
-                attempt, state=AttemptState.FAILED, failure_code=reason
+                attempt,
+                state=AttemptState.FAILED,
+                failure_code=reason,
+                recovery_resolution=RecoveryResolution.OPERATOR_ASSUMED_STOPPED
+                if assumed_stopped
+                else RecoveryResolution.VERIFIED_STOPPED,
             )
             jobs[job.job_id] = replace(
                 job,
                 state=JobState.FAILED,
                 active_attempt_id=None,
                 revision=job.revision + 1,
-                failure_code=reason,
+                failure_code=job.failure_code or reason,
                 updated_at=now,
             )
             for unit in self._plan_for_job(job).work_units:

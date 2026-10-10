@@ -11,6 +11,7 @@ from .types import (
     CorrelationConfidence,
     CorrelationState,
     OperationKind,
+    RecoveryResolution,
 )
 from .validation import seconds
 
@@ -61,6 +62,7 @@ class ExecutionAttempt:
     cancel_requested_at: datetime | None = None
     stop_sent_at: datetime | None = None
     return_to_dock: bool = False
+    recovery_resolution: RecoveryResolution | None = None
 
 
 @dataclass(frozen=True, slots=True)

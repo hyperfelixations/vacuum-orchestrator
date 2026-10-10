@@ -20,6 +20,7 @@ from custom_components.vacuum_orchestrator.domain.types import (
     CleaningMode,
     JobState,
     OperationKind,
+    RecoveryResolution,
     RobotAvailabilityState,
 )
 from custom_components.vacuum_orchestrator.ports.command_scope import (
@@ -480,7 +481,23 @@ async def test_removed_robot_and_legacy_unscoped_recovery_require_explicit_stop(
     with pytest.raises(Exception, match="robot_stopped_confirmation_required"):
         await reloaded.async_resolve_recovery("robot")
     await reloaded.async_resolve_recovery("robot", confirm_stopped=True)
-    assert reloaded.state.jobs[job].failure_code == "operator_assumed_stopped"
+    assert reloaded.state.jobs[job].failure_code == "dispatch_failed"
+    (attempt,) = reloaded.state.attempts.values()
+    assert (attempt.state, attempt.failure_code, attempt.recovery_resolution) == (
+        AttemptState.FAILED,
+        "dispatch_failed",
+        RecoveryResolution.OPERATOR_ASSUMED_STOPPED,
+    )
+    recovery = next(
+        record
+        for record in reversed(reloaded.trace.snapshot())
+        if record["event"] == "recovery_resolved"
+    )
+    assert (recovery["job_id"], recovery["reason"], recovery["stage"]) == (
+        job,
+        "operator_assumed_stopped",
+        "abandoned",
+    )
     assert not reloaded.state.robot_leases and not reloaded.rooms.registry.receipts
     await reloaded._mutate(
         lambda state: replace(

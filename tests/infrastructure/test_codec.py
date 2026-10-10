@@ -45,6 +45,7 @@ from custom_components.vacuum_orchestrator.domain.types import (
     PassScope,
     ProvenanceKind,
     QueueMode,
+    RecoveryResolution,
     SettingsPolicy,
     VacuumLevel,
     WaterLevel,
@@ -460,6 +461,22 @@ def test_cancel_return_choice_and_window_round_trip() -> None:
     del data["attempts"]["attempt"]["policy"]["return_seconds"]
     older = decode_orchestrator_state(data).attempts["attempt"]
     assert not older.return_to_dock and older.policy.return_seconds == 900
+
+
+def test_recovery_cause_and_resolution_round_trip() -> None:
+    sent = _state().mark_command_sent("attempt", NOW)
+    blocked = sent.require_robot_attention("attempt", "run_timeout", None, None, NOW)
+    resolved = blocked.resolve_recovery("source", NOW)
+    data = encode_orchestrator_state(resolved)
+    decoded = decode_orchestrator_state(data)
+    assert decoded == resolved
+    assert decoded.attempts["attempt"].recovery_resolution is (
+        RecoveryResolution.VERIFIED_STOPPED
+    )
+    del data["attempts"]["attempt"]["recovery_resolution"]
+    assert (
+        decode_orchestrator_state(data).attempts["attempt"].recovery_resolution is None
+    )
 
 
 def test_job_defaults_round_trip() -> None:

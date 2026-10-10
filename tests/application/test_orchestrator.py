@@ -474,9 +474,7 @@ async def test_physical_failure_isolates_only_affected_robot() -> None:
         await orchestrator.async_start_job(failed_job)
 
     assert orchestrator.state.jobs[failed_job].state is JobState.NEEDS_ATTENTION
-    assert orchestrator.state.blocked_robots == {
-        "source-broken": "physical_run_ownership_uncertain"
-    }
+    assert orchestrator.state.blocked_robots == {"source-broken": "dispatch_failed"}
     healthy_job = await orchestrator.async_create_job(_intent("hall"))
     assert (await orchestrator.async_start_job(healthy_job)).robot_id == "healthy"
 
@@ -491,9 +489,7 @@ async def test_restart_with_active_lease_fences_only_that_robot() -> None:
     restarted = await _orchestrator(backend, restarted_adapter)
 
     assert restarted.state.jobs[job_id].state is JobState.NEEDS_ATTENTION
-    assert restarted.state.blocked_robots == {
-        "source-robot": "physical_run_ownership_uncertain"
-    }
+    assert restarted.state.blocked_robots == {"source-robot": "runtime_interrupted"}
 
 
 async def test_simple_job_commands_need_no_public_revision() -> None:
