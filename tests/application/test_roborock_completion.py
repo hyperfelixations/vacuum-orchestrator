@@ -244,8 +244,8 @@ async def test_a_recovery_export_shows_its_cause_and_triggering_observation(
     observe = _observer(hass, freezer, core)
     await observe("segment_cleaning", "on")
     hass.states.async_set("sensor.error", "main_brush_jammed")
-    await observe("segment_cleaning", "on", seconds=60)
-    await observe("segment_cleaning", "on", seconds=900)
+    await observe("error", "on", seconds=60)
+    await observe("error", "on", seconds=900)
     assert core.state.jobs[job_id].state is JobState.NEEDS_ATTENTION
     hass.states.async_set("sensor.error", "none")
     await observe("charging", "off", seconds=600)
@@ -274,13 +274,13 @@ async def test_a_recovery_export_shows_its_cause_and_triggering_observation(
         incident["monitor_reason"],
         incident["faults"],
     ) == (
-        "cleaning",
-        True,
+        "error",
+        False,
         "vacuum",
         "vacuum",
         "attention",
         "robot_fault_timeout",
-        "main_brush_jammed:vacuum:robot",
+        "main_brush_jammed:vacuum:robot,error:general:robot",
     )
     assert incident["job_id"] == attempt["job_id"]
     window = export["trace_window"]

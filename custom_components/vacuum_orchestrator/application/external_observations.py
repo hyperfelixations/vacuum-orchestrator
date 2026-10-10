@@ -37,6 +37,7 @@ def apply_external_observation(
                 observation.faults,
                 pending.operation or observation.observed_operation,
                 finished=observation.normal_end,
+                cleaning=observation.cleaning_active is True,
             )
             or observation.state
             in {RobotAvailabilityState.UNKNOWN, RobotAvailabilityState.UNAVAILABLE}
@@ -81,7 +82,10 @@ def apply_external_observation(
         and observation.completed_operation is not None
         and bool(observation.completed_targets)
         and not interrupting(
-            observation.faults, observation.completed_operation, finished=True
+            observation.faults,
+            observation.completed_operation,
+            finished=True,
+            cleaning=False,
         )
     )
     if proven:

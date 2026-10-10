@@ -10,7 +10,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from itertools import pairwise
+from typing import Any, Literal
 
 from homeassistant.components.vacuum.const import VacuumEntityFeature
 from homeassistant.const import EntityCategory
@@ -283,39 +284,65 @@ def vacuum_run(sections: int = 1) -> tuple[Step, ...]:
     )
 
 
-def mop_run(sections: int = 1, *, prewash: float = 150) -> tuple[Step, ...]:
+def mop_run(
+    sections: int = 1,
+    *,
+    prewash: float = 150,
+    empty_tank: Literal["during", "after"] | None = None,
+) -> tuple[Step, ...]:
     """Mopping: the dock washes the mop before, between and after the sections.
 
     The run flag is on from the first wash and ends after the last; at the end
-    the dock briefly reports `returning` and resets the cleaning mode.
+    the dock briefly reports `returning` and resets the cleaning mode. With
+    `empty_tank` the dock runs out of clean water as the first section starts
+    (`during`) or while it washes the mop after the run (`after`): the robot
+    flags a station fault for a moment, the dock reports `water_empty` until
+    refilled, and the robot goes on.
     """
-    steps: list[Step] = [
-        (0, {"status": "washing_the_mop", "in_cleaning": "on"}),
-        (prewash, {"status": "segment_cleaning", "vacuum": "cleaning"}),
-    ]
-    for _ in range(sections - 1):
-        steps += [
-            (
-                SECTION_SECONDS,
-                {"status": "going_to_wash_the_mop", "vacuum": "returning"},
-            ),
-            (65, {"status": "washing_the_mop", "vacuum": "docked"}),
-            (180, {"status": "segment_cleaning", "vacuum": "cleaning"}),
-        ]
-    return (
-        *steps,
-        (SECTION_SECONDS, {"status": "returning_home", "vacuum": "returning"}),
-        (65, {"status": "charging", "vacuum": "docked"}),
-        (215, {"vacuum": "returning"}),
-        (3, {"vacuum": "docked", "cleaning_mode": "vac_and_mop"}),
+    timeline: list[Step] = [(0, {"status": "washing_the_mop", "in_cleaning": "on"})]
+    at = prewash
+    for section in range(sections):
+        if section:
+            timeline += [
+                (at, {"status": "going_to_wash_the_mop", "vacuum": "returning"}),
+                (at + 65, {"status": "washing_the_mop", "vacuum": "docked"}),
+            ]
+            at += 245
+        timeline.append((at, {"status": "segment_cleaning", "vacuum": "cleaning"}))
+        at += SECTION_SECONDS
+    docked = at + 65
+    timeline += [
+        (at, {"status": "returning_home", "vacuum": "returning"}),
+        (docked, {"status": "charging", "vacuum": "docked"}),
+        (docked + 215, {"vacuum": "returning"}),
+        (docked + 218, {"vacuum": "docked", "cleaning_mode": "vac_and_mop"}),
         (
-            15,
+            docked + 233,
             {
                 "in_cleaning": "off",
                 "last_clean_start": RUN_START,
                 "last_clean_end": NOW,
             },
         ),
+    ]
+    if empty_tank is not None:
+        flagged = prewash - 2 if empty_tank == "during" else docked + 215
+        empty = prewash + 15 if empty_tank == "during" else docked + 233
+        timeline += [
+            (flagged, {"vacuum_error": "clear_water_box_hoare"}),
+            (flagged + 2, {"vacuum_error": "none"}),
+            (empty, {"dock_error": "water_empty"}),
+        ]
+    return _steps(timeline)
+
+
+def _steps(timeline: list[Step]) -> tuple[Step, ...]:
+    """Merge the changes of one moment and turn times into delays."""
+    moments: dict[float, dict[str, str]] = {}
+    for at, changes in sorted(timeline, key=lambda step: step[0]):
+        moments.setdefault(at, {}).update(changes)
+    return tuple(
+        (at - previous, moments[at]) for previous, at in pairwise([0, *sorted(moments)])
     )
 
 
@@ -517,6 +544,12 @@ class RoborockV1:
         self.set("status", status)
         self.set("in_cleaning", "on")
         self.set_vacuum("cleaning")
+
+    def fail(self, code: str) -> None:
+        """Stop with a fault, as the robot reports one."""
+        self.set("vacuum_error", code)
+        self.set("status", "error")
+        self.set_vacuum("error")
 
     def pause(self) -> None:
         """Interrupt the run where the robot is."""

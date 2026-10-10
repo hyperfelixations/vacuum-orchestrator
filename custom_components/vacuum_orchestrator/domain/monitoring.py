@@ -95,11 +95,13 @@ def evaluate_observation(
     if observation.source_robot_id != attempt.source_robot_id:
         return MonitorDecision(MonitorAction.ATTENTION, "observation_source_mismatch")
     stopped = observation.normal_end and observation.cleaning_active is False
+    cleaning = observation.cleaning_active is True
     # Fault rule; see dev doc "Gerätefehler".
     faulted = interrupting(
         observation.faults,
         unit.operation,
         finished=stopped and attempt.fault_since is None,
+        cleaning=cleaning,
     )
     lost = observation.state in {
         RobotAvailabilityState.UNKNOWN,
@@ -107,7 +109,9 @@ def evaluate_observation(
     }
     if attempt.state is AttemptState.CANCEL_PENDING:
         # A cancel needs a stop, not a finished run; any resting robot counts.
-        if interrupting(observation.faults, unit.operation, finished=stopped):
+        if interrupting(
+            observation.faults, unit.operation, finished=stopped, cleaning=cleaning
+        ):
             return MonitorDecision(MonitorAction.ATTENTION, "robot_reported_error")
         if lost:
             return MonitorDecision(MonitorAction.ATTENTION, "robot_connection_lost")

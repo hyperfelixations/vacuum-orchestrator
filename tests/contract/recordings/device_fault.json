@@ -2,12 +2,12 @@
   "provenance": {
     "format": 1,
     "api_version": 4,
-    "voi_commit": "6c64a27",
+    "voi_commit": "1db9be0",
     "ha_version": "2026.10.0",
     "frozen_now": "2026-03-14T09:26:53.589793+00:00"
   },
   "scenario": "device_fault",
-  "description": "The station's clean water runs out while Saugi mops and Saugi stops: the job waits for the fix and shows when it would fail; refilled, Saugi mops again and the job completes.",
+  "description": "The mop carriage drops off while Saugi mops and Saugi stops: the job waits for the fix and shows when it would fail; reattached, Saugi mops again and the job completes.",
   "home": {
     "areas": {
       "Küche": "kuche",
@@ -1378,7 +1378,7 @@
       "advance": 60
     },
     {
-      "home": "The clean water tank is empty; Saugi stops"
+      "home": "The mop carriage drops off; Saugi stops"
     },
     {
       "receive": {
@@ -1455,10 +1455,12 @@
               "robot_id": "01J00000000000000000000003",
               "job_id": "00000000-0000-4000-8000-000000000009",
               "codes": [
-                "clean_water_empty"
+                "water_carriage_drop",
+                "error"
               ],
               "operations": [
                 "mop",
+                "vacuum",
                 "vacuum_and_mop"
               ],
               "since": "2026-03-14T09:27:53.589793+00:00",
@@ -1566,7 +1568,8 @@
                 "percent": null,
                 "fault": {
                   "codes": [
-                    "clean_water_empty"
+                    "water_carriage_drop",
+                    "error"
                   ],
                   "since": "2026-03-14T09:27:53.589793+00:00",
                   "fails_at": "2026-03-14T09:42:53.589793+00:00"
@@ -1684,7 +1687,8 @@
             "percent": null,
             "fault": {
               "codes": [
-                "clean_water_empty"
+                "water_carriage_drop",
+                "error"
               ],
               "since": "2026-03-14T09:27:53.589793+00:00",
               "fails_at": "2026-03-14T09:42:53.589793+00:00"
@@ -2242,18 +2246,29 @@
               "maps_unavailable_reason": null,
               "active": true,
               "activity": {
-                "phase": "paused",
+                "phase": "error",
                 "external": false
               },
               "faults": [
                 {
-                  "code": "clean_water_empty",
-                  "source": "dock",
+                  "code": "water_carriage_drop",
+                  "source": "robot",
                   "operations": [
                     "mop",
                     "vacuum_and_mop"
                   ],
-                  "entity_id": "binary_sensor.saugi_dock_clean_water_box",
+                  "entity_id": "sensor.saugi_vacuum_error",
+                  "needs_action": true
+                },
+                {
+                  "code": "error",
+                  "source": "robot",
+                  "operations": [
+                    "mop",
+                    "vacuum",
+                    "vacuum_and_mop"
+                  ],
+                  "entity_id": "sensor.saugi_status",
                   "needs_action": true
                 }
               ],
@@ -2414,10 +2429,12 @@
               "robot_id": "01J00000000000000000000003",
               "job_id": "00000000-0000-4000-8000-000000000009",
               "codes": [
-                "clean_water_empty"
+                "water_carriage_drop",
+                "error"
               ],
               "operations": [
                 "mop",
+                "vacuum",
                 "vacuum_and_mop"
               ],
               "since": "2026-03-14T09:27:53.589793+00:00",
@@ -2525,7 +2542,8 @@
                 "percent": null,
                 "fault": {
                   "codes": [
-                    "clean_water_empty"
+                    "water_carriage_drop",
+                    "error"
                   ],
                   "since": "2026-03-14T09:27:53.589793+00:00",
                   "fails_at": "2026-03-14T09:42:53.589793+00:00"
@@ -2643,7 +2661,8 @@
             "percent": null,
             "fault": {
               "codes": [
-                "clean_water_empty"
+                "water_carriage_drop",
+                "error"
               ],
               "since": "2026-03-14T09:27:53.589793+00:00",
               "fails_at": "2026-03-14T09:42:53.589793+00:00"
@@ -3201,18 +3220,29 @@
               "maps_unavailable_reason": null,
               "active": true,
               "activity": {
-                "phase": "paused",
+                "phase": "error",
                 "external": false
               },
               "faults": [
                 {
-                  "code": "clean_water_empty",
-                  "source": "dock",
+                  "code": "water_carriage_drop",
+                  "source": "robot",
                   "operations": [
                     "mop",
                     "vacuum_and_mop"
                   ],
-                  "entity_id": "binary_sensor.saugi_dock_clean_water_box",
+                  "entity_id": "sensor.saugi_vacuum_error",
+                  "needs_action": true
+                },
+                {
+                  "code": "error",
+                  "source": "robot",
+                  "operations": [
+                    "mop",
+                    "vacuum",
+                    "vacuum_and_mop"
+                  ],
+                  "entity_id": "sensor.saugi_status",
                   "needs_action": true
                 }
               ],
@@ -3345,7 +3375,7 @@
       }
     },
     {
-      "home": "Someone refills the clean water tank"
+      "home": "Someone reattaches the mop carriage"
     },
     {
       "receive": {

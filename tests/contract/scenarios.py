@@ -193,8 +193,8 @@ async def delayed_answer(stage: Stage) -> None:
 
 
 async def device_fault(stage: Stage) -> None:
-    """The station's clean water runs out while Saugi mops and Saugi stops: the
-    job waits for the fix and shows when it would fail; refilled, Saugi mops
+    """The mop carriage drops off while Saugi mops and Saugi stops: the job
+    waits for the fix and shows when it would fail; reattached, Saugi mops
     again and the job completes."""
     session, robot = stage.session, stage.home.roborock
     await stage.open()
@@ -205,14 +205,14 @@ async def device_fault(stage: Stage) -> None:
     robot.clean()
     await session.home("Saugi mops the kitchen")
     await session.advance(60)
-    robot.set("clean_box_empty", "on")
-    robot.pause()
-    await session.home("The clean water tank is empty; Saugi stops")
+    robot.fail("water_carriage_drop")
+    await session.home("The mop carriage drops off; Saugi stops")
     await session.read()
     await session.advance(300)
     await session.read()
-    robot.set("clean_box_empty", "off")
-    await session.home("Someone refills the clean water tank")
+    robot.set("vacuum_error", "none")
+    robot.pause()
+    await session.home("Someone reattaches the mop carriage")
     await session.read()
     robot.clean()
     await session.home("Saugi mops again")

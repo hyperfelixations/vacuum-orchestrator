@@ -132,3 +132,22 @@ def test_changed_map_or_conflicting_mode_cannot_attribute_external_completion():
     assert apply(
         started, replace(end, observed_operation=OperationKind.MOP)
     ).room_registry.receipts
+
+
+def test_only_robot_faults_outside_cleaning_interrupt_an_external_run() -> None:
+    """Same rule as for VOI's runs; see dev doc "Gerätefehler"."""
+    brush = Fault("main_brush_jammed", FaultSource.ROBOT, FaultScope.VACUUM)
+    dust = Fault("duct_blockage", FaultSource.DOCK, FaultScope.STATION_VACUUM)
+    end = replace(END, completion_confirmed=True, completed_targets=("kitchen",))
+    returning = replace(START, cleaning_active=False)
+    for during in (
+        replace(START, faults=(brush, dust)),
+        replace(returning, faults=(dust,)),
+    ):
+        state = apply(apply(STATE, START), during)
+        assert state.robot_runs["external-run"].failure_code is None
+        assert apply(state, replace(end, faults=(dust,))).room_registry.receipts
+    stopped = apply(apply(STATE, START), replace(returning, faults=(brush,)))
+    assert stopped.robot_runs["external-run"].failure_code == (
+        "external_run_interrupted"
+    )

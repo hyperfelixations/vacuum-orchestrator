@@ -296,14 +296,17 @@ robot); if the robot has not settled at the dock by then, VOI marks it for your
 attention. Retrying creates a new
 job; a room released for one job needs a new permission for that retry.
 
-If a robot reports a fault while it cleans, for example a jammed brush, the job
+If a robot stops during a job with a fault, for example a jammed brush, the job
 waits up to 15 minutes (`fault_timeout_seconds` per robot) for the fault to be
-fixed. It goes on once the fault is gone and the robot cleans again. Otherwise
-it fails with `robot_fault_timeout`, and the robot is free as soon as it rests;
-a robot that is still active or faulted then is marked for your attention.
-Faults of another operation, such as an empty water tank during vacuuming, do
-not stop a job, and a fault that first appears after the robot finished
-cleaning does not count against that run.
+fixed. It goes on once the robot cleans again. Otherwise it fails with
+`robot_fault_timeout`, and the robot is free as soon as it rests; a robot that
+is still active or faulted then is marked for your attention. A fault never
+stops a job while the robot keeps cleaning, and neither do faults of the
+station, such as an empty clean water tank, since the robot cleans on without
+it; they need your attention all the same. Faults of another operation, such as
+an empty water tank during vacuuming, do not stop a job either, and a fault
+that first appears after the robot finished cleaning does not count against
+that run.
 
 Roborock robots also report a water shortage, a removed mop or water tank and
 an empty clean water tank, a full dirty water tank or an empty cleaning fluid

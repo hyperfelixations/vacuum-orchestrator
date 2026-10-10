@@ -31,6 +31,9 @@ class FaultSource(StrEnum):
 _ALL = frozenset(OperationKind)
 _VACUUM = frozenset({OperationKind.VACUUM, OperationKind.VACUUM_AND_MOP})
 _MOP = frozenset({OperationKind.MOP, OperationKind.VACUUM_AND_MOP})
+_STATION = frozenset(
+    {FaultScope.STATION, FaultScope.STATION_VACUUM, FaultScope.STATION_MOP}
+)
 _OPERATIONS = {
     FaultScope.GENERAL: _ALL,
     FaultScope.VACUUM: _VACUUM,
@@ -74,15 +77,22 @@ def blocking(
 
 
 def interrupting(
-    faults: Iterable[Fault], operation: OperationKind | None, *, finished: bool
+    faults: Iterable[Fault],
+    operation: OperationKind | None,
+    *,
+    finished: bool,
+    cleaning: bool,
 ) -> tuple[Fault, ...]:
-    """Return the faults that stop a run.
+    """Return the faults that may have stopped a run; see dev doc "Gerätefehler".
 
-    A fault first reported after the floor run ended normally did not stop it;
-    only general faults still count then.
+    None while the robot cleans; never a station fault, since the robot cleans
+    on without its dock; after a normal end only general faults.
     """
+    if cleaning:
+        return ()
     return tuple(
         fault
         for fault in blocking(faults, operation)
-        if not finished or fault.scope is FaultScope.GENERAL
+        if fault.scope not in _STATION
+        and (not finished or fault.scope is FaultScope.GENERAL)
     )

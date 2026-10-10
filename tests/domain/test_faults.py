@@ -46,7 +46,7 @@ def test_each_scope_stops_its_operations() -> None:
     }
 
 
-def test_a_finished_floor_run_counts_only_general_faults() -> None:
+def test_only_robot_faults_outside_cleaning_may_have_stopped_a_run() -> None:
     faults = tuple(fault(scope) for scope in FaultScope)
 
     assert [item.scope for item in blocking(faults, MOP)] == [
@@ -55,15 +55,16 @@ def test_a_finished_floor_run_counts_only_general_faults() -> None:
         FaultScope.STATION,
         FaultScope.STATION_MOP,
     ]
-    assert [item.scope for item in interrupting(faults, MOP, finished=False)] == [
-        FaultScope.GENERAL,
-        FaultScope.MOP,
-        FaultScope.STATION,
-        FaultScope.STATION_MOP,
-    ]
-    assert [item.scope for item in interrupting(faults, MOP, finished=True)] == [
-        FaultScope.GENERAL
-    ]
+    # The robot cleans on without its dock.
+    assert [
+        item.scope for item in interrupting(faults, MOP, finished=False, cleaning=False)
+    ] == [FaultScope.GENERAL, FaultScope.MOP]
+    # A fault first reported after a normal end did not stop the floor run.
+    assert [
+        item.scope for item in interrupting(faults, MOP, finished=True, cleaning=False)
+    ] == [FaultScope.GENERAL]
+    # Cleaning proves the run goes on.
+    assert interrupting(faults, MOP, finished=False, cleaning=True) == ()
     assert len(blocking(faults, None)) == len(FaultScope) - 1
 
 

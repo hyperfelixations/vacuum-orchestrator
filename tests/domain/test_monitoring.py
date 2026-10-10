@@ -404,27 +404,46 @@ def test_invalid_execution_policy_rejects_nonfinite_timeouts() -> None:
         ExecutionPolicy(run_seconds=float("inf"))
 
 
-def test_only_faults_of_the_running_operation_stop_it() -> None:
+def test_only_robot_faults_of_the_running_operation_stop_it() -> None:
     started = replace(
         ATTEMPT, state=AttemptState.START_CONFIRMED, observed_start_at=NOW
     )
-    cleaning = replace(IDLE, cleaning_active=True, normal_end=False)
+    paused = replace(
+        IDLE,
+        state=RobotAvailabilityState.BUSY,
+        cleaning_active=False,
+        normal_end=False,
+        phase=RobotPhase.PAUSED,
+    )
     mop = Fault("vibrarise_jammed", FaultSource.ROBOT, FaultScope.MOP)
+    brush = Fault("main_brush_jammed", FaultSource.ROBOT, FaultScope.VACUUM)
     tank = Fault("water_empty", FaultSource.DOCK, FaultScope.STATION_VACUUM)
 
-    assert evaluate(started, replace(cleaning, faults=(mop,))).action is (
+    assert evaluate(started, replace(paused, faults=(mop,))).action is (
         MonitorAction.WAIT
     )
-    assert evaluate(started, replace(cleaning, faults=(tank,))).action is (
+    assert evaluate(started, replace(paused, faults=(brush,))).action is (
         MonitorAction.FAULT_WAIT
     )
+    # The robot cleans on without its dock; see dev doc "Gerätefehler".
+    assert evaluate(started, replace(paused, faults=(tank,))).reason == (
+        "cleaning_not_finished"
+    )
+    # A cleaning robot goes on despite a fault it reports.
+    cleaning = replace(paused, cleaning_active=True, phase=RobotPhase.CLEANING)
+    assert evaluate(started, replace(cleaning, faults=(brush,))).reason == (
+        "cleaning_not_finished"
+    )
+    assert evaluate(ATTEMPT, replace(cleaning, faults=(brush,))).action is (
+        MonitorAction.START
+    )
     # A fault first reported after a normal end did not stop the floor run.
+    assert evaluate(started, replace(IDLE, faults=(brush,))).action is (
+        MonitorAction.SETTLE
+    )
     assert evaluate(started, replace(IDLE, faults=(tank,))).action is (
         MonitorAction.SETTLE
     )
-    assert evaluate(
-        started, replace(IDLE, faults=(replace(mop, scope=FaultScope.STATION_MOP),))
-    ).action is (MonitorAction.SETTLE)
 
 
 def test_a_changed_mode_never_stops_the_run() -> None:
@@ -486,6 +505,7 @@ WAITING = replace(RUNNING, fault_since=NOW)
 MOPPING = replace(
     IDLE, state=RobotAvailabilityState.BUSY, cleaning_active=True, normal_end=False
 )
+HALTED = replace(MOPPING, cleaning_active=False, phase=RobotPhase.PAUSED)
 FAILS_AT = NOW + timedelta(seconds=900)
 
 
@@ -494,23 +514,27 @@ def mopping(attempt, observation, now=NOW):
 
 
 def test_a_fault_during_a_run_opens_a_window_that_waits_for_renewed_cleaning() -> None:
-    first = mopping(RUNNING, replace(MOPPING, faults=(TANK,)))
+    first = mopping(RUNNING, replace(HALTED, faults=(TANK,)))
     assert (first.action, first.reason) == (MonitorAction.FAULT_WAIT, "robot_fault")
     later = NOW + timedelta(seconds=60)
-    still = mopping(WAITING, replace(MOPPING, observed_at=later, faults=(TANK,)), later)
+    still = mopping(WAITING, replace(HALTED, observed_at=later, faults=(TANK,)), later)
     assert (still.action, still.reason) == (MonitorAction.WAIT, "robot_fault")
     # Clearing, pausing or docking is no evidence that the run went on.
-    for observation in (
-        replace(MOPPING, cleaning_active=False),
-        replace(IDLE, at_dock=True),
-    ):
+    for observation in (HALTED, replace(IDLE, at_dock=True)):
         decision = mopping(WAITING, replace(observation, observed_at=later), later)
         assert (decision.action, decision.reason) == (
             MonitorAction.WAIT,
             "awaiting_cleaning_after_fault",
         )
-    resumed = mopping(WAITING, replace(MOPPING, observed_at=later), later)
-    assert (resumed.action, resumed.reason) == (MonitorAction.RESUME, "fault_cleared")
+    # Cleaning again closes the window, even while the robot still reports it.
+    for faults in ((), (TANK,)):
+        resumed = mopping(
+            WAITING, replace(MOPPING, observed_at=later, faults=faults), later
+        )
+        assert (resumed.action, resumed.reason) == (
+            MonitorAction.RESUME,
+            "fault_cleared",
+        )
 
 
 def test_a_fault_that_persists_after_a_normal_end_keeps_the_window_open() -> None:
@@ -528,7 +552,7 @@ def test_a_fault_window_fails_a_resting_robot_and_recovers_an_active_one() -> No
     cleared = mopping(WAITING, replace(resting, faults=()), FAILS_AT)
     assert cleared.action is MonitorAction.FAIL
     stuck = replace(
-        MOPPING,
+        HALTED,
         state=RobotAvailabilityState.UNAVAILABLE,
         observed_at=FAILS_AT,
         faults=(replace(TANK, scope=FaultScope.GENERAL),),
@@ -561,11 +585,11 @@ def test_a_confirmed_completion_wins_over_the_fault_window() -> None:
 
 
 def test_a_fault_before_the_start_waits_for_the_start_deadline() -> None:
-    decision = mopping(ATTEMPT, replace(MOPPING, faults=(TANK,)))
+    decision = mopping(ATTEMPT, replace(HALTED, faults=(TANK,)))
     assert (decision.action, decision.reason) == (MonitorAction.WAIT, "robot_fault")
     timeout = NOW + timedelta(seconds=180)
     decision = mopping(
-        ATTEMPT, replace(MOPPING, observed_at=timeout, faults=(TANK,)), timeout
+        ATTEMPT, replace(HALTED, observed_at=timeout, faults=(TANK,)), timeout
     )
     assert (decision.action, decision.reason) == (
         MonitorAction.ATTENTION,
@@ -594,8 +618,8 @@ def test_a_resting_robot_cancels_inside_a_fault_window() -> None:
     later = NOW + timedelta(seconds=30)
     resting = replace(IDLE, observed_at=later, faults=(TANK,))
     assert mopping(canceling, resting, later).action is MonitorAction.CANCEL
-    moving = replace(MOPPING, observed_at=later, faults=(TANK,))
-    assert mopping(canceling, moving, later).reason == "robot_reported_error"
+    halted = replace(HALTED, observed_at=later, faults=(TANK,))
+    assert mopping(canceling, halted, later).reason == "robot_reported_error"
 
 
 LOST = replace(

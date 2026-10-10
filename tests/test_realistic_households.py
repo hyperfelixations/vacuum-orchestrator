@@ -220,11 +220,25 @@ def _advancer(
 
 
 @pytest.mark.parametrize(
-    ("mode", "script"),
+    ("mode", "script", "attention"),
     [
-        pytest.param("vacuum", vacuum_run(2), id="vacuum"),
-        pytest.param("mop", mop_run(3), id="mop with washes between sections"),
-        pytest.param("mop", mop_run(1, prewash=220), id="mop after a long wash"),
+        pytest.param("vacuum", vacuum_run(2), [], id="vacuum"),
+        pytest.param("mop", mop_run(3), [], id="mop with washes between sections"),
+        pytest.param("mop", mop_run(1, prewash=220), [], id="mop after a long wash"),
+        # The robot cleans on while the dock lacks water; see dev doc
+        # "Gerätefehler".
+        pytest.param(
+            "mop",
+            mop_run(3, empty_tank="during"),
+            ["water_empty"],
+            id="mop while the dock runs out of water",
+        ),
+        pytest.param(
+            "mop",
+            mop_run(1, empty_tank="after"),
+            ["water_empty"],
+            id="mop until the last wash empties the dock",
+        ),
     ],
 )
 async def test_a_typical_run_keeps_its_job_running_and_completes_once(
@@ -233,8 +247,9 @@ async def test_a_typical_run_keeps_its_job_running_and_completes_once(
     freezer: FrozenDateTimeFactory,
     mode: str,
     script: tuple[Step, ...],
+    attention: list[str],
 ) -> None:
-    """Washes at the dock, the run flag and the dock's last report are no end."""
+    """Washes, dock faults, the run flag and the dock's last report are no end."""
     home = await install(single_roborock)
     robot = home.roborock
     areas = [home.areas["Küche"], home.areas["Flur"]]
@@ -257,3 +272,8 @@ async def test_a_typical_run_keeps_its_job_running_and_completes_once(
     assert (detail["state"], detail["completion"]["notes"]) == ("completed", [])
     (saugi,) = (await _robots(hass)).values()
     assert saugi["activity"] == {"phase": "docked", "external": False}
+    # The fault stays visible until someone refills the dock.
+    assert [
+        (entry["kind"], entry["codes"])
+        for entry in (await call(hass, "get_queue"))["attention"]
+    ] == [("device_fault", attention)] * bool(attention)
