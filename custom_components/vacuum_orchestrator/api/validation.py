@@ -11,7 +11,12 @@ from typing import Any
 import probatio
 from homeassistant.core import HomeAssistant
 
-from ..configuration import prepare_robot, resolve_robot
+from ..configuration import (
+    added_robot,
+    added_robot_fields,
+    prepare_robot,
+    resolve_robot,
+)
 from ..configuration_values import schema_path
 from ..const import API_VERSION
 from ..domain.errors import OrchestratorError, ValidationError, located
@@ -106,13 +111,16 @@ async def _check(
                 hold_id=values.get("hold_id"),
             )
         )
-    elif command in {"add_robot", "configure_robot"}:
+    elif command == "add_robot":
+        with added_robot_fields():
+            prepare_robot(hass, controller.entry, added_robot(values))
+    elif command == "configure_robot":
         with located("configuration"):
             prepare_robot(
                 hass,
                 controller.entry,
                 values["configuration"],
-                robot_id=values.get("robot_id"),
+                robot_id=values["robot_id"],
             )
     elif command == "rename_robot":
         controller.checked_name(values["robot_id"], values.get("name"))

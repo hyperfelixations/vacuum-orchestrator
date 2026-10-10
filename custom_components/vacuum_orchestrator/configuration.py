@@ -1,6 +1,7 @@
 """Canonical robot configuration validation for flows and public commands."""
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from types import MappingProxyType
 from typing import Any
 
@@ -20,7 +21,7 @@ from .const import (
     CONF_TARGET_AREAS,
     SUBENTRY_TYPE_ROBOT,
 )
-from .domain.errors import ConflictError, ValidationError, located
+from .domain.errors import ConflictError, OrchestratorError, ValidationError, located
 from .domain.permissions import require, robot_idle
 from .domain.types import MopRoute, OperationKind, VacuumLevel, WaterLevel
 from .domain.validation import identifier, seconds
@@ -329,6 +330,32 @@ def resolve_robot(hass: HomeAssistant, entry: ConfigEntry, value: str) -> str:
             if subentry.data.get(CONF_ROBOT_REGISTRY_ID) == registered.id:
                 return subentry_id
     return value
+
+
+# `add_robot` fields and the configuration keys they set; see dev doc "Actions".
+ADD_ROBOT_FIELDS = {"entity_id": CONF_ROBOT_ENTITY_ID, "name": CONF_ROBOT_NAME}
+
+
+def added_robot(values: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the configuration of a robot added by its vacuum and name."""
+    return {
+        key: values[field]
+        for field, key in ADD_ROBOT_FIELDS.items()
+        if values.get(field) is not None
+    }
+
+
+@contextmanager
+def added_robot_fields() -> Iterator[None]:
+    """Locate errors about an added robot at its `add_robot` field."""
+    try:
+        yield
+    except OrchestratorError as err:
+        fields = {key: field for field, key in ADD_ROBOT_FIELDS.items()}
+        path = err.path
+        if path and path[0] in fields:
+            path = (fields[str(path[0])], *path[1:])
+        raise type(err)(err.code, err.detail, path=path) from err
 
 
 def require_idle_robot(entry: ConfigEntry, robot_id: str) -> ConfigSubentry:

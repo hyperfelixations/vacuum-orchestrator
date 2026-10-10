@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.vacuum_orchestrator.runtime import async_get_runtime
-from tests.test_configuration_api import call, configured  # noqa: F401
+from tests.test_configuration_api import add_robot, call, configured  # noqa: F401
 from tests.test_job_actions_api import offered
 
 
@@ -70,11 +70,7 @@ async def test_robots_offer_configuration_and_return_by_lease_and_capability(
         "docked",
         {"supported_features": int(VacuumEntityFeature.CLEAN_AREA)},
     )
-    await call(
-        hass,
-        "add_robot",
-        configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
-    )
+    await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await hass.async_block_till_done()
 
     (robot,) = (await call(hass, "get_robots"))["robots"]

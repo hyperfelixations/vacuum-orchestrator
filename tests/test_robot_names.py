@@ -24,7 +24,7 @@ from custom_components.vacuum_orchestrator.api.websocket import (
 )
 from custom_components.vacuum_orchestrator.runtime import async_get_runtime
 from tests.errors import raises_code
-from tests.test_configuration_api import call, configured  # noqa: F401
+from tests.test_configuration_api import add_robot, call, configured  # noqa: F401
 from tests.test_websocket import Connection
 
 
@@ -55,11 +55,7 @@ def _vacuum(hass: HomeAssistant, device_name: str = "Saugi") -> er.RegistryEntry
 
 
 async def _robot(hass: HomeAssistant, vacuum: er.RegistryEntry) -> dict[str, Any]:
-    await call(
-        hass,
-        "add_robot",
-        configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
-    )
+    await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await hass.async_block_till_done()
     (robot,) = (await call(hass, "get_robots"))["robots"]
     return cast(dict[str, Any], robot)
@@ -222,11 +218,7 @@ async def test_a_robot_added_with_a_name_keeps_it_and_its_last_name_after_remova
     hass: HomeAssistant,
 ) -> None:
     vacuum = _vacuum(hass)
-    await call(
-        hass,
-        "add_robot",
-        configuration={"robot_entity_id": vacuum.entity_id, "name": " Robi "},
-    )
+    await call(hass, "add_robot", entity_id=vacuum.entity_id, name=" Robi ")
     await hass.async_block_till_done()
     (robot,) = (await call(hass, "get_robots"))["robots"]
     assert (robot["name"], robot["name_source"]) == ("Robi", "custom")

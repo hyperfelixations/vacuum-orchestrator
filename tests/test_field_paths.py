@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
-from tests.test_configuration_api import call, configured  # noqa: F401
+from tests.test_configuration_api import add_robot, call, configured  # noqa: F401
 
 
 async def located(hass: HomeAssistant, action: str, **data: Any) -> tuple[str, str]:
@@ -84,45 +84,52 @@ async def test_robot_errors_name_their_field(hass: HomeAssistant) -> None:
         {"supported_features": int(VacuumEntityFeature.CLEAN_AREA)},
     )
 
-    assert await located(
-        hass, "add_robot", configuration={"robot_entity_id": "vacuum.none"}
-    ) == ("entity_not_registered", "configuration.robot_entity_id")
+    assert await located(hass, "add_robot", entity_id="vacuum.none") == (
+        "entity_not_registered",
+        "entity_id",
+    )
+    assert await located(hass, "add_robot", entity_id=vacuum.entity_id, name=" ") == (
+        "invalid_robot_name",
+        "name",
+    )
+    robot = await add_robot(hass, vacuum.entity_id)
+    assert await located(hass, "add_robot", entity_id=vacuum.entity_id) == (
+        "already_configured",
+        "entity_id",
+    )
     assert await located(
         hass,
-        "add_robot",
-        configuration={"robot_entity_id": vacuum.entity_id, "minimum_battery": 150},
+        "configure_robot",
+        robot_id=robot,
+        configuration={"minimum_battery": 150},
     ) == ("invalid_minimum_battery", "configuration.minimum_battery")
     assert await located(
         hass,
-        "add_robot",
-        configuration={
-            "robot_entity_id": vacuum.entity_id,
-            "roles": {"battery": "sensor.none"},
-        },
+        "configure_robot",
+        robot_id=robot,
+        configuration={"roles": {"battery": "sensor.none"}},
     ) == ("invalid_role_entity", "configuration.roles.battery")
     assert await located(
         hass,
-        "add_robot",
-        configuration={"robot_entity_id": vacuum.entity_id, "target_areas": [" "]},
+        "configure_robot",
+        robot_id=robot,
+        configuration={"target_areas": [" "]},
     ) == ("invalid_target_areas", "configuration.target_areas.0")
     assert await located(
         hass,
-        "add_robot",
-        configuration={"robot_entity_id": vacuum.entity_id, "colour": "red"},
+        "configure_robot",
+        robot_id=robot,
+        configuration={"colour": "red"},
     ) == ("unknown_robot_configuration_field", "configuration.colour")
     assert await located(
         hass,
-        "add_robot",
-        configuration={
-            "robot_entity_id": vacuum.entity_id,
-            "requirements": [{"entity_id": "not an entity"}],
-        },
+        "configure_robot",
+        robot_id=robot,
+        configuration={"requirements": [{"entity_id": "not an entity"}]},
     ) == ("invalid_requirements", "configuration.requirements.0.entity_id")
     assert await located(
         hass,
-        "add_robot",
-        configuration={
-            "robot_entity_id": vacuum.entity_id,
-            "start_timeout_seconds": 100000,
-        },
+        "configure_robot",
+        robot_id=robot,
+        configuration={"start_timeout_seconds": 100000},
     ) == ("timeout_out_of_range", "configuration.start_timeout_seconds")

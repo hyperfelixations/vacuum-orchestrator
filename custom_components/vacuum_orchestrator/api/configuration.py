@@ -20,6 +20,8 @@ from ..application.explanation import explain_job
 from ..application.preview import JobPreview, preview_draft
 from ..application.tracing import incident_record
 from ..configuration import (
+    added_robot,
+    added_robot_fields,
     configure_robot,
     require_idle_robot,
     resolve_robot,
@@ -178,7 +180,12 @@ COMMANDS: dict[str, probatio.Schema | probatio.All[dict[str, Any]]] = {
         }
     ),
     "revoke_room": probatio.Schema(ROOMS),
-    "add_robot": probatio.Schema({probatio.Required("configuration"): dict}),
+    "add_robot": probatio.Schema(
+        {
+            probatio.Required("entity_id"): cv.string,
+            probatio.Optional("name"): probatio.Any(None, str),
+        }
+    ),
     "configure_robot": probatio.Schema(
         {**ROBOT_ID, probatio.Required("configuration"): dict}
     ),
@@ -765,6 +772,9 @@ async def _execute_configuration(
             hass.config_entries.async_remove_subentry(entry, data["robot_id"])
         elif name == "rename_robot":
             controller.rename_robot(data["robot_id"], data.get("name"))
+        elif name == "add_robot":
+            with added_robot_fields():
+                robot_id = configure_robot(hass, entry, added_robot(data))
         else:
             with located("configuration"):
                 robot_id = configure_robot(

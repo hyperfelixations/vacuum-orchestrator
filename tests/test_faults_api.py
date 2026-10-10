@@ -15,7 +15,7 @@ from custom_components.vacuum_orchestrator.api.websocket import (
     websocket_subscribe,
 )
 from custom_components.vacuum_orchestrator.const import CONF_INSTALLATION_ID, DOMAIN
-from tests.test_configuration_api import call, configured  # noqa: F401
+from tests.test_configuration_api import add_robot, call, configured  # noqa: F401
 from tests.test_runtime import MemoryBackend
 from tests.test_websocket import Connection
 
@@ -27,11 +27,7 @@ async def test_a_fault_is_shown_and_signalled_without_a_commit(
     vacuum = er.async_get(hass).async_get_or_create("vacuum", "demo", "fault")
     attributes = {"supported_features": int(VacuumEntityFeature.CLEAN_AREA)}
     hass.states.async_set(vacuum.entity_id, "docked", attributes)
-    await call(
-        hass,
-        "add_robot",
-        configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
-    )
+    await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await hass.async_block_till_done()
     assert (await call(hass, "get_robots"))["robots"][0]["faults"] == []
     subscriber = Connection()
@@ -91,11 +87,7 @@ async def test_attention_sensor_follows_a_device_fault(
     vacuum = er.async_get(hass).async_get_or_create("vacuum", "demo", "fault")
     attributes = {"supported_features": int(VacuumEntityFeature.CLEAN_AREA)}
     hass.states.async_set(vacuum.entity_id, "docked", attributes)
-    await call(
-        hass,
-        "add_robot",
-        configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
-    )
+    await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await hass.async_block_till_done()
     assert hass.states.get(sensor).state == "off"
 

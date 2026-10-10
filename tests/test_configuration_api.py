@@ -78,6 +78,14 @@ async def call(hass, action, **data):
     )
 
 
+async def add_robot(hass, entity_id: str, **configuration: object) -> str:
+    """Add a robot by its vacuum, then configure the given fields."""
+    robot = (await call(hass, "add_robot", entity_id=entity_id))["robot_id"]
+    if configuration:
+        await call(hass, "configure_robot", robot_id=robot, configuration=configuration)
+    return robot
+
+
 async def test_robots_report_room_reach_from_the_live_ha_mapping(hass, configured):
     core = configured.runtime_data.orchestrator
     registry = er.async_get(hass)
@@ -92,13 +100,7 @@ async def test_robots_report_room_reach_from_the_live_ha_mapping(hass, configure
     )
     kitchen = await core.rooms.async_create("Kitchen", area_id="kitchen")
     hall = await core.rooms.async_create("Hall", area_id="hall")
-    robot = (
-        await call(
-            hass,
-            "add_robot",
-            configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
-        )
-    )["robot_id"]
+    robot = await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await hass.async_block_till_done()
 
     projection = (await call(hass, "get_robots"))["robots"][0]
@@ -127,11 +129,7 @@ async def test_robots_name_why_they_offer_no_maps(hass, configured):
         "docked",
         {"supported_features": int(VacuumEntityFeature.CLEAN_AREA)},
     )
-    await call(
-        hass,
-        "add_robot",
-        configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
-    )
+    await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await hass.async_block_till_done()
 
     projection = (await call(hass, "get_robots"))["robots"][0]
@@ -247,13 +245,7 @@ async def test_robot_configuration_actions_share_validation_and_idle_guard(
     )
     candidates = await call(hass, "get_robot_candidates")
     assert candidates["candidates"][0]["registry_id"] == vacuum.id
-    robot = (
-        await call(
-            hass,
-            "add_robot",
-            configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
-        )
-    )["robot_id"]
+    robot = await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await hass.async_block_till_done()
     await call(
         hass,
@@ -293,9 +285,7 @@ async def test_robot_configuration_actions_share_validation_and_idle_guard(
         == sensor.id
     )
     with raises_code("already_configured"):
-        await call(
-            hass, "add_robot", configuration={"robot_entity_id": vacuum.entity_id}
-        )
+        await call(hass, "add_robot", entity_id=vacuum.entity_id)
     await call(
         hass, "configure_robot", robot_id=robot, configuration={"enabled": False}
     )
@@ -705,11 +695,7 @@ async def test_job_request_origin_survives_queueing_and_reaches_physical_calls(
             )
         },
     )
-    await call(
-        hass,
-        "add_robot",
-        configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
-    )
+    await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await hass.async_block_till_done()
     await call(hass, "release_room", areas=[area.id], kind="permanent")
     observed = []
@@ -747,14 +733,13 @@ async def test_public_configuration_rejects_mistyped_fields_and_missing_area(
     hass, configured
 ):
     vacuum = er.async_get(hass).async_get_or_create("vacuum", "demo", "guarded")
+    robot = await add_robot(hass, vacuum.entity_id)
     with raises_code("unknown_robot_configuration_field"):
         await call(
             hass,
-            "add_robot",
-            configuration={
-                "robot_entity_id": vacuum.entity_id,
-                "mimimum_battery": 20,
-            },
+            "configure_robot",
+            robot_id=robot,
+            configuration={"mimimum_battery": 20},
         )
     with raises_code("unknown_area"):
         await call(hass, "create_room", name="Office", area_id="missing")

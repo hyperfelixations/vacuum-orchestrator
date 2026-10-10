@@ -13,7 +13,7 @@ from custom_components.vacuum_orchestrator.api.websocket import (
     websocket_configuration_get,
 )
 from custom_components.vacuum_orchestrator.runtime import async_get_runtime
-from tests.test_configuration_api import call, configured  # noqa: F401
+from tests.test_configuration_api import add_robot, call, configured  # noqa: F401
 from tests.test_job_holds_api import Card
 from tests.test_websocket import Connection
 
@@ -130,19 +130,13 @@ async def test_robots_are_checked_without_touching_their_entries(
     )
     entry = async_get_runtime(hass).controller.entry
     assert (
-        await validate(
-            hass, "add_robot", configuration={"robot_entity_id": vacuum.entity_id}
-        )
-        == []
+        await validate(hass, "add_robot", entity_id=vacuum.entity_id, name="Robi") == []
     )
+    assert await validate(hass, "add_robot", entity_id="vacuum.none") == [
+        ("entity_id", "entity_not_registered")
+    ]
     assert entry.subentries == {}
-    robot = (
-        await call(
-            hass,
-            "add_robot",
-            configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
-        )
-    )["robot_id"]
+    robot = await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     data = dict(entry.subentries[robot].data)
 
     assert await validate(

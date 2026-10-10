@@ -48,7 +48,7 @@ from tests.application.test_orchestrator import (
     _intent,
     _orchestrator,
 )
-from tests.test_configuration_api import call, configured  # noqa: F401
+from tests.test_configuration_api import add_robot, call, configured  # noqa: F401
 from tests.test_job_holds_api import Card
 from tests.test_runtime import MemoryBackend
 from tests.test_websocket import Connection
@@ -207,11 +207,7 @@ async def test_a_new_room_signals_the_reach_of_every_robot(hass: HomeAssistant) 
         "docked",
         {"supported_features": int(VacuumEntityFeature.CLEAN_AREA)},
     )
-    await call(
-        hass,
-        "add_robot",
-        configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
-    )
+    await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await hass.async_block_till_done()
     subscriber = Connection()
     websocket_subscribe(

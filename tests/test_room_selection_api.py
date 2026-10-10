@@ -14,7 +14,7 @@ from homeassistant.util import dt as dt_util
 
 from custom_components.vacuum_orchestrator.runtime import async_get_runtime
 from tests.errors import raises_code
-from tests.test_configuration_api import call, configured  # noqa: F401
+from tests.test_configuration_api import add_robot, call, configured  # noqa: F401
 from tests.test_job_holds_api import Card
 from tests.test_validate_api import validate
 
@@ -39,13 +39,7 @@ async def _home(hass: HomeAssistant) -> dict[str, str]:
             )
         },
     )
-    robot = (
-        await call(
-            hass,
-            "add_robot",
-            configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
-        )
-    )["robot_id"]
+    robot = await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await hass.async_block_till_done()
     rooms = async_get_runtime(hass).orchestrator.rooms
     return {

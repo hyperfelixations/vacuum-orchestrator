@@ -504,13 +504,23 @@ revoke_room:
           multiple: true
 add_robot:
   name: Add robot
-  description: Add a registered HA vacuum through the shared robot validator.
+  description: Add a vacuum as a robot with the same defaults as automatic discovery;
+    change its settings afterwards with configure_robot.
   fields:
-    configuration:
-      name: Configuration
+    entity_id:
+      name: Vacuum
       required: true
       selector:
-        object: {}
+        entity:
+          filter:
+            domain: vacuum
+    name:
+      name: Name
+      description: Optional; without a name the robot follows the name of its vacuum
+        in Home Assistant.
+      required: false
+      selector:
+        text: {}
 configure_robot:
   name: Configure robot
   description: Update an idle robot, its roles, targets, requirements and supported

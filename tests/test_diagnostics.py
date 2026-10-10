@@ -24,7 +24,7 @@ from custom_components.vacuum_orchestrator.domain.intents import JobIntent, Targ
 from custom_components.vacuum_orchestrator.domain.rooms import RoomBinding
 from custom_components.vacuum_orchestrator.domain.types import CleaningMode
 from custom_components.vacuum_orchestrator.runtime import async_setup_orchestrator
-from tests.test_configuration_api import call, configured  # noqa: F401
+from tests.test_configuration_api import add_robot, call, configured  # noqa: F401
 from tests.test_runtime import _entry
 
 
@@ -95,13 +95,7 @@ async def test_diagnostics_show_ignored_segments_without_area_names(hass, reques
         vacuum.entity_id, "vacuum", {"area_mapping": {"private_kitchen": ["7"]}}
     )
     room_id = await core.rooms.async_create("Kitchen", area_id="private_kitchen")
-    robot = (
-        await call(
-            hass,
-            "add_robot",
-            configuration={"robot_entity_id": vacuum.entity_id, "fixed_mode": "vacuum"},
-        )
-    )["robot_id"]
+    robot = await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await core.rooms.async_update(
         room_id,
         lambda room: replace(
