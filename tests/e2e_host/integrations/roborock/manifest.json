@@ -1,0 +1,12 @@
+{
+  "domain": "roborock",
+  "name": "Roborock (E2E simulator)",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": ["voi_e2e_support"],
+  "documentation": "https://github.com/hyperfelixations/vacuum-orchestrator/tree/main/tests/e2e_host",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.0.0"
+}

@@ -1,6 +1,7 @@
 # Security updates arrive one advisory per pull request; routine tooling updates are grouped.
 # Actions are pinned to commit SHAs; Dependabot moves the SHA and its version comment together.
-# The Home Assistant test stack moves with the supported baseline, never through Dependabot.
+# The Home Assistant test stack and the E2E host's pins move with the supported baseline, never
+# through Dependabot.
 
 version: 2
 updates:
@@ -34,6 +35,62 @@ updates:
           - version-update:semver-minor
           - version-update:semver-patch
       - dependency-name: pytest-cov
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      # The E2E host's pins are HA's own (requirements-e2e.txt).
+      - dependency-name: gazetteer-matcher
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: ha-ffmpeg
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: hassil
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: home-assistant-frontend
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: home-assistant-intents
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: infrared-protocols
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: mutagen
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: pymicro-vad
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: pyspeex-noise
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: PyTurboJPEG
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: rf-protocols
         update-types:
           - version-update:semver-major
           - version-update:semver-minor

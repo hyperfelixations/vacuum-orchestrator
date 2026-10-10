@@ -35,6 +35,9 @@ FEATURES = (
     | VacuumEntityFeature.START
     | VacuumEntityFeature.CLEAN_AREA
 )
+MODEL = "roborock.vacuum.a70"
+# Locally administered, so no real device has it.
+MAC = "02:00:00:00:00:01"
 FAN_SPEEDS = ["off", "quiet", "balanced", "turbo", "max", "max_plus", "custom"]
 STATUS_OPTIONS = [
     "air_drying_stopping",
@@ -316,6 +319,11 @@ def mop_run(sections: int = 1, *, prewash: float = 150) -> tuple[Step, ...]:
     )
 
 
+def duid_of(name: str) -> str:
+    """The synthetic device ID of a robot with this name."""
+    return f"{slugify(name)}0000000000duid"
+
+
 @dataclass
 class RoborockV1:
     """The registered robot, its recorded actions and its live state."""
@@ -350,7 +358,7 @@ class RoborockV1:
         cls, hass: HomeAssistant, name: str, areas: dict[str, str]
     ) -> RoborockV1:
         """Register the robot, its dock, entities and actions; return it docked."""
-        duid = f"{slugify(name)}0000000000duid"
+        duid = duid_of(name)
         slug = slugify(duid)
         entry = MockConfigEntry(domain="roborock", title="Roborock")
         entry.add_to_hass(hass)
@@ -360,16 +368,16 @@ class RoborockV1:
             identifiers={("roborock", duid)},
             name=name,
             manufacturer="Roborock",
-            model="roborock.vacuum.a70",
-            model_id="roborock.vacuum.a70",
-            connections={(dr.CONNECTION_NETWORK_MAC, "02:00:00:00:00:01")},
+            model=MODEL,
+            model_id=MODEL,
+            connections={(dr.CONNECTION_NETWORK_MAC, MAC)},
         )
         dock = devices.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={("roborock", f"{duid}_dock")},
             name=f"{name} Dock",
             manufacturer="Roborock",
-            model="roborock.vacuum.a70 Dock",
+            model=f"{MODEL} Dock",
         )
         registry = er.async_get(hass)
         prefix = slugify(name)

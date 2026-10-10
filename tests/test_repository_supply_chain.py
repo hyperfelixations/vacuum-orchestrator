@@ -105,6 +105,13 @@ def test_ci_runs_on_push_and_pull_request() -> None:
     assert triggers(workflow) == {"push", "pull_request", "workflow_dispatch"}
 
 
+def test_ci_runs_the_e2e_host_with_its_requirements() -> None:
+    job = load(WORKFLOWS / "ci.yml")["jobs"]["e2e-host"]
+    commands = [step["run"] for step in steps(job) if "run" in step]
+    assert "python -m pip install -r requirements-e2e.txt" in commands
+    assert "python -m pytest -m e2e_host --no-cov tests/e2e_host" in commands
+
+
 def test_validate_has_no_pull_request_trigger_and_no_default_permissions() -> None:
     workflow = load(WORKFLOWS / "validate.yml")
     assert triggers(workflow) == {"push", "schedule", "workflow_dispatch"}
@@ -133,27 +140,35 @@ def test_dependabot_watches_pip_and_the_workflow_actions_weekly() -> None:
         assert entry["schedule"] == {"interval": "weekly"}
 
 
+def pinned(name: str) -> set[str]:
+    """The exactly pinned packages of a requirements file."""
+    text = (ROOT / name).read_text(encoding="utf-8")
+    names = set()
+    for line in (line.strip() for line in text.splitlines()):
+        if not line or line.startswith("#") or line == "-r requirements-test.txt":
+            continue
+        match = EXACT_PIN.fullmatch(line)
+        assert match, f"{name}: {line} is not an exact pin"
+        names.add(match.group(1))
+    return names
+
+
 def test_dependabot_leaves_the_home_assistant_test_stack_to_the_baseline() -> None:
+    """The E2E pins are HA's own and move with the baseline as well."""
     ignored = {
         rule["dependency-name"]: rule for rule in dependabot_updates()["pip"]["ignore"]
     }
-    assert set(ignored) == HOME_ASSISTANT_STACK
+    assert set(ignored) == HOME_ASSISTANT_STACK | pinned("requirements-e2e.txt")
     # A rule without update-types would also block the package's security updates.
     for name, rule in ignored.items():
         assert set(rule["update-types"]) == SEMVER_TYPES, name
 
 
 def test_every_test_requirement_is_pinned_exactly() -> None:
-    text = (ROOT / "requirements-test.txt").read_text(encoding="utf-8")
-    lines = [line.strip() for line in text.splitlines()]
-    names = set()
-    for line in lines:
-        if not line or line.startswith("#"):
-            continue
-        match = EXACT_PIN.fullmatch(line)
-        assert match, f"requirements-test.txt: {line} is not an exact pin"
-        names.add(match.group(1))
-    assert names >= HOME_ASSISTANT_STACK
+    assert pinned("requirements-test.txt") >= HOME_ASSISTANT_STACK
+    lines = (ROOT / "requirements-e2e.txt").read_text(encoding="utf-8").splitlines()
+    assert "-r requirements-test.txt" in lines
+    assert pinned("requirements-e2e.txt")
 
 
 def test_the_integration_has_no_third_party_runtime_requirements() -> None:

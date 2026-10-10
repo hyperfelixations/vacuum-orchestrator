@@ -5,7 +5,8 @@ requires-python = ">=3.14.2"
 dependencies = []
 
 [tool.pytest.ini_options]
-addopts = "--strict-config --strict-markers --cov=custom_components.vacuum_orchestrator --cov-branch --cov-report=term-missing --cov-fail-under=95"
+addopts = "--strict-config --strict-markers --cov=custom_components.vacuum_orchestrator --cov-branch --cov-report=term-missing --cov-fail-under=95 -m 'not e2e_host'"
+markers = ["e2e_host: starts a real Home Assistant process; run with -m e2e_host --no-cov"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
