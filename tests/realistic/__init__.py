@@ -14,7 +14,7 @@ from homeassistant.helpers import area_registry as ar
 from tests.realistic.generic import AreaVacuum
 from tests.realistic.roborock import RoborockV1
 
-AREAS = ("Küche", "Flur", "Wohnzimmer", "Bad")
+AREAS = ("Dining Room", "Studio", "Library", "Conservatory")
 
 
 @dataclass
@@ -55,21 +55,21 @@ def no_robot(hass: HomeAssistant) -> Household:
 def single_roborock(hass: HomeAssistant) -> Household:
     """One Roborock V1 with dock and two maps; one mapped segment is stale."""
     home = no_robot(hass)
-    home.robots["Saugi"] = RoborockV1.install(hass, "Saugi", home.areas)
+    home.robots["Rocky"] = RoborockV1.install(hass, "Rocky", home.areas)
     return home
 
 
 def generic_area(hass: HomeAssistant) -> Household:
     """One vacuum of another integration that cleans HA areas."""
     home = no_robot(hass)
-    home.robots["Flitzi"] = AreaVacuum.install(hass, "Flitzi", home.areas)
+    home.robots["Dusty"] = AreaVacuum.install(hass, "Dusty", home.areas)
     return home
 
 
 def two_robots(hass: HomeAssistant) -> Household:
-    """A Roborock downstairs and a generic area vacuum."""
+    """A Roborock and a generic area vacuum."""
     home = single_roborock(hass)
-    home.robots["Flitzi"] = AreaVacuum.install(hass, "Flitzi", home.areas)
+    home.robots["Dusty"] = AreaVacuum.install(hass, "Dusty", home.areas)
     return home
 
 

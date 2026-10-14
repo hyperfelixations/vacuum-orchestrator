@@ -93,9 +93,9 @@ async def test_a_roborock_is_found_with_its_dock_roles_maps_and_reach(
 ) -> None:
     home = await install(single_roborock)
 
-    (saugi,) = (await _robots(hass)).values()
-    assert (saugi["name"], saugi["name_source"]) == ("Saugi", "home_assistant")
-    configuration = saugi["configuration"]
+    (rocky,) = (await _robots(hass)).values()
+    assert (rocky["name"], rocky["name_source"]) == ("Rocky", "home_assistant")
+    configuration = rocky["configuration"]
     assert (configuration["adapter"], configuration["protocol"]) == (
         "roborock",
         "roborock_v1",
@@ -109,20 +109,20 @@ async def test_a_roborock_is_found_with_its_dock_roles_maps_and_reach(
     } == {item.entity_id for item in home.roborock.entities.values()}
     assert len(candidate["roles"]) == len(ROLES)
     assert not candidate["ambiguous_roles"]
-    assert _reach(saugi, await _rooms(hass, home)) == {
-        "Küche": ("reachable", ["0_16"], []),
-        "Flur": ("reachable", ["0_17"], []),
-        "Wohnzimmer": ("reachable", ["0_18"], ["0_99"]),
-        "Bad": ("not_on_current_map", [], ["1_16"]),
+    assert _reach(rocky, await _rooms(hass, home)) == {
+        "Dining Room": ("reachable", ["0_16"], []),
+        "Studio": ("reachable", ["0_17"], []),
+        "Library": ("reachable", ["0_18"], ["0_99"]),
+        "Conservatory": ("not_on_current_map", [], ["1_16"]),
     }
     assert [
         (item["name"], item["current"], item["image_entity_id"])
-        for item in saugi["maps"]
+        for item in rocky["maps"]
     ] == [
-        ("Erdgeschoss", True, "image.saugi_erdgeschoss"),
-        ("Obergeschoss", False, "image.saugi_obergeschoss"),
+        ("Main Floor", True, "image.rocky_main_floor"),
+        ("Lower Floor", False, "image.rocky_lower_floor"),
     ]
-    assert saugi["activity"] == {"phase": "docked", "external": False}
+    assert rocky["activity"] == {"phase": "docked", "external": False}
 
 
 async def test_a_generic_area_vacuum_cleans_the_areas_mapped_to_it(
@@ -132,15 +132,15 @@ async def test_a_generic_area_vacuum_cleans_the_areas_mapped_to_it(
 
     (flitzi,) = (await _robots(hass)).values()
     assert (flitzi["name"], flitzi["configuration"]["adapter"]) == (
-        "Flitzi",
+        "Dusty",
         "home_assistant",
     )
     reach = _reach(flitzi, await _rooms(hass, home))
     assert {name: status for name, (status, _, _) in reach.items()} == {
-        "Küche": "reachable",
-        "Flur": "reachable",
-        "Wohnzimmer": "reachable",
-        "Bad": "area_not_mapped",
+        "Dining Room": "reachable",
+        "Studio": "reachable",
+        "Library": "reachable",
+        "Conservatory": "area_not_mapped",
     }
 
 
@@ -150,10 +150,10 @@ async def test_two_robots_are_two_profiles_with_their_own_reach(
     home = await install(two_robots)
 
     robots = await _robots(hass)
-    assert sorted(robots) == ["Flitzi", "Saugi"]
+    assert sorted(robots) == ["Dusty", "Rocky"]
     rooms = await _rooms(hass, home)
-    assert _reach(robots["Flitzi"], rooms)["Bad"][0] == "area_not_mapped"
-    assert _reach(robots["Saugi"], rooms)["Bad"][0] == "not_on_current_map"
+    assert _reach(robots["Dusty"], rooms)["Conservatory"][0] == "area_not_mapped"
+    assert _reach(robots["Rocky"], rooms)["Conservatory"][0] == "not_on_current_map"
 
 
 async def test_a_run_from_the_vendor_app_is_shown_as_external(
@@ -161,8 +161,8 @@ async def test_a_run_from_the_vendor_app_is_shown_as_external(
 ) -> None:
     await install(busy)
 
-    (saugi,) = (await _robots(hass)).values()
-    assert saugi["activity"] == {"phase": "cleaning", "external": True}
+    (rocky,) = (await _robots(hass)).values()
+    assert rocky["activity"] == {"phase": "cleaning", "external": True}
 
 
 async def test_a_job_cleans_the_segments_of_its_areas_and_completes(
@@ -170,7 +170,7 @@ async def test_a_job_cleans_the_segments_of_its_areas_and_completes(
 ) -> None:
     home = await install(single_roborock)
     robot = home.roborock
-    areas = [home.areas["Küche"], home.areas["Flur"]]
+    areas = [home.areas["Dining Room"], home.areas["Studio"]]
 
     await call(hass, "release_room", areas=areas, kind="permanent")
     job = (await call(hass, "create_job", areas=areas, mode="vacuum", start=True))[
@@ -199,10 +199,10 @@ async def test_a_job_cleans_the_segments_of_its_areas_and_completes(
         )
         return stamp.quality.value if stamp else None
 
-    assert {name: cleaned(name) for name in ("Küche", "Flur", "Wohnzimmer")} == {
-        "Küche": quality,
-        "Flur": quality,
-        "Wohnzimmer": None,
+    assert {name: cleaned(name) for name in ("Dining Room", "Studio", "Library")} == {
+        "Dining Room": quality,
+        "Studio": quality,
+        "Library": None,
     }
 
 
@@ -224,7 +224,7 @@ def _advancer(
     [
         pytest.param("vacuum", vacuum_run(2), [], id="vacuum"),
         pytest.param("mop", mop_run(3), [], id="mop with washes between sections"),
-        pytest.param("mop", mop_run(1, prewash=220), [], id="mop after a long wash"),
+        pytest.param("mop", mop_run(1, prewash=240), [], id="mop after a long wash"),
         # The robot cleans on while the dock lacks water; see dev doc
         # "Gerätefehler".
         pytest.param(
@@ -252,7 +252,7 @@ async def test_a_typical_run_keeps_its_job_running_and_completes_once(
     """Washes, dock faults, the run flag and the dock's last report are no end."""
     home = await install(single_roborock)
     robot = home.roborock
-    areas = [home.areas["Küche"], home.areas["Flur"]]
+    areas = [home.areas["Dining Room"], home.areas["Studio"]]
     await call(hass, "release_room", areas=areas, kind="permanent")
     job = (await call(hass, "create_job", areas=areas, mode=mode, start=True))["job_id"]
     await hass.async_block_till_done()
@@ -270,8 +270,8 @@ async def test_a_typical_run_keeps_its_job_running_and_completes_once(
     assert set(states) == {"running"}
     detail = await call(hass, "get_job", job_id=job)
     assert (detail["state"], detail["completion"]["notes"]) == ("completed", [])
-    (saugi,) = (await _robots(hass)).values()
-    assert saugi["activity"] == {"phase": "docked", "external": False}
+    (rocky,) = (await _robots(hass)).values()
+    assert rocky["activity"] == {"phase": "docked", "external": False}
     # The fault stays visible until someone refills the dock.
     assert [
         (entry["kind"], entry["codes"])

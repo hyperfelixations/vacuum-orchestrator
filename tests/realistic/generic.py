@@ -24,8 +24,8 @@ FEATURES = (
     | VacuumEntityFeature.RETURN_HOME
     | VacuumEntityFeature.CLEAN_AREA
 )
-# Cleans the ground floor; the bath upstairs is not mapped.
-MAPPING = {"Küche": ["kitchen"], "Flur": ["hall"], "Wohnzimmer": ["living"]}
+# Cleans the main floor; the conservatory on the lower floor is not mapped.
+MAPPING = {"Dining Room": ["dining"], "Studio": ["studio"], "Library": ["library"]}
 
 
 @dataclass

@@ -142,7 +142,7 @@ ROLES = (
         device_class="timestamp",
     ),
     Role("sensor", "clean_percent", "clean_percent", "Cleaning progress", "0"),
-    Role("sensor", "current_room", "current_room", "Current room", "Küche"),
+    Role("sensor", "current_room", "current_room", "Current room", "Dining Room"),
     Role(
         "select",
         "water_box_mode",
@@ -175,9 +175,9 @@ ROLES = (
         "selected_map",
         "selected_map",
         "Selected map",
-        "Erdgeschoss",
+        "Main Floor",
         category=EntityCategory.CONFIG,
-        options=("Erdgeschoss", "Obergeschoss"),
+        options=("Main Floor", "Lower Floor"),
     ),
     Role(
         "binary_sensor",
@@ -241,53 +241,84 @@ ROLES = (
 )
 # Map flag, name and rooms as `roborock.get_maps` returns them.
 MAPS = (
-    (0, "Erdgeschoss", {"16": "Küche", "17": "Flur", "18": "Wohnzimmer"}),
-    (1, "Obergeschoss", {"16": "Bad"}),
+    (0, "Main Floor", {"16": "Dining Room", "17": "Studio", "18": "Library"}),
+    (1, "Lower Floor", {"16": "Conservatory"}),
 )
 # HA area mapping as the vacuum entity options store it; `0_99` no longer exists.
 MAPPING = {
-    "Küche": ["0_16"],
-    "Flur": ["0_17"],
-    "Wohnzimmer": ["0_18", "0_99"],
-    "Bad": ["1_16"],
+    "Dining Room": ["0_16"],
+    "Studio": ["0_17"],
+    "Library": ["0_18", "0_99"],
+    "Conservatory": ["1_16"],
 }
 
 
 # A run as a V1 robot with a mop-washing dock reports it: steps of
-# (seconds after the previous step, changes). Order and rounded timing are
-# synthetic but typical of the core integration; see dev doc "Testarchitektur".
+# (seconds after the previous step, changes). The order of the steps is how the
+# core integration reports a run; every duration is synthetic and round. See
+# dev doc "Testarchitektur".
 type Step = tuple[float, dict[str, str]]
 # Step values replaced by the time of the step or of the run's first step.
 NOW = "<now>"
 RUN_START = "<run start>"
-SECTION_SECONDS = 700
+# Durations, in whole half minutes.
+SECTION_SECONDS = 600  # cleaning one section of rooms
+TRAVEL_SECONDS = 60  # to the dock: home or to a mop wash
+PREWASH_SECONDS = 120  # the dock washes the mop before the first section
+WASH_SECONDS = 120  # the dock washes the mop between two sections
+POLL_SECONDS = 30  # the run flag follows the status at the next poll
+BLIP_AFTER_DOCK_SECONDS = 180  # mopping: the dock reports `returning` briefly
+FLAG_AFTER_DOCK_SECONDS = 210  # mopping: the run flag ends after the last wash
+# Short signals of a moment.
+FLAG_AFTER_RETURN_SECONDS = 15  # vacuuming: the run flag ends on the way home
+BLIP_SECONDS = 3
+FAULT_FLAG_SECONDS = 2  # the robot flags the station's empty tank
+TANK_REPORT_SECONDS = 10  # then the dock reports it
+DURATIONS = (
+    SECTION_SECONDS,
+    TRAVEL_SECONDS,
+    PREWASH_SECONDS,
+    WASH_SECONDS,
+    POLL_SECONDS,
+    BLIP_AFTER_DOCK_SECONDS,
+    FLAG_AFTER_DOCK_SECONDS,
+)
+SIGNALS = (
+    FLAG_AFTER_RETURN_SECONDS,
+    BLIP_SECONDS,
+    FAULT_FLAG_SECONDS,
+    TANK_REPORT_SECONDS,
+)
 
 
 def vacuum_run(sections: int = 1) -> tuple[Step, ...]:
     """Vacuuming: the run flag ends on the way home, before the robot docks."""
     return (
         (0, {"status": "segment_cleaning", "vacuum": "cleaning"}),
-        (30, {"in_cleaning": "on"}),
+        (POLL_SECONDS, {"in_cleaning": "on"}),
         (
-            SECTION_SECONDS * sections - 30,
+            SECTION_SECONDS * sections - POLL_SECONDS,
             {"status": "returning_home", "vacuum": "returning"},
         ),
         (
-            20,
+            FLAG_AFTER_RETURN_SECONDS,
             {
                 "in_cleaning": "off",
                 "last_clean_start": RUN_START,
                 "last_clean_end": NOW,
             },
         ),
-        (45, {"status": "charging", "vacuum": "docked"}),
+        (
+            TRAVEL_SECONDS - FLAG_AFTER_RETURN_SECONDS,
+            {"status": "charging", "vacuum": "docked"},
+        ),
     )
 
 
 def mop_run(
     sections: int = 1,
     *,
-    prewash: float = 150,
+    prewash: float = PREWASH_SECONDS,
     empty_tank: Literal["during", "after"] | None = None,
 ) -> tuple[Step, ...]:
     """Mopping: the dock washes the mop before, between and after the sections.
@@ -305,19 +336,24 @@ def mop_run(
         if section:
             timeline += [
                 (at, {"status": "going_to_wash_the_mop", "vacuum": "returning"}),
-                (at + 65, {"status": "washing_the_mop", "vacuum": "docked"}),
+                (
+                    at + TRAVEL_SECONDS,
+                    {"status": "washing_the_mop", "vacuum": "docked"},
+                ),
             ]
-            at += 245
+            at += TRAVEL_SECONDS + WASH_SECONDS
         timeline.append((at, {"status": "segment_cleaning", "vacuum": "cleaning"}))
         at += SECTION_SECONDS
-    docked = at + 65
+    docked = at + TRAVEL_SECONDS
+    blip = docked + BLIP_AFTER_DOCK_SECONDS
+    ended = docked + FLAG_AFTER_DOCK_SECONDS
     timeline += [
         (at, {"status": "returning_home", "vacuum": "returning"}),
         (docked, {"status": "charging", "vacuum": "docked"}),
-        (docked + 215, {"vacuum": "returning"}),
-        (docked + 218, {"vacuum": "docked", "cleaning_mode": "vac_and_mop"}),
+        (blip, {"vacuum": "returning"}),
+        (blip + BLIP_SECONDS, {"vacuum": "docked", "cleaning_mode": "vac_and_mop"}),
         (
-            docked + 233,
+            ended,
             {
                 "in_cleaning": "off",
                 "last_clean_start": RUN_START,
@@ -326,11 +362,11 @@ def mop_run(
         ),
     ]
     if empty_tank is not None:
-        flagged = prewash - 2 if empty_tank == "during" else docked + 215
-        empty = prewash + 15 if empty_tank == "during" else docked + 233
+        flagged = prewash - FAULT_FLAG_SECONDS if empty_tank == "during" else blip
+        empty = prewash + TANK_REPORT_SECONDS if empty_tank == "during" else ended
         timeline += [
             (flagged, {"vacuum_error": "clear_water_box_hoare"}),
-            (flagged + 2, {"vacuum_error": "none"}),
+            (flagged + FAULT_FLAG_SECONDS, {"vacuum_error": "none"}),
             (empty, {"dock_error": "water_empty"}),
         ]
     return _steps(timeline)

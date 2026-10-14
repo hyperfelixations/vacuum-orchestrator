@@ -84,10 +84,10 @@ def area_robot(name: str) -> dict[str, Any]:
 # The households of `tests.realistic`; `test_build.py` keeps them equal.
 HOUSEHOLDS = {
     "no_robot": (),
-    "single_roborock": (roborock_robot("Saugi"),),
-    "generic_area": (area_robot("Flitzi"),),
-    "two_robots": (roborock_robot("Saugi"), area_robot("Flitzi")),
-    "busy": (roborock_robot("Saugi", cleaning=True),),
+    "single_roborock": (roborock_robot("Rocky"),),
+    "generic_area": (area_robot("Dusty"),),
+    "two_robots": (roborock_robot("Rocky"), area_robot("Dusty")),
+    "busy": (roborock_robot("Rocky", cleaning=True),),
 }
 
 

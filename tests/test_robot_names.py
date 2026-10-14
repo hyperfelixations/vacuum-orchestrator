@@ -29,7 +29,7 @@ from tests.test_configuration_api import add_robot, call, configured  # noqa: F4
 from tests.test_websocket import Connection
 
 
-def _vacuum(hass: HomeAssistant, device_name: str = "Saugi") -> er.RegistryEntry:
+def _vacuum(hass: HomeAssistant, device_name: str = "Rocky") -> er.RegistryEntry:
     """Register a vacuum named like Roborock's: by its device only."""
     owner = MockConfigEntry(domain="demo")
     owner.add_to_hass(hass)
@@ -77,21 +77,21 @@ async def test_the_name_is_the_vacuum_name_home_assistant_shows(
     hass: HomeAssistant,
 ) -> None:
     vacuum = _vacuum(hass)
-    area = ar.async_get(hass).async_create("Kitchen")
+    area = ar.async_get(hass).async_create("Pantry")
     assert vacuum.device_id is not None
     dr.async_get(hass).async_update_device(vacuum.device_id, area_id=area.id)
     entry = er.async_get(hass).async_get(vacuum.entity_id)
     assert entry is not None
 
-    assert ha_robot_name(hass, entry) == "Saugi"
-    assert [item.name for item in discover_robots(hass)] == ["Saugi"]
+    assert ha_robot_name(hass, entry) == "Rocky"
+    assert [item.name for item in discover_robots(hass)] == ["Rocky"]
     robot = await _robot(hass, vacuum)
     assert (robot["name"], robot["name_source"], robot["ha_name"]) == (
-        "Saugi",
+        "Rocky",
         "home_assistant",
-        "Saugi",
+        "Rocky",
     )
-    assert _title(hass, robot["robot_id"]) == "Saugi"
+    assert _title(hass, robot["robot_id"]) == "Rocky"
 
     er.async_get(hass).async_update_entity(vacuum.entity_id, name="Wischi")
     entry = er.async_get(hass).async_get(vacuum.entity_id)
@@ -122,12 +122,12 @@ async def test_renaming_in_home_assistant_renames_without_rebuilding(
     before = len(subscriber.events)
 
     assert vacuum.device_id is not None
-    dr.async_get(hass).async_update_device(vacuum.device_id, name_by_user="Flitzer")
+    dr.async_get(hass).async_update_device(vacuum.device_id, name_by_user="Zippy")
     await hass.async_block_till_done()
 
     (robot,) = (await call(hass, "get_robots"))["robots"]
-    assert (robot["name"], robot["ha_name"]) == ("Flitzer", "Flitzer")
-    assert _title(hass, robot_id) == "Flitzer"
+    assert (robot["name"], robot["ha_name"]) == ("Zippy", "Zippy")
+    assert _title(hass, robot_id) == "Zippy"
     assert rebuilds == []
     changed = set().union(
         *(event["changed"] for _id, event in subscriber.events[before:])
@@ -146,28 +146,28 @@ async def test_a_custom_name_overrides_home_assistant_until_reset(
     vacuum = _vacuum(hass)
     robot_id = (await _robot(hass, vacuum))["robot_id"]
 
-    renamed = await call(hass, "rename_robot", robot_id=robot_id, name=" Küchenheld ")
+    renamed = await call(hass, "rename_robot", robot_id=robot_id, name=" Sparky ")
     await hass.async_block_till_done()
     assert renamed["robot_id"] == robot_id
     (robot,) = (await call(hass, "get_robots"))["robots"]
     assert (robot["name"], robot["name_source"], robot["ha_name"]) == (
-        "Küchenheld",
+        "Sparky",
         "custom",
-        "Saugi",
+        "Rocky",
     )
-    assert _title(hass, robot_id) == "Küchenheld"
+    assert _title(hass, robot_id) == "Sparky"
 
     assert vacuum.device_id is not None
-    dr.async_get(hass).async_update_device(vacuum.device_id, name_by_user="Flitzer")
+    dr.async_get(hass).async_update_device(vacuum.device_id, name_by_user="Zippy")
     await hass.async_block_till_done()
     (robot,) = (await call(hass, "get_robots"))["robots"]
-    assert (robot["name"], robot["ha_name"]) == ("Küchenheld", "Flitzer")
+    assert (robot["name"], robot["ha_name"]) == ("Sparky", "Zippy")
 
     await call(hass, "rename_robot", robot_id=robot_id, name=None)
     await hass.async_block_till_done()
     (robot,) = (await call(hass, "get_robots"))["robots"]
-    assert (robot["name"], robot["name_source"]) == ("Flitzer", "home_assistant")
-    assert _title(hass, robot_id) == "Flitzer"
+    assert (robot["name"], robot["name_source"]) == ("Zippy", "home_assistant")
+    assert _title(hass, robot_id) == "Zippy"
 
     with raises_code("invalid_robot_name"):
         await call(hass, "rename_robot", robot_id=robot_id, name="   ")
@@ -184,34 +184,34 @@ async def test_renaming_the_robot_entry_in_home_assistant_sets_the_override(
     entry = _entry(hass)
 
     hass.config_entries.async_update_subentry(
-        entry, entry.subentries[robot_id], title="Flurputzer"
+        entry, entry.subentries[robot_id], title="Corner Buddy"
     )
     await hass.async_block_till_done()
     (robot,) = (await call(hass, "get_robots"))["robots"]
-    assert (robot["name"], robot["name_source"]) == ("Flurputzer", "custom")
-    assert entry.subentries[robot_id].data["name"] == "Flurputzer"
+    assert (robot["name"], robot["name_source"]) == ("Corner Buddy", "custom")
+    assert entry.subentries[robot_id].data["name"] == "Corner Buddy"
 
     hass.config_entries.async_update_subentry(
-        entry, entry.subentries[robot_id], title="Saugi"
+        entry, entry.subentries[robot_id], title="Rocky"
     )
     await hass.async_block_till_done()
     (robot,) = (await call(hass, "get_robots"))["robots"]
-    assert (robot["name"], robot["name_source"]) == ("Saugi", "home_assistant")
+    assert (robot["name"], robot["name_source"]) == ("Rocky", "home_assistant")
     assert entry.subentries[robot_id].data.get("name") is None
 
 
 @pytest.mark.usefixtures("configured")
 async def test_renaming_an_area_still_renames_its_room(hass: HomeAssistant) -> None:
-    area = ar.async_get(hass).async_create("Kitchen")
+    area = ar.async_get(hass).async_create("Pantry")
     await hass.async_block_till_done()
     rooms = (await call(hass, "get_rooms"))["rooms"]
-    assert [item["name"] for item in rooms] == ["Kitchen"]
+    assert [item["name"] for item in rooms] == ["Pantry"]
 
-    ar.async_get(hass).async_update(area.id, name="Küche")
+    ar.async_get(hass).async_update(area.id, name="Dining Room")
     await hass.async_block_till_done()
 
     rooms = (await call(hass, "get_rooms"))["rooms"]
-    assert [item["name"] for item in rooms] == ["Küche"]
+    assert [item["name"] for item in rooms] == ["Dining Room"]
 
 
 @pytest.mark.usefixtures("configured")
@@ -247,7 +247,7 @@ async def test_a_robot_added_with_a_name_keeps_it_and_its_last_name_after_remova
     await hass.async_block_till_done()
     (robot,) = (await call(hass, "get_robots"))["robots"]
     assert (robot["name"], robot["name_source"], robot["ha_name"]) == (
-        "Saugi",
+        "Rocky",
         "home_assistant",
         None,
     )

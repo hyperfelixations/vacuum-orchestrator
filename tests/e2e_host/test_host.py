@@ -122,10 +122,10 @@ def test_voi_finds_both_simulated_robots_with_their_maps(host: Host) -> None:
             robot["name"]: robot
             for robot in (await client.query("get_robots"))["robots"]
         }
-        assert sorted(robots) == ["Flitzi", "Saugi"]
-        assert [item["name"] for item in robots["Saugi"]["maps"]] == [
-            "Erdgeschoss",
-            "Obergeschoss",
+        assert sorted(robots) == ["Dusty", "Rocky"]
+        assert [item["name"] for item in robots["Rocky"]["maps"]] == [
+            "Main Floor",
+            "Lower Floor",
         ]
 
     _with_client(host, scenario)
@@ -137,28 +137,28 @@ def test_a_job_runs_on_the_simulated_roborock_and_completes(host: Host) -> None:
             area["name"]: area["area_id"]
             for area in await client.call({"type": "config/area_registry/list"})
         }
-        kitchen = [areas["Küche"]]
-        saugi = (await client.call({"type": "voi_e2e/robots"}))["Saugi"]
-        await client.action("release_room", areas=kitchen, kind="permanent")
+        dining = [areas["Dining Room"]]
+        rocky = (await client.call({"type": "voi_e2e/robots"}))["Rocky"]
+        await client.action("release_room", areas=dining, kind="permanent")
         job = (
             await client.action(
                 "create_job",
-                areas=kitchen,
+                areas=dining,
                 mode="vacuum",
-                robot_id="vacuum.saugi",
+                robot_id="vacuum.rocky",
                 start=True,
             )
         )["job_id"]
 
         async def sent() -> Any:
             robots = await client.call({"type": "voi_e2e/robots"})
-            commands = robots["Saugi"]["commands"][len(saugi["commands"]) :]
+            commands = robots["Rocky"]["commands"][len(rocky["commands"]) :]
             return (
                 any(item["command"] == "app_segment_clean" for item in commands)
                 and commands
             )
 
-        commands = await _until(sent, "Saugi's clean command")
+        commands = await _until(sent, "Rocky's clean command")
         assert {
             "command": "app_segment_clean",
             "params": [{"segments": [16], "repeat": 1}],

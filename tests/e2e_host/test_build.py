@@ -61,7 +61,7 @@ def test_build_writes_an_onboarded_loopback_config_with_the_card(
             assert names[role.domain][role.translation_key]["name"] == role.name
     household = _json(config / HOUSEHOLD)
     assert household["areas"] == list(realistic.AREAS)
-    assert [robot["name"] for robot in household["robots"]] == ["Saugi", "Flitzi"]
+    assert [robot["name"] for robot in household["robots"]] == ["Rocky", "Dusty"]
 
 
 def test_without_a_card_the_default_dashboard_stays_untouched(tmp_path: Path) -> None:
