@@ -2,6 +2,7 @@
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -122,3 +123,15 @@ def test_distribution_metadata_and_translations_are_consistent():
         )
 
     assert keys(strings) == keys(german)
+
+
+def test_the_readme_is_the_only_document():
+    # Contracts and code are documented in the internal developer documentation.
+    tracked = subprocess.run(
+        ["git", "ls-files", "*.md"],
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout.splitlines()
+    assert tracked == ["README.md"]
