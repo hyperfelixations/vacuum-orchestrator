@@ -7,6 +7,7 @@ second connection reads what the HA frontend gives a card as `hass`.
 
 from __future__ import annotations
 
+import json
 import subprocess
 from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
@@ -37,7 +38,6 @@ from pytest_homeassistant_custom_component.typing import (
 from custom_components.vacuum_orchestrator.const import API_VERSION, DOMAIN
 
 ROOT = Path(__file__).parents[2]
-RECORDINGS = Path(__file__).parent / "recordings"
 FORMAT = 2
 # What the card reads, as it reads it; see the card's scope loaders.
 CARD_PAGE_SIZE = 25
@@ -411,23 +411,34 @@ def action(name: str, /, **data: Any) -> dict[str, Any]:
     }
 
 
-def voi_commit() -> str:
-    """The VOI commit a recording was made on (its working tree may differ)."""
+def _git(*arguments: str) -> str:
     return subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"],
-        cwd=ROOT,
-        capture_output=True,
-        check=True,
-        text=True,
+        ["git", *arguments], cwd=ROOT, capture_output=True, check=True, text=True
     ).stdout.strip()
 
 
-def provenance(commit: str) -> dict[str, Any]:
+def voi_commit() -> str:
+    """The VOI commit a recording was made on."""
+    return _git("rev-parse", "--short", "HEAD")
+
+
+def voi_dirty() -> bool:
+    """Whether the working tree differs from that commit."""
+    return bool(_git("status", "--porcelain"))
+
+
+def provenance(commit: str, *, dirty: bool) -> dict[str, Any]:
     """Where a recording comes from."""
     return {
         "format": FORMAT,
         "api_version": API_VERSION,
         "voi_commit": commit,
+        "dirty": dirty,
         "ha_version": HA_VERSION,
         "frozen_now": FROZEN_NOW,
     }
+
+
+def dump(recording: dict[str, Any]) -> str:
+    """A recording as written for consumers."""
+    return json.dumps(recording, ensure_ascii=False, indent=2) + "\n"

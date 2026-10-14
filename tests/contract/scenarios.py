@@ -68,6 +68,8 @@ class Scenario:
     run: Callable[[Stage], Awaitable[None]]
     # Whether HA finds the integration among its custom integrations.
     installed: bool = True
+    # Messages the scenario expects to be refused, each with a code.
+    refusals: int = 0
 
     @property
     def description(self) -> str:
@@ -452,13 +454,13 @@ async def robot_choice(stage: Stage) -> None:
 
 
 SCENARIOS: dict[str, Scenario] = {
-    "not_installed": Scenario(no_robot, not_installed, installed=False),
+    "not_installed": Scenario(no_robot, not_installed, installed=False, refusals=1),
     "setup": Scenario(single_roborock, setup),
     "showcase": Scenario(single_roborock, showcase),
     "queue_end": Scenario(single_roborock, queue_end),
     "robot_choice": Scenario(two_robots, robot_choice),
     "start_delay": Scenario(single_roborock, start_delay),
-    "job_hold": Scenario(single_roborock, job_hold),
+    "job_hold": Scenario(single_roborock, job_hold, refusals=4),
     "reload": Scenario(single_roborock, reload),
     "delayed_answer": Scenario(single_roborock, delayed_answer),
     "device_fault": Scenario(single_roborock, device_fault),

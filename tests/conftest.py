@@ -1,6 +1,7 @@
 """Shared Home Assistant test configuration."""
 
 import sys
+from pathlib import Path
 
 import pytest
 import pytest_socket
@@ -15,11 +16,13 @@ def hass_config_dir(hass_tmp_config_dir: str) -> str:
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    """Rewrite instead of check the recordings in `tests/contract`."""
+    """Write the recordings of `tests/contract` for a consumer such as the card."""
     parser.addoption(
-        "--update-recordings",
-        action="store_true",
-        help="rewrite tests/contract/recordings from the integration",
+        "--record-to",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="write every scenario's recording of tests/contract into DIR",
     )
 
 

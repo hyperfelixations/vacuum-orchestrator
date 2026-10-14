@@ -1,23 +1,25 @@
 # Recordings of the integration
 
-`recordings/` holds what a dashboard card exchanges with the real integration
-over Home Assistant's WebSocket in realistic homes (`tests/realistic`). Each
-file is one scenario from `scenarios.py`. Consumers such as the card replay
-them in their tests instead of imitating the integration.
+A recording holds what a dashboard card exchanges with the real integration
+over Home Assistant's WebSocket in a realistic home (`tests/realistic`). Each
+scenario in `scenarios.py` becomes one recording. Consumers such as the card
+play them in their tests instead of imitating the integration.
 
-`test_recordings.py` runs every scenario and fails when a recording no longer
-matches the committed file. After an intended change, rewrite them and review
-the diff like code:
+Recordings are not committed. `test_recordings.py` records every scenario,
+checks it (format, API version, one result per message, the refusals the
+scenario expects, no machine paths or mail and network addresses) and records
+two of them again to prove the bytes repeat. A consumer writes them where it
+needs them, from the root of this repository:
 
 ```bash
-python -m pytest tests/contract --update-recordings
+python -m tests.contract --record-to <directory>
 ```
 
 ## Format
 
 | Key | Content |
 |---|---|
-| `provenance` | `format` (2), `api_version`, `voi_commit` the recording was made on, `ha_version`, `frozen_now` |
+| `provenance` | `format` (2), `api_version`, `voi_commit` the recording was made on, `dirty` (the working tree differed from it), `ha_version`, `frozen_now` |
 | `scenario`, `description` | Name and what the recording shows |
 | `home` | HA area IDs and vacuum entity IDs by name |
 | `hass` | What Home Assistant's frontend gives a card as `hass` when the recording begins |
