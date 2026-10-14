@@ -160,8 +160,8 @@ def robot_blocker(reason: Ineligibility) -> Blocker:
 
 
 def robot_blockers(robot_id: str, blockers: Iterable[Blocker]) -> RobotBlockers:
-    """Order one robot's reasons for display."""
-    return RobotBlockers(robot_id, _ordered(blockers, ROBOT_ORDER))
+    """Order one robot's reasons for display, each equal reason once."""
+    return RobotBlockers(robot_id, _ordered(dict.fromkeys(blockers), ROBOT_ORDER))
 
 
 def room_blocker_code(room: Room) -> str:

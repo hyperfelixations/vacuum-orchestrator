@@ -19,6 +19,7 @@ from custom_components.vacuum_orchestrator.domain.waiting import (
     RobotsState,
     pending,
     robot_blocker,
+    robot_blockers,
     room_blocker_code,
     waiting,
 )
@@ -94,6 +95,13 @@ def test_alternatives_between_robots_are_never_merged() -> None:
         (_robot("a", "robot_busy"), _robot("b", "robot_busy")),
     )
     assert both_busy.primary == Blocker("robot_busy", robot_ids=("a", "b"))
+
+
+def test_a_robot_names_each_reason_once() -> None:
+    """A busy robot that also holds a lease is busy once, not twice."""
+    reasons = (Ineligibility("robot_busy"), Ineligibility("robot_already_executing"))
+    blockers = robot_blockers("a", map(robot_blocker, reasons))
+    assert blockers == RobotBlockers("a", (Blocker("robot_busy"),))
 
 
 def test_unsuitable_robots_explain_rooms_they_miss() -> None:

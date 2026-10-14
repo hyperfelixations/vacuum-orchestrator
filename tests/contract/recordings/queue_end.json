@@ -2,7 +2,7 @@
   "provenance": {
     "format": 2,
     "api_version": 4,
-    "voi_commit": "97bd3cc",
+    "voi_commit": "b05d38c",
     "ha_version": "2026.10.0",
     "frozen_now": "2026-03-14T09:26:53.589793+00:00"
   },
@@ -10268,14 +10268,6 @@
                           "entity_ids": [],
                           "robot_ids": [],
                           "detail": null
-                        },
-                        {
-                          "code": "robot_busy",
-                          "until": null,
-                          "room_ids": [],
-                          "entity_ids": [],
-                          "robot_ids": [],
-                          "detail": null
                         }
                       ]
                     }
@@ -11436,14 +11428,6 @@
                           "entity_ids": [],
                           "robot_ids": [],
                           "detail": null
-                        },
-                        {
-                          "code": "robot_busy",
-                          "until": null,
-                          "room_ids": [],
-                          "entity_ids": [],
-                          "robot_ids": [],
-                          "detail": null
                         }
                       ]
                     }
@@ -12523,14 +12507,6 @@
                           "entity_ids": [],
                           "robot_ids": [],
                           "detail": null
-                        },
-                        {
-                          "code": "robot_busy",
-                          "until": null,
-                          "room_ids": [],
-                          "entity_ids": [],
-                          "robot_ids": [],
-                          "detail": null
                         }
                       ]
                     }
@@ -12748,14 +12724,6 @@
                     {
                       "robot_id": "01J00000000000000000000003",
                       "blockers": [
-                        {
-                          "code": "robot_busy",
-                          "until": null,
-                          "room_ids": [],
-                          "entity_ids": [],
-                          "robot_ids": [],
-                          "detail": null
-                        },
                         {
                           "code": "robot_busy",
                           "until": null,
@@ -13968,14 +13936,6 @@
                           "entity_ids": [],
                           "robot_ids": [],
                           "detail": null
-                        },
-                        {
-                          "code": "robot_busy",
-                          "until": null,
-                          "room_ids": [],
-                          "entity_ids": [],
-                          "robot_ids": [],
-                          "detail": null
                         }
                       ]
                     }
@@ -14966,8 +14926,6 @@
           "active_count": 1,
           "attention_count": 0,
           "changed": [
-            "jobs",
-            "queue",
             "robots"
           ]
         }
