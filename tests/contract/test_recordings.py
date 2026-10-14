@@ -187,6 +187,51 @@ async def test_a_card_checks_the_integration_again_after_a_reload(
     ]
 
 
+# Where the card's tests open a card, by scenario.
+MARKS = {
+    "attention": "The station needs attention",
+    "recovery": "The job needs clarification",
+    "setup": "The assistant opens",
+    "no_robot": "The card opens",
+    "unloaded": "The integration is not loaded",
+    "robot_removed": "Rocky is not configured",
+}
+
+
+def after_mark(recording: dict[str, Any], mark: str) -> list[dict[str, Any]]:
+    """The steps after a mark, up to the next change the card did not read."""
+    steps = recording["steps"]
+    start = steps.index({"mark": mark}) + 1
+    end = next(
+        (index for index in range(start, len(steps)) if "home" in steps[index]),
+        len(steps),
+    )
+    return steps[start:end]
+
+
+@pytest.mark.parametrize("name", sorted(MARKS))
+async def test_a_card_state_has_its_mark(record: Any, name: str) -> None:
+    recording = await record(name)
+    assert {"mark": MARKS[name]} in recording["steps"]
+
+
+async def test_an_unloaded_integration_is_only_checked(record: Any) -> None:
+    steps = after_mark(await record("unloaded"), MARKS["unloaded"])
+    sent = [step["send"] for step in steps if "send" in step]
+    assert [{k: v for k, v in message.items() if k != "id"} for message in sent] == [
+        {"type": f"{DOMAIN}/queue/get", "offset": 0, "limit": 1}
+    ]
+    (refused,) = [step["receive"] for step in steps if "receive" in step]
+    assert refused["error"]["code"] == "orchestrator_not_loaded"
+
+
+async def test_a_removed_robot_is_offered_again(record: Any) -> None:
+    recording = await record("robot_removed")
+    (candidates, *_) = answers(recording, "get_robot_candidates")[1:]
+    assert [item["name"] for item in candidates["candidates"]] == ["Rocky"]
+    assert answers(recording, "get_robots")[-1]["robots"][0]["name"] == "Rocky"
+
+
 @pytest.mark.parametrize("name", REPEATED)
 async def test_a_scenario_records_the_same_bytes_again(record: Any, name: str) -> None:
     first = RECORDED.get(name)

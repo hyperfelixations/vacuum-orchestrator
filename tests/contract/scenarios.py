@@ -117,7 +117,7 @@ async def setup(stage: Stage) -> None:
     await stage.load()
     await session.home("The user adds Vacuum Orchestrator")
     await session.request({"type": f"{DOMAIN}/subscribe"})
-    await session.probe()
+    await session.mark("The assistant opens")
     (robot,) = (await session.collection("get_robots"))["robots"]
     await session.command(
         "rename_robot", robot_id=robot["robot_id"], name="Rocky downstairs"
@@ -290,7 +290,7 @@ async def attention(stage: Stage) -> None:
     await session.action("create_job", areas=stage.areas("Dining Room"), mode="mop")
     await session.action("create_job", areas=stage.areas("Studio"), mode="vacuum")
     await session.advance(5)
-    await session.read()
+    await session.mark("The station needs attention")
 
 
 async def external_run(stage: Stage) -> None:
@@ -332,6 +332,7 @@ async def recovery(stage: Stage) -> None:
     await session.advance(300)
     await session.read()
     await session.read_job(job)
+    await session.mark("The job needs clarification")
     robot.dock_after_run()
     await session.home("Rocky is back at its dock")
     (robot_view,) = (await session.collection("get_robots"))["robots"]
@@ -501,6 +502,33 @@ async def robot_choice(stage: Stage) -> None:
     await session.mark("Either robot can start the dining room")
 
 
+async def no_robot_found(stage: Stage) -> None:
+    """The integration is set up in a home without a robot: VOI finds none and
+    the card has nothing to clean with."""
+    await stage.open()
+
+
+async def unloaded(stage: Stage) -> None:
+    """Home Assistant unloads the integration while the card is open, as when
+    the user disables it: the card finds it installed but not loaded."""
+    await stage.open()
+    assert await stage.hass.config_entries.async_unload(stage.entry.entry_id)
+    await stage.session.home("Home Assistant unloads the integration", read=False)
+    await stage.session.mark("The integration is not loaded")
+
+
+async def robot_removed(stage: Stage) -> None:
+    """The user removed Rocky from VOI: the card offers the vacuum again among
+    the candidates and adds it back under its Home Assistant name."""
+    session = stage.session
+    await stage.open()
+    (robot,) = (await session.collection("get_robots"))["robots"]
+    await session.command("remove_robot", robot_id=robot["robot_id"])
+    await session.mark("Rocky is not configured")
+    (candidate,) = (await session.collection("get_robot_candidates"))["candidates"]
+    await session.command("add_robot", entity_id=candidate["entity_id"])
+
+
 SCENARIOS: dict[str, Scenario] = {
     "not_installed": Scenario(no_robot, not_installed, installed=False, refusals=1),
     "setup": Scenario(single_roborock, setup),
@@ -516,6 +544,9 @@ SCENARIOS: dict[str, Scenario] = {
     "attention": Scenario(single_roborock, attention),
     "external_run": Scenario(busy, external_run),
     "recovery": Scenario(single_roborock, recovery),
+    "no_robot": Scenario(no_robot, no_robot_found),
+    "unloaded": Scenario(single_roborock, unloaded, refusals=1),
+    "robot_removed": Scenario(single_roborock, robot_removed),
 }
 
 

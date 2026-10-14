@@ -276,9 +276,11 @@ class Session:
             await self.read()
         return frame
 
-    async def probe(self) -> None:
-        """Check the integration as a card does before it reads."""
-        await self.request({"type": f"{DOMAIN}/queue/get", "offset": 0, "limit": 1})
+    async def probe(self) -> dict[str, Any]:
+        """Check the integration as a card does before it reads; the result frame."""
+        return await self.request(
+            {"type": f"{DOMAIN}/queue/get", "offset": 0, "limit": 1}
+        )
 
     async def read_static(self) -> None:
         """Read what a card loads once: the integration's error texts."""
@@ -352,20 +354,22 @@ class Session:
             "get_trace", offset=0, limit=CARD_COLLECTION_LIMIT, job_id=job_id
         )
 
-    async def home(self, change: str) -> None:
+    async def home(self, change: str, *, read: bool = True) -> None:
         """Note a change in the home outside the card, let VOI react and read."""
         self.steps.append({"home": change})
         await self.settle()
-        await self.read()
+        if read:
+            await self.read()
 
     async def mark(self, label: str) -> None:
         """Name this point, so a consumer can open a card here.
 
-        A card opened here checks the integration and reads, if it is loaded.
+        A card opened here checks the integration, if HA has it, and reads, if
+        the check succeeds.
         """
         self.steps.append({"mark": label})
-        if DOMAIN in self._hass["config"]["components"]:
-            await self.probe()
+        components = self._hass["config"]["components"]
+        if DOMAIN in components and (await self.probe())["success"]:
             await self.read()
 
     async def advance(self, seconds: float) -> None:
