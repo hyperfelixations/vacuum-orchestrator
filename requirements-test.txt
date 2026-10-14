@@ -7,6 +7,6 @@ pytest-asyncio==1.4.0
 pytest-cov==7.1.0
 
 # Independent tooling
-hypothesis==6.168.3
+hypothesis==6.168.5
 mypy==2.4.0
 ruff==0.16.10
