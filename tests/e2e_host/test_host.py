@@ -16,16 +16,20 @@ from typing import Any
 
 import aiohttp
 import pytest
+import pytest_socket
 
 from tests.e2e_host.host import LOG, Host, running
 
-pytestmark = pytest.mark.e2e_host
+pytestmark = [pytest.mark.e2e_host, pytest.mark.usefixtures("socket_enabled")]
 OWN_LOGGERS = re.compile(r"(custom_components|vacuum_orchestrator|voi_e2e|voi_sim)")
 
 
 @pytest.fixture(scope="module")
 def host(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Host]:
     """One host for the module; its log must stay free of VOI errors."""
+    # HA blocks sockets before each test, the module's first included; connects
+    # stay limited to 127.0.0.1. Each test enables them again (`socket_enabled`).
+    pytest_socket.enable_socket()
     config = tmp_path_factory.mktemp("e2e_host")
     with running(household="two_robots", install_voi=True, config=config) as started:
         yield started
