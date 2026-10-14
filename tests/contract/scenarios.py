@@ -77,6 +77,10 @@ class Scenario:
         return " ".join((self.run.__doc__ or "").split())
 
 
+# A door sensor of the showcase home; the conservatory is cleaned only while it is open.
+CONSERVATORY_DOOR = "binary_sensor.conservatory_door"
+
+
 def entry() -> MockConfigEntry:
     """The integration's config entry as the config flow creates it."""
     return MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
@@ -191,6 +195,8 @@ async def reload(stage: Stage) -> None:
     await session.action("create_job", areas=stage.areas("Studio"))
     assert await stage.hass.config_entries.async_reload(stage.entry.entry_id)
     await session.home("Home Assistant reloads the integration")
+    # The card checks the reloaded integration as it does when it opens.
+    await session.probe()
 
 
 async def delayed_answer(stage: Stage) -> None:
@@ -339,10 +345,16 @@ async def recovery(stage: Stage) -> None:
 
 async def showcase(stage: Stage) -> None:
     """A lived-in home: earlier Rocky finished one job, one was cancelled and
-    one never started; two templates are saved. Then the rooms are released in
-    every way and the queue runs: Rocky cleans the studio while a job waits for
-    the locked conservatory and two wait for the robot."""
+    one never started; two templates are saved and the conservatory is cleaned
+    only while its door is open. Then the rooms are released in every way and
+    the queue runs: Rocky cleans the studio while a job waits for the locked and
+    closed conservatory and two wait for the robot. The editor previews new jobs."""
     session, robot = stage.session, stage.home.roborock
+    stage.hass.states.async_set(
+        CONSERVATORY_DOOR,
+        "off",
+        {"device_class": "door", "friendly_name": "Conservatory Door"},
+    )
     await stage.open()
     await session.command("complete_setup")
     await session.command(
@@ -355,6 +367,16 @@ async def showcase(stage: Stage) -> None:
             intent={"areas": stage.areas("Dining Room"), "mode": "mop"},
         )
     )["template_id"]
+    conservatory = (await stage.rooms())["Conservatory"]
+    await session.command(
+        "update_room",
+        room_id=conservatory,
+        configuration={
+            "requirements": [
+                {"entity_id": CONSERVATORY_DOOR, "accepted_states": ["on"]}
+            ]
+        },
+    )
     await stage.release("Dining Room", "Studio", "Library")
     await session.action("create_job", areas=stage.areas("Dining Room"), start=True)
     robot.clean()
@@ -416,7 +438,27 @@ async def showcase(stage: Stage) -> None:
     await session.read_job(running)
     await session.read_history()
     await session.read_diagnostics()
+    await _preview_new_jobs(stage)
     await session.mark("A busy afternoon")
+
+
+async def _preview_new_jobs(stage: Stage) -> None:
+    """Preview a new job as the editor drafts it from the defaults: without a
+    room yet, for the dining room, for every room and as a dining room mop job."""
+    rooms = await stage.rooms()
+    draft = {
+        "mode": "vacuum",
+        "passes": 1,
+        "settings_policy": "best_effort",
+        "required_on": [],
+        "required_off": [],
+    }
+    await stage.session.preview(**draft)
+    await stage.session.preview(areas=[rooms["Dining Room"]], **draft)
+    await stage.session.preview(all_rooms=True, **draft)
+    await stage.session.preview(
+        areas=[rooms["Dining Room"]], **{**draft, "mode": "mop"}
+    )
 
 
 async def queue_end(stage: Stage) -> None:

@@ -34,7 +34,13 @@ from tests.contract.recorder import (
     voi_commit,
     voi_dirty,
 )
-from tests.contract.scenarios import SCENARIOS, Stage, entry, home_of
+from tests.contract.scenarios import (
+    CONSERVATORY_DOOR,
+    SCENARIOS,
+    Stage,
+    entry,
+    home_of,
+)
 from tests.test_runtime import MemoryBackend
 
 # Recorded twice per run: same code, same bytes.
@@ -130,6 +136,55 @@ async def test_scenario_records(
     if target is not None:
         target.mkdir(parents=True, exist_ok=True)
         (target / f"{name}.json").write_text(text, encoding="utf-8", newline="\n")
+
+
+def answers(recording: dict[str, Any], query: str) -> list[Any]:
+    """The results of every configuration query of one kind."""
+    asked = {
+        step["send"]["id"]
+        for step in recording["steps"]
+        if step.get("send", {}).get("query") == query
+    }
+    return [
+        step["receive"]["result"]
+        for step in recording["steps"]
+        if step.get("receive", {}).get("id") in asked
+    ]
+
+
+async def test_the_showcase_records_what_the_editor_and_the_map_show(
+    record: Any,
+) -> None:
+    recording = await record("showcase")
+    maps = {
+        entity_id: state["a"]["entity_picture"]
+        for entity_id, state in recording["hass"]["states"].items()
+        if entity_id.startswith("image.")
+    }
+    assert sorted(maps) == ["image.rocky_lower_floor", "image.rocky_main_floor"]
+    assert all(picture.startswith("/api/image_proxy/") for picture in maps.values())
+    assert len(answers(recording, "preview_job")) == 4
+    conservatory = next(
+        room
+        for result in answers(recording, "get_rooms")[-1:]
+        for room in result["rooms"]
+        if room["name"] == "Conservatory"
+    )
+    assert [item["entity_id"] for item in conservatory["requirements"]] == [
+        CONSERVATORY_DOOR
+    ]
+
+
+async def test_a_card_checks_the_integration_again_after_a_reload(
+    record: Any,
+) -> None:
+    steps = (await record("reload"))["steps"]
+    reloaded = steps.index({"home": "Home Assistant reloads the integration"})
+    assert {"type": f"{DOMAIN}/queue/get", "offset": 0, "limit": 1} in [
+        {key: value for key, value in step["send"].items() if key != "id"}
+        for step in steps[reloaded:]
+        if "send" in step
+    ]
 
 
 @pytest.mark.parametrize("name", REPEATED)

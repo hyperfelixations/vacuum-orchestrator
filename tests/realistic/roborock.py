@@ -244,6 +244,9 @@ MAPS = (
     (0, "Main Floor", {"16": "Dining Room", "17": "Studio", "18": "Library"}),
     (1, "Lower Floor", {"16": "Conservatory"}),
 )
+# A map image's state: when Roborock last drew it, and a synthetic access token.
+MAP_UPDATED = "2026-03-14T08:00:00+00:00"
+MAP_TOKEN = "synthetic-map-token"
 # HA area mapping as the vacuum entity options store it; `0_99` no longer exists.
 MAPPING = {
     "Dining Room": ["0_16"],
@@ -495,6 +498,17 @@ class RoborockV1:
             )
             for _flag, map_name, _rooms in MAPS
         }
+        for map_name, image in images.items():
+            hass.states.async_set(
+                image.entity_id,
+                MAP_UPDATED,
+                {
+                    "access_token": MAP_TOKEN,
+                    "entity_picture": f"/api/image_proxy/{image.entity_id}"
+                    f"?token={MAP_TOKEN}",
+                    "friendly_name": f"{name} {map_name}",
+                },
+            )
         robot = cls(hass, name, duid, entry, device, dock, vacuum, entities, images)
         attach(
             hass,

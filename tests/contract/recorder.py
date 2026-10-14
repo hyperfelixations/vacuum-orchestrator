@@ -329,6 +329,16 @@ class Session:
         await self.query("get_diagnostics")
         await self.query("get_trace", offset=0, limit=CARD_COLLECTION_LIMIT)
 
+    async def preview(self, **parameters: Any) -> dict[str, Any]:
+        """Read a draft's preview as the card's editor asks for it."""
+        return await self.request(
+            {
+                "type": f"{DOMAIN}/configuration/get",
+                "query": "preview_job",
+                "parameters": parameters,
+            }
+        )
+
     async def read_manifest(self) -> dict[str, Any]:
         """Ask HA for the integration's manifest, as a card does while VOI is not
         loaded, and return the result frame."""
