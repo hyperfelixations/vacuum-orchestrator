@@ -86,41 +86,45 @@ async def test_a_pause_lets_the_next_phase_of_a_started_job_continue(
     assert core.state.jobs[job].active_attempt_id is not None
 
 
-async def two_robots_with_a_running_kitchen_job(monkeypatch: pytest.MonkeyPatch):
-    """Robot a cleans the kitchen; its stop waits until the test releases it."""
+async def two_robots_with_a_running_library_job(monkeypatch: pytest.MonkeyPatch):
+    """Robot a cleans the library; its stop waits until the test releases it."""
     backend = RecordingBackend()
-    kitchen = RecordingAdapter(backend, "a", targets=("kitchen",))
-    hall = RecordingAdapter(backend, "b", targets=("hall",))
-    core = await _orchestrator(backend, kitchen, hall)
+    library = RecordingAdapter(backend, "a", targets=("library",))
+    studio = RecordingAdapter(backend, "b", targets=("studio",))
+    core = await _orchestrator(backend, library, studio)
     running = await core.async_create_job(_intent())
     await core.async_start_job(running)
     entered, release = asyncio.Event(), asyncio.Event()
-    cancel = kitchen.async_cancel
+    cancel = library.async_cancel
 
     async def gated_cancel(*, return_to_dock: bool = False) -> None:
         entered.set()
         await release.wait()
         await cancel(return_to_dock=return_to_dock)
 
-    monkeypatch.setattr(kitchen, "async_cancel", gated_cancel)
-    return core, hall, running, entered, release
+    monkeypatch.setattr(library, "async_cancel", gated_cancel)
+    return core, studio, running, entered, release
 
 
 async def test_a_global_cancel_lets_no_other_robot_start_new_work(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    core, hall, running, entered, release = await two_robots_with_a_running_kitchen_job(
-        monkeypatch
-    )
-    free = hall.observation
-    hall.observation = replace(free, state=RobotAvailabilityState.BUSY)
-    waiting = await core.async_create_job(_intent("hall"))
+    (
+        core,
+        studio,
+        running,
+        entered,
+        release,
+    ) = await two_robots_with_a_running_library_job(monkeypatch)
+    free = studio.observation
+    studio.observation = replace(free, state=RobotAvailabilityState.BUSY)
+    waiting = await core.async_create_job(_intent("studio"))
     await core.async_run_queue()
     assert core.state.jobs[waiting].state is JobState.QUEUED
 
     ending = asyncio.create_task(core.async_end_queue(cancel_running=True))
     await entered.wait()
-    hall.observation = free
+    studio.observation = free
     try:
         assert await core.async_dispatch_available() == ()
     finally:
@@ -129,7 +133,7 @@ async def test_a_global_cancel_lets_no_other_robot_start_new_work(
 
     assert core.state.jobs[waiting].state is JobState.QUEUED
     assert core.state.jobs[running].state is JobState.CANCELING
-    assert not hall.dispatches
+    assert not studio.dispatches
 
 
 async def test_a_global_cancel_also_ends_a_next_phase_not_yet_started(
@@ -137,19 +141,19 @@ async def test_a_global_cancel_also_ends_a_next_phase_not_yet_started(
 ) -> None:
     (
         core,
-        hall,
+        studio,
         _running,
         entered,
         release,
-    ) = await two_robots_with_a_running_kitchen_job(monkeypatch)
+    ) = await two_robots_with_a_running_library_job(monkeypatch)
     phased = await core.async_create_job(
-        _intent("hall", mode=CleaningMode.VACUUM_THEN_MOP)
+        _intent("studio", mode=CleaningMode.VACUUM_THEN_MOP)
     )
     await core.async_start_job(phased)
     attempt = core.state.jobs[phased].active_attempt_id
     await core.async_confirm_start(attempt)
-    free = hall.observation
-    hall.observation = replace(free, state=RobotAvailabilityState.BUSY)
+    free = studio.observation
+    studio.observation = replace(free, state=RobotAvailabilityState.BUSY)
     await core.async_record_robot_run(
         attempt, finished_run(core.state.attempts[attempt], name=attempt)
     )
@@ -158,7 +162,7 @@ async def test_a_global_cancel_also_ends_a_next_phase_not_yet_started(
 
     ending = asyncio.create_task(core.async_end_queue(cancel_running=True))
     await entered.wait()
-    hall.observation = free
+    studio.observation = free
     try:
         assert await core.async_dispatch_available() == ()
     finally:
@@ -166,4 +170,4 @@ async def test_a_global_cancel_also_ends_a_next_phase_not_yet_started(
         await ending
 
     assert core.state.jobs[phased].state is JobState.CANCELLED
-    assert len(hall.dispatches) == 1
+    assert len(studio.dispatches) == 1

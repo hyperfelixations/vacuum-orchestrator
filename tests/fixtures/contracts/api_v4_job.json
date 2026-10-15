@@ -4,7 +4,7 @@
   "revision": 1,
   "state": "queued",
   "name": null,
-  "areas": ["kitchen"],
+  "areas": ["library"],
   "mode": "vacuum",
   "vacuum_power": "standard",
   "mop_intensity": null,

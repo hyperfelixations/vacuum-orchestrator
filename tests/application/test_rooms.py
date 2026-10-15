@@ -26,36 +26,36 @@ from tests.domain.test_rooms import receipt
 async def test_area_import_rename_exclusion_deletion_and_reappearance() -> None:
     orchestrator = await _orchestrator(RecordingBackend(), seed_rooms=False)
     service = orchestrator.rooms
-    await service.async_import_areas({"kitchen": AreaSnapshot("Kitchen", "floor")})
-    room = service.registry.resolve("kitchen")
+    await service.async_import_areas({"library": AreaSnapshot("Library", "floor")})
+    room = service.registry.resolve("library")
     assert room.release is None
     assert room.floor_id == "floor"
     commit_id = orchestrator.state.commit_id
-    await service.async_import_areas({"kitchen": AreaSnapshot("Kitchen", "floor")})
+    await service.async_import_areas({"library": AreaSnapshot("Library", "floor")})
     assert orchestrator.state.commit_id == commit_id
     await service.async_disable(room.room_id)
-    await service.async_import_areas({"kitchen": AreaSnapshot("Renamed", "floor")})
-    renamed = service.registry.resolve("kitchen")
+    await service.async_import_areas({"library": AreaSnapshot("Renamed", "floor")})
+    renamed = service.registry.resolve("library")
     assert renamed.room_id == room.room_id
     assert renamed.name == "Renamed"
     assert not renamed.enabled
     await service.async_import_areas({})
-    assert service.registry.resolve("kitchen").area_missing
+    assert service.registry.resolve("library").area_missing
     with pytest.raises(ConflictError, match="room_unavailable"):
         await service.async_grant(room.room_id, ReleaseKind.PERMANENT)
     await service.async_update(
         room.room_id, lambda room: replace(room, name="Custom", follow_area_name=False)
     )
-    await service.async_import_areas({"kitchen": AreaSnapshot("Remote name")})
-    assert service.registry.resolve("kitchen").name == "Custom"
+    await service.async_import_areas({"library": AreaSnapshot("Remote name")})
+    assert service.registry.resolve("library").name == "Custom"
     await service.async_enable(room.room_id)
-    assert service.registry.resolve("kitchen").enabled
+    assert service.registry.resolve("library").enabled
 
 
 async def test_grant_revoke_and_runtime_facts_cannot_be_patched() -> None:
     orchestrator = await _orchestrator(RecordingBackend(), seed_rooms=False)
     service = orchestrator.rooms
-    room_id = await service.async_create("Kitchen")
+    room_id = await service.async_create("Library")
     await service.async_grant(room_id, ReleaseKind.TIMED, 7200)
     room = service.registry.resolve(room_id)
     assert room.release.expires_at == NOW + timedelta(hours=2)
@@ -75,12 +75,12 @@ async def test_room_configuration_is_protected_during_execution() -> None:
     backend = RecordingBackend()
     adapter = RecordingAdapter(backend, "robot")
     orchestrator = await _orchestrator(backend, adapter, seed_rooms=False)
-    room_id = await orchestrator.rooms.async_create("Kitchen", area_id="kitchen")
+    room_id = await orchestrator.rooms.async_create("Library", area_id="library")
     await orchestrator.rooms.async_grant(room_id, ReleaseKind.PERMANENT)
     adapter._profile = replace(
         adapter.profile,
         capabilities=replace(
-            adapter.profile.capabilities, target_map={room_id: "kitchen"}
+            adapter.profile.capabilities, target_map={room_id: "library"}
         ),
     )
     job_id = await orchestrator.async_create_job(_intent())
@@ -92,7 +92,7 @@ async def test_room_configuration_is_protected_during_execution() -> None:
 async def test_policy_change_resets_counter_epoch_and_records_restart_gap() -> None:
     orchestrator = await _orchestrator(RecordingBackend(), seed_rooms=False)
     service = orchestrator.rooms
-    room_id = await service.async_create("Kitchen")
+    room_id = await service.async_create("Library")
     await service.async_update(
         room_id,
         lambda room: replace(

@@ -92,14 +92,14 @@ async def test_diagnostics_show_ignored_segments_without_area_names(hass, reques
         {"supported_features": int(VacuumEntityFeature.CLEAN_AREA)},
     )
     registry.async_update_entity_options(
-        vacuum.entity_id, "vacuum", {"area_mapping": {"private_kitchen": ["7"]}}
+        vacuum.entity_id, "vacuum", {"area_mapping": {"private_library": ["7"]}}
     )
-    room_id = await core.rooms.async_create("Kitchen", area_id="private_kitchen")
+    room_id = await core.rooms.async_create("Library", area_id="private_library")
     robot = await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await core.rooms.async_update(
         room_id,
         lambda room: replace(
-            room, bindings=(RoomBinding(robot, ("private_kitchen", "private_den")),)
+            room, bindings=(RoomBinding(robot, ("private_library", "private_den")),)
         ),
     )
     await hass.async_block_till_done()

@@ -80,7 +80,7 @@ def _entry(installation_id: str = DOMAIN) -> MockConfigEntry:
                     CONF_ROBOT_ENTITY_ID: "vacuum.roborock",
                     CONF_ROBOT_REGISTRY_ID: "registry",
                     CONF_ADAPTER: ADAPTER_ROBOROCK,
-                    CONF_TARGET_AREAS: ["kitchen"],
+                    CONF_TARGET_AREAS: ["library"],
                 },
             }
         ],
@@ -169,7 +169,7 @@ async def test_setup_never_moves_foreign_entities_or_devices_into_areas(
     )
     areas = ar.async_get(hass)
     office = areas.async_create("Office")
-    kitchen = areas.async_create("Kitchen")
+    library = areas.async_create("Library")
     vendor = MockConfigEntry(domain="roborock")
     vendor.add_to_hass(hass)
     device = dr.async_get(hass).async_get_or_create(
@@ -181,7 +181,7 @@ async def test_setup_never_moves_foreign_entities_or_devices_into_areas(
         "vacuum", "roborock", "unit", config_entry=vendor, device_id=device.id
     )
     registry.async_update_entity_options(
-        vacuum.entity_id, "vacuum", {"area_mapping": {kitchen.id: ["0_16"]}}
+        vacuum.entity_id, "vacuum", {"area_mapping": {library.id: ["0_16"]}}
     )
     foreign_before = {
         entry.entity_id: entry.area_id for entry in registry.entities.values()
@@ -224,7 +224,7 @@ async def test_room_state_change_wakes_queue_and_unload_fences_active_job(
     vacuum = registry.async_get_or_create(
         "vacuum", "demo", "unit", suggested_object_id="test"
     )
-    area = ar.async_get(hass).async_create("Kitchen")
+    area = ar.async_get(hass).async_create("Library")
     registry.async_update_entity_options(
         vacuum.entity_id, "vacuum", {"area_mapping": {area.id: ["16"]}}
     )

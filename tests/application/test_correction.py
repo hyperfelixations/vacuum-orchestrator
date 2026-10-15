@@ -26,7 +26,7 @@ from tests.application.test_room_execution import finished_run
 
 
 async def _finished(core, minutes: float) -> str:
-    """Complete a kitchen job whose run ends `minutes` after NOW."""
+    """Complete a library job whose run ends `minutes` after NOW."""
     core._clock = lambda: NOW + timedelta(minutes=minutes - 5)
     job = await core.async_create_job(_intent())
     await core.async_start_job(job)
@@ -47,8 +47,8 @@ async def _finished(core, minutes: float) -> str:
     return job
 
 
-def _kitchen(core):
-    return core.rooms.registry.resolve("kitchen").last_cleaning[OperationKind.VACUUM]
+def _library(core):
+    return core.rooms.registry.resolve("library").last_cleaning[OperationKind.VACUUM]
 
 
 async def test_a_completed_job_corrected_to_failed_gives_back_its_rooms() -> None:
@@ -61,7 +61,7 @@ async def test_a_completed_job_corrected_to_failed_gives_back_its_rooms() -> Non
         for key, receipt in core.rooms.registry.receipts.items()
         if receipt.completed_at == NOW + timedelta(minutes=10)
     )
-    assert _kitchen(core).completed_at == NOW + timedelta(minutes=20)
+    assert _library(core).completed_at == NOW + timedelta(minutes=20)
 
     core._clock = lambda: NOW + timedelta(hours=1)
     await core.async_correct_job(second, JobState.FAILED)
@@ -73,7 +73,7 @@ async def test_a_completed_job_corrected_to_failed_gives_back_its_rooms() -> Non
         NOW + timedelta(hours=1),
     )
     assert set(core.rooms.registry.receipts) == {first_receipt}
-    stamp = _kitchen(core)
+    stamp = _library(core)
     assert (stamp.receipt_id, stamp.occupancy_baseline_known) == (
         first_receipt,
         False,
@@ -100,9 +100,9 @@ async def test_a_failed_job_corrected_to_completed_counts_as_reported() -> None:
     assert (receipt.quality, receipt.evidence, receipt.room_ids) == (
         CompletionQuality.DERIVED,
         ("reported_by_user",),
-        ("kitchen",),
+        ("library",),
     )
-    assert _kitchen(core).receipt_id == receipt.receipt_id
+    assert _library(core).receipt_id == receipt.receipt_id
     completion = core.state.completion(job)
     assert completion is not None
     assert (completion.quality, completion.notes) == (
@@ -138,7 +138,7 @@ async def test_a_cancelled_job_corrected_to_completed_completes_every_phase() ->
     assert {
         core.state.work_unit_states[unit.work_unit_id] for unit in plan.work_units
     } == {WorkUnitState.COMPLETED}
-    assert core.rooms.registry.resolve("kitchen").last_cleaning
+    assert core.rooms.registry.resolve("library").last_cleaning
 
 
 async def test_only_finished_planned_jobs_are_corrected() -> None:

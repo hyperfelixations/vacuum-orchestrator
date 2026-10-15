@@ -32,11 +32,11 @@ from tests.test_runtime import MemoryBackend
 
 
 def test_schema_takes_areas_and_rooms_as_lists_and_all_rooms_as_flag() -> None:
-    selection = CREATE_SCHEMA({"areas": "kitchen", "rooms": "attic"})
-    assert (selection["areas"], selection["rooms"]) == (["kitchen"], ["attic"])
+    selection = CREATE_SCHEMA({"areas": "library", "rooms": "attic"})
+    assert (selection["areas"], selection["rooms"]) == (["library"], ["attic"])
     assert CREATE_SCHEMA({"all_rooms": "yes"})["all_rooms"] is True
     with pytest.raises(probatio.Invalid):
-        CREATE_SCHEMA({"areas": [{"id": "kitchen"}]})
+        CREATE_SCHEMA({"areas": [{"id": "library"}]})
 
 
 async def call(hass: HomeAssistant, action: str, **data: object) -> dict:
@@ -59,10 +59,10 @@ async def test_jobs_and_templates_can_target_all_rooms(
     vacuum = registry.async_get_or_create(
         "vacuum", "demo", "unit", suggested_object_id="test"
     )
-    kitchen = ar.async_get(hass).async_create("Kitchen")
+    library = ar.async_get(hass).async_create("Library")
     cellar = ar.async_get(hass).async_create("Cellar")
     registry.async_update_entity_options(
-        vacuum.entity_id, "vacuum", {"area_mapping": {kitchen.id: ["16"]}}
+        vacuum.entity_id, "vacuum", {"area_mapping": {library.id: ["16"]}}
     )
     hass.states.async_set(
         vacuum.entity_id,
@@ -82,7 +82,7 @@ async def test_jobs_and_templates_can_target_all_rooms(
                     CONF_ROBOT_REGISTRY_ID: vacuum.id,
                     CONF_ROBOT_ENTITY_ID: vacuum.entity_id,
                     CONF_ADAPTER: "home_assistant",
-                    CONF_TARGET_AREAS: [kitchen.id],
+                    CONF_TARGET_AREAS: [library.id],
                     "fixed_mode": "vacuum",
                 }
             ),
@@ -97,8 +97,8 @@ async def test_jobs_and_templates_can_target_all_rooms(
 
     job = await call(hass, "create_job", all_rooms=True, mode="vacuum")
     detail = await call(hass, "get_job", job_id=job["job_id"])
-    assert (detail["areas"], detail["all_rooms"]) == ([kitchen.id, cellar.id], True)
-    await call(hass, "update_job", job_id=job["job_id"], areas=[kitchen.id])
+    assert (detail["areas"], detail["all_rooms"]) == ([library.id, cellar.id], True)
+    await call(hass, "update_job", job_id=job["job_id"], areas=[library.id])
     assert not (await call(hass, "get_job", job_id=job["job_id"]))["all_rooms"]
     await call(hass, "update_job", job_id=job["job_id"], all_rooms=True)
     assert (await call(hass, "get_job", job_id=job["job_id"]))["all_rooms"]

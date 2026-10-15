@@ -19,28 +19,28 @@ from tests.application.test_start_delay import setup_delay
 
 async def test_mixed_grants_share_one_commit_and_one_instant() -> None:
     core, _adapter, _now = await setup_delay()
-    await core.rooms.async_revoke_many(("kitchen", "hall"))
+    await core.rooms.async_revoke_many(("library", "studio"))
     commit = core.state.commit_id
 
     grant_ids = await core.rooms.async_grant_many(
         (
-            GrantRequest("kitchen", ReleaseKind.ONCE),
-            GrantRequest("hall", ReleaseKind.TIMED, 4 * 3600),
+            GrantRequest("library", ReleaseKind.ONCE),
+            GrantRequest("studio", ReleaseKind.TIMED, 4 * 3600),
         )
     )
     rooms = core.state.room_registry.rooms
     assert core.state.commit_id == commit + 1
-    assert [rooms["kitchen"].release.grant_id, rooms["hall"].release.grant_id] == (
+    assert [rooms["library"].release.grant_id, rooms["studio"].release.grant_id] == (
         list(grant_ids)
     )
-    assert rooms["kitchen"].release.kind is ReleaseKind.ONCE
-    assert rooms["hall"].release.granted_at == rooms["kitchen"].release.granted_at
-    assert rooms["hall"].release.expires_at == NOW + timedelta(hours=4)
+    assert rooms["library"].release.kind is ReleaseKind.ONCE
+    assert rooms["studio"].release.granted_at == rooms["library"].release.granted_at
+    assert rooms["studio"].release.expires_at == NOW + timedelta(hours=4)
 
-    await core.rooms.async_revoke_many(("kitchen", "hall"))
+    await core.rooms.async_revoke_many(("library", "studio"))
     assert core.state.commit_id == commit + 2
     assert all(room.release is None for room in core.state.room_registry.rooms.values())
-    await core.rooms.async_revoke_many(("kitchen",))
+    await core.rooms.async_revoke_many(("library",))
     assert core.state.commit_id == commit + 2
 
 
@@ -49,8 +49,8 @@ async def test_mixed_grants_share_one_commit_and_one_instant() -> None:
     [
         (
             (
-                GrantRequest("kitchen", ReleaseKind.PERMANENT),
-                GrantRequest("hall", ReleaseKind.TIMED),
+                GrantRequest("library", ReleaseKind.PERMANENT),
+                GrantRequest("studio", ReleaseKind.TIMED),
             ),
             ValidationError,
             "release_duration_mismatch",
@@ -58,8 +58,8 @@ async def test_mixed_grants_share_one_commit_and_one_instant() -> None:
         ),
         (
             (
-                GrantRequest("kitchen", ReleaseKind.PERMANENT),
-                GrantRequest("kitchen", ReleaseKind.ONCE),
+                GrantRequest("library", ReleaseKind.PERMANENT),
+                GrantRequest("library", ReleaseKind.ONCE),
             ),
             ValidationError,
             "duplicate_room",
@@ -73,8 +73,8 @@ async def test_mixed_grants_share_one_commit_and_one_instant() -> None:
         ),
         (
             (
-                GrantRequest("kitchen", ReleaseKind.PERMANENT),
-                GrantRequest("hall", ReleaseKind.PERMANENT),
+                GrantRequest("library", ReleaseKind.PERMANENT),
+                GrantRequest("studio", ReleaseKind.PERMANENT),
             ),
             ConflictError,
             "room_unavailable",
@@ -87,8 +87,8 @@ async def test_one_invalid_grant_changes_nothing_and_names_its_field(
     grants, error, code, path
 ) -> None:
     core, _adapter, _now = await setup_delay()
-    await core.rooms.async_revoke_many(("kitchen",))
-    await core.rooms.async_disable("hall")
+    await core.rooms.async_revoke_many(("library",))
+    await core.rooms.async_disable("studio")
     before = core.state
 
     with pytest.raises(error, match=code) as raised:
@@ -101,8 +101,8 @@ async def test_revoking_names_unknown_and_repeated_rooms() -> None:
     core, _adapter, _now = await setup_delay()
     before = core.state
     for rooms, code, path in (
-        (("kitchen", "attic"), "unknown_room", ("rooms", 1)),
-        (("hall", "hall"), "duplicate_room", ("rooms", 1)),
+        (("library", "attic"), "unknown_room", ("rooms", 1)),
+        (("studio", "studio"), "duplicate_room", ("rooms", 1)),
         ((), "no_rooms", ("rooms",)),
     ):
         with pytest.raises(OrchestratorError, match=code) as raised:

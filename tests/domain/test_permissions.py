@@ -86,7 +86,7 @@ def test_a_foreign_hold_blocks_what_its_holder_decides() -> None:
 @pytest.mark.parametrize(
     "waiting",
     [
-        Waiting((Blocker("room_not_released", ("kitchen",)),), READY, ()),
+        Waiting((Blocker("room_not_released", ("library",)),), READY, ()),
         Waiting((), Robots(RobotsState.NO_ROBOT_READY), ()),
     ],
 )
@@ -188,7 +188,7 @@ def test_require_raises_the_reason() -> None:
 
 def test_room_actions_follow_activity_release_and_running_work() -> None:
     state = _queued()
-    room = Room("kitchen", "Kitchen", "kitchen")
+    room = Room("library", "Library", "library")
 
     assert _reasons(room_actions(state, room)) == {
         "release": None,
@@ -249,7 +249,7 @@ def test_template_actions_follow_enabled_and_demand() -> None:
         "remove": None,
         "reset_demand": "no_suppressed_demand",
     }
-    paused = replace(template, enabled=False, demand_tokens={"kitchen": "token"})
+    paused = replace(template, enabled=False, demand_tokens={"library": "token"})
     actions = template_actions(paused)
     assert actions["create_job"] == unavailable("template_disabled")
     assert actions["reset_demand"] == AVAILABLE

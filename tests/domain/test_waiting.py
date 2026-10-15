@@ -39,10 +39,10 @@ def test_every_eligibility_reason_has_a_public_code_and_a_place() -> None:
     assert set(ROBOT_CODES.values()) <= set(ROBOT_ORDER)
     with pytest.raises(ValueError, match="made_up"):
         Ineligibility("made_up")
-    reason = Ineligibility("unmapped_target", room_ids=("hall",), detail="hall")
+    reason = Ineligibility("unmapped_target", room_ids=("studio",), detail="studio")
     assert reason.structural and not Ineligibility("battery_below_minimum").structural
     assert robot_blocker(reason) == Blocker(
-        "room_unreachable", room_ids=("hall",), detail="hall"
+        "room_unreachable", room_ids=("studio",), detail="studio"
     )
 
 
@@ -55,7 +55,7 @@ def test_nothing_to_explain_means_the_job_starts() -> None:
 def test_the_job_leads_then_the_robots_then_the_queue() -> None:
     busy = Robots(RobotsState.NO_ROBOT_READY, (_robot("a", "robot_busy"),))
     explained = waiting(
-        (Blocker("rooms_in_use"), Blocker("room_not_released", room_ids=("hall",))),
+        (Blocker("rooms_in_use"), Blocker("room_not_released", room_ids=("studio",))),
         busy,
         (Blocker("start_delayed", until=NOW), Blocker("queue_idle")),
     )
@@ -108,20 +108,20 @@ def test_unsuitable_robots_explain_rooms_they_miss() -> None:
     together = Robots(
         RobotsState.NO_CAPABLE_ROBOT,
         unsuitable=(
-            _robot("a", "room_unreachable", rooms=("hall",)),
-            _robot("b", "room_unreachable", rooms=("kitchen",)),
+            _robot("a", "room_unreachable", rooms=("studio",)),
+            _robot("b", "room_unreachable", rooms=("library",)),
         ),
     )
     assert together.primary == Blocker(
         "rooms_not_reachable_together",
-        room_ids=("hall", "kitchen"),
+        room_ids=("studio", "library"),
         robot_ids=("a", "b"),
     )
     nowhere = Robots(
         RobotsState.NO_CAPABLE_ROBOT,
         unsuitable=(
-            _robot("a", "room_unreachable", rooms=("attic", "hall")),
-            _robot("b", "room_unreachable", rooms=("kitchen", "attic")),
+            _robot("a", "room_unreachable", rooms=("attic", "studio")),
+            _robot("b", "room_unreachable", rooms=("library", "attic")),
         ),
     )
     assert nowhere.primary == Blocker(
@@ -131,7 +131,7 @@ def test_unsuitable_robots_explain_rooms_they_miss() -> None:
         RobotsState.NO_CAPABLE_ROBOT,
         unsuitable=(
             _robot("a", "operation_unsupported"),
-            _robot("b", "room_unreachable", rooms=("hall",)),
+            _robot("b", "room_unreachable", rooms=("studio",)),
         ),
     )
     assert mixed.primary == Blocker("no_capable_robot", robot_ids=("a", "b"))
@@ -153,9 +153,9 @@ def test_only_holds_the_delay_and_the_queue_leave_a_job_pending() -> None:
 
 
 def test_a_release_alone_admits_only_an_active_room() -> None:
-    room = Room("hall", "Hall", area_id="hall")
+    room = Room("studio", "Studio", area_id="studio")
     assert room_blocker_code(room) == "room_not_released"
-    assert room_blocker_code(Room("hall", "Hall", enabled=False)) == "room_disabled"
-    assert room_blocker_code(Room("hall", "Hall", area_missing=True)) == (
+    assert room_blocker_code(Room("studio", "Studio", enabled=False)) == "room_disabled"
+    assert room_blocker_code(Room("studio", "Studio", area_missing=True)) == (
         "room_area_missing"
     )

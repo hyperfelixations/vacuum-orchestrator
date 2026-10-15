@@ -69,7 +69,7 @@ def test_only_robot_faults_outside_cleaning_may_have_stopped_a_run() -> None:
 
 
 def _unit(mode: CleaningMode) -> WorkUnit:
-    intent = JobIntent((TargetRef("kitchen", "main"),), mode)
+    intent = JobIntent((TargetRef("library", "main"),), mode)
     return Planner().create_plan("job", intent).work_units[0]
 
 

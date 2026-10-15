@@ -96,10 +96,10 @@ async def test_robots_report_room_reach_from_the_live_ha_mapping(hass, configure
         {"supported_features": int(VacuumEntityFeature.CLEAN_AREA)},
     )
     registry.async_update_entity_options(
-        vacuum.entity_id, "vacuum", {"area_mapping": {"kitchen": ["7"]}}
+        vacuum.entity_id, "vacuum", {"area_mapping": {"library": ["7"]}}
     )
-    kitchen = await core.rooms.async_create("Kitchen", area_id="kitchen")
-    hall = await core.rooms.async_create("Hall", area_id="hall")
+    library = await core.rooms.async_create("Library", area_id="library")
+    studio = await core.rooms.async_create("Studio", area_id="studio")
     robot = await add_robot(hass, vacuum.entity_id, fixed_mode="vacuum")
     await hass.async_block_till_done()
 
@@ -107,14 +107,14 @@ async def test_robots_report_room_reach_from_the_live_ha_mapping(hass, configure
     assert projection["robot_id"] == robot
     assert projection["configuration"]["target_areas"] is None
     assert {item["room_id"]: item for item in projection["reach"]} == {
-        kitchen: {
-            "room_id": kitchen,
+        library: {
+            "room_id": library,
             "status": "reachable",
-            "targets": ["kitchen"],
+            "targets": ["library"],
             "ignored": [],
         },
-        hall: {
-            "room_id": hall,
+        studio: {
+            "room_id": studio,
             "status": "area_not_mapped",
             "targets": [],
             "ignored": [],
@@ -140,7 +140,7 @@ async def test_robots_name_why_they_offer_no_maps(hass, configured):
 
 def test_robot_maps_are_projected_with_vendor_segment_ids():
     ground = RobotMap(
-        "0", "Ground", True, "image.ground", (MapSegment("16", "Kitchen"),)
+        "0", "Ground", True, "image.ground", (MapSegment("16", "Library"),)
     )
     assert present_maps(RobotMaps((ground,), "image.ground")) == {
         "map_image_entity_id": "image.ground",
@@ -150,7 +150,7 @@ def test_robot_maps_are_projected_with_vendor_segment_ids():
                 "name": "Ground",
                 "current": True,
                 "image_entity_id": "image.ground",
-                "segments": [{"id": "16", "name": "Kitchen"}],
+                "segments": [{"id": "16", "name": "Library"}],
             }
         ],
         "maps_unavailable_reason": None,

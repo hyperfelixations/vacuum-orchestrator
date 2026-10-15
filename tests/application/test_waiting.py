@@ -78,27 +78,27 @@ async def test_the_queue_and_the_delay_explain_a_ready_job_until_it_starts() -> 
 async def test_a_job_waits_for_the_end_of_a_finishing_run() -> None:
     backend = RecordingBackend()
     core, _now = await setup_waiting(
-        RecordingAdapter(backend, "a", targets=("kitchen",)),
-        RecordingAdapter(backend, "b", targets=("hall",)),
+        RecordingAdapter(backend, "a", targets=("library",)),
+        RecordingAdapter(backend, "b", targets=("studio",)),
     )
     running = await core.async_create_job(_intent())
     await core.async_run_queue()
     await core.async_start_job(running)
-    waiting = await core.async_create_job(_intent(area="hall"))
+    waiting = await core.async_create_job(_intent(area="studio"))
     await core.async_end_queue()
     assert codes(core, waiting) == ["queue_ending", "start_delayed"]
 
 
 async def test_a_hold_and_a_missing_release_come_before_everything_else() -> None:
     core, _now = await setup_waiting()
-    await core.rooms.async_revoke("hall")
+    await core.rooms.async_revoke("studio")
     job = await core.async_create_job(
-        JobIntent((TargetRef("kitchen"), TargetRef("hall")), CleaningMode.VACUUM)
+        JobIntent((TargetRef("library"), TargetRef("studio")), CleaningMode.VACUUM)
     )
     waiting = core.waiting(job)
     assert waiting.primary.code == "room_not_released"
-    assert waiting.primary.room_ids == ("hall",)
-    assert core.jobs_awaiting_release() == {"hall": (job,)}
+    assert waiting.primary.room_ids == ("studio",)
+    assert core.jobs_awaiting_release() == {"studio": (job,)}
 
     hold = await core.async_hold_job(job, HoldPurpose.CONFIRM)
     waiting = core.waiting(job)
@@ -111,18 +111,18 @@ async def test_a_hold_and_a_missing_release_come_before_everything_else() -> Non
 
 async def test_reach_explains_rooms_and_operations_no_robot_covers() -> None:
     backend = RecordingBackend()
-    kitchen = RecordingAdapter(backend, "a", targets=("kitchen",))
-    hall = RecordingAdapter(backend, "b", targets=("hall",))
-    core, _now = await setup_waiting(kitchen, hall)
+    library = RecordingAdapter(backend, "a", targets=("library",))
+    studio = RecordingAdapter(backend, "b", targets=("studio",))
+    core, _now = await setup_waiting(library, studio)
     both = await core.async_create_job(
-        JobIntent((TargetRef("kitchen"), TargetRef("hall")), CleaningMode.VACUUM)
+        JobIntent((TargetRef("library"), TargetRef("studio")), CleaningMode.VACUUM)
     )
     waiting = core.waiting(both)
     assert waiting.primary.code == "rooms_not_reachable_together"
-    assert waiting.primary.room_ids == ("hall", "kitchen")
+    assert waiting.primary.room_ids == ("studio", "library")
     assert waiting.primary.robot_ids == ("a", "b")
 
-    for adapter in (kitchen, hall):
+    for adapter in (library, studio):
         adapter._profile = replace(
             adapter.profile, allowed_operations=frozenset({OperationKind.VACUUM})
         )
@@ -131,12 +131,12 @@ async def test_reach_explains_rooms_and_operations_no_robot_covers() -> None:
         "operation_unsupported", robot_ids=("a", "b"), detail="mop"
     )
 
-    hall._profile = replace(
-        hall.profile,
-        capabilities=replace(hall.profile.capabilities, target_map={}),
+    studio._profile = replace(
+        studio.profile,
+        capabilities=replace(studio.profile.capabilities, target_map={}),
     )
     assert core.waiting(both).primary.code == "room_unreachable"
-    assert core.waiting(both).primary.room_ids == ("hall",)
+    assert core.waiting(both).primary.room_ids == ("studio",)
 
     await core.async_replace_adapters({})
     assert core.waiting(both).primary.code == "no_robot_configured"
@@ -159,7 +159,7 @@ async def test_conditions_and_robot_states_name_entities_and_robots() -> None:
         ("requirement_unknown", ("binary_sensor.door",)),
     ]
 
-    plain = await core.async_create_job(_intent(area="hall"))
+    plain = await core.async_create_job(_intent(area="studio"))
     (adapter,) = core.adapters.values()
     adapter.observation = replace(
         adapter.observation, state=RobotAvailabilityState.BUSY
@@ -189,13 +189,13 @@ async def test_started_jobs_and_overlapping_rooms() -> None:
     now[0] += DELAY
     waiting = core.waiting(second)
     assert waiting.primary.code == "rooms_in_use"
-    assert waiting.primary.room_ids == ("kitchen",)
+    assert waiting.primary.room_ids == ("library",)
 
 
 async def test_a_condition_failing_only_for_one_robot_names_that_robot() -> None:
     core, _now = await setup_waiting(states={"binary_sensor.dock_door": "off"})
     await core.rooms.async_update(
-        "kitchen",
+        "library",
         lambda room: replace(
             room,
             requirements=(
@@ -210,7 +210,7 @@ async def test_a_condition_failing_only_for_one_robot_names_that_robot() -> None
         waiting.primary.room_ids,
         waiting.primary.entity_ids,
         waiting.primary.robot_ids,
-    ) == (("kitchen",), ("binary_sensor.dock_door",), ("robot",))
+    ) == (("library",), ("binary_sensor.dock_door",), ("robot",))
 
 
 async def test_a_next_phase_waits_for_a_robot_but_not_for_the_queue() -> None:
@@ -235,21 +235,23 @@ async def test_a_next_phase_waits_for_a_robot_but_not_for_the_queue() -> None:
 
 async def test_disabled_and_arealess_rooms_are_named_as_such() -> None:
     core, _now = await setup_waiting()
-    await core.rooms.async_revoke("hall")
+    await core.rooms.async_revoke("studio")
     job = await core.async_create_job(
-        JobIntent((TargetRef("kitchen"), TargetRef("hall")), CleaningMode.VACUUM)
+        JobIntent((TargetRef("library"), TargetRef("studio")), CleaningMode.VACUUM)
     )
-    await core.rooms.async_disable("kitchen")
+    await core.rooms.async_disable("library")
     assert [(item.code, item.room_ids) for item in core.waiting(job).job] == [
-        ("room_disabled", ("kitchen",)),
-        ("room_not_released", ("hall",)),
+        ("room_disabled", ("library",)),
+        ("room_not_released", ("studio",)),
     ]
-    assert core.jobs_awaiting_release() == {"hall": (job,)}
+    assert core.jobs_awaiting_release() == {"studio": (job,)}
 
-    await core.rooms.async_enable("kitchen")
-    await core.rooms.async_update("hall", lambda room: replace(room, area_missing=True))
+    await core.rooms.async_enable("library")
+    await core.rooms.async_update(
+        "studio", lambda room: replace(room, area_missing=True)
+    )
     assert [(item.code, item.room_ids) for item in core.waiting(job).job] == [
-        ("room_area_missing", ("hall",)),
+        ("room_area_missing", ("studio",)),
     ]
     assert core.jobs_awaiting_release() == {}
 
@@ -263,7 +265,7 @@ async def test_a_ready_job_names_every_reason_of_every_robot() -> None:
         first, second, states={"binary_sensor.dock_a": "off"}
     )
     await core.rooms.async_update(
-        "kitchen",
+        "library",
         lambda room: replace(
             room,
             requirements=(StateRequirement("binary_sensor.dock_a", robot_id="a"),),
@@ -283,7 +285,7 @@ async def test_a_ready_job_names_every_reason_of_every_robot() -> None:
                 Blocker("robot_busy"),
                 Blocker(
                     "requirement_not_satisfied",
-                    room_ids=("kitchen",),
+                    room_ids=("library",),
                     entity_ids=("binary_sensor.dock_a",),
                 ),
             ),
@@ -295,7 +297,7 @@ async def test_a_ready_job_names_every_reason_of_every_robot() -> None:
 
 async def test_unsuitable_robots_list_every_structural_reason() -> None:
     backend = RecordingBackend()
-    adapter = RecordingAdapter(backend, "robot", targets=("kitchen",))
+    adapter = RecordingAdapter(backend, "robot", targets=("library",))
     adapter._profile = replace(
         adapter.profile, allowed_operations=frozenset({OperationKind.VACUUM})
     )
@@ -303,7 +305,7 @@ async def test_unsuitable_robots_list_every_structural_reason() -> None:
         adapter.observation, state=RobotAvailabilityState.BUSY
     )
     core, _now = await setup_waiting(adapter)
-    job = await core.async_create_job(_intent(area="hall", mode=CleaningMode.MOP))
+    job = await core.async_create_job(_intent(area="studio", mode=CleaningMode.MOP))
 
     robots = core.waiting(job).robots
     assert robots.state is RobotsState.NO_CAPABLE_ROBOT and robots.candidates == ()
@@ -312,7 +314,7 @@ async def test_unsuitable_robots_list_every_structural_reason() -> None:
             "robot",
             (
                 Blocker("operation_unsupported", detail="mop"),
-                Blocker("room_unreachable", room_ids=("hall",), detail="hall"),
+                Blocker("room_unreachable", room_ids=("studio",), detail="studio"),
             ),
         ),
     )

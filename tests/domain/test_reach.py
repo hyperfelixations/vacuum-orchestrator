@@ -11,9 +11,9 @@ from custom_components.vacuum_orchestrator.domain.reach import (
 def test_rooms_sharing_a_physical_unit_both_lose_their_targets() -> None:
     reach = without_overlaps(
         (
-            RoomReach("kitchen", ReachStatus.REACHABLE, ("1_16",), physical=("1_16",)),
+            RoomReach("library", ReachStatus.REACHABLE, ("1_16",), physical=("1_16",)),
             RoomReach("nook", ReachStatus.REACHABLE, ("1_16",), physical=("1_16",)),
-            RoomReach("hall", ReachStatus.REACHABLE, ("1_17",), physical=("1_17",)),
+            RoomReach("studio", ReachStatus.REACHABLE, ("1_17",), physical=("1_17",)),
             RoomReach("attic", ReachStatus.AREA_NOT_MAPPED, physical=("1_16",)),
         )
     )
@@ -24,4 +24,4 @@ def test_rooms_sharing_a_physical_unit_both_lose_their_targets() -> None:
         ReachStatus.AREA_NOT_MAPPED,
     ]
     assert reach[0].targets == ()
-    assert reachable_targets(reach) == {"hall": ("1_17",)}
+    assert reachable_targets(reach) == {"studio": ("1_17",)}

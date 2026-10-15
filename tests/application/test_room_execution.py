@@ -51,19 +51,19 @@ async def test_room_grant_is_required_and_one_shot_belongs_to_started_job() -> N
     backend = RecordingBackend()
     adapter = RecordingAdapter(backend, "robot")
     orchestrator = await _orchestrator(backend, adapter)
-    await orchestrator.rooms.async_revoke("kitchen")
+    await orchestrator.rooms.async_revoke("library")
     job = await orchestrator.async_create_job(_intent())
     with pytest.raises(PlanningError, match="job_blocked"):
         await orchestrator.async_start_job(job)
     assert adapter.dispatches == []
-    await orchestrator.rooms.async_grant("kitchen", ReleaseKind.ONCE)
+    await orchestrator.rooms.async_grant("library", ReleaseKind.ONCE)
     await orchestrator.async_start_job(job)
-    room = orchestrator.rooms.registry.resolve("kitchen")
+    room = orchestrator.rooms.registry.resolve("library")
     assert room.release.reserved_job_id == job
     assert not room.release.consumed
     attempt = orchestrator.state.jobs[job].active_attempt_id
     await orchestrator.async_confirm_start(attempt)
-    assert orchestrator.rooms.registry.resolve("kitchen").release.consumed
+    assert orchestrator.rooms.registry.resolve("library").release.consumed
     await orchestrator.async_cancel_job(job)
     await orchestrator.async_confirm_cancel(job)
     retry = await orchestrator.async_retry_job(job)
@@ -76,7 +76,7 @@ async def test_expired_grant_preserves_both_phases_but_blocks_new_job() -> None:
     backend = RecordingBackend()
     adapter = RecordingAdapter(backend, "robot")
     orchestrator = await _orchestrator(backend, adapter)
-    await orchestrator.rooms.async_grant("kitchen", ReleaseKind.TIMED, 60)
+    await orchestrator.rooms.async_grant("library", ReleaseKind.TIMED, 60)
     job = await orchestrator.async_create_job(
         _intent(mode=CleaningMode.VACUUM_THEN_MOP)
     )
@@ -118,7 +118,7 @@ async def test_vacuum_receipt_counts_when_the_mop_phase_is_cancelled() -> None:
     await orchestrator.async_cancel_job(job)
     await orchestrator.async_confirm_cancel(job)
 
-    room = orchestrator.rooms.registry.resolve("kitchen")
+    room = orchestrator.rooms.registry.resolve("library")
     assert orchestrator.state.jobs[job].state is JobState.CANCELLED
     assert room.last_confirmed[OperationKind.VACUUM].completed_at is not None
     assert OperationKind.MOP not in room.last_confirmed
@@ -161,7 +161,7 @@ async def test_pre_start_failure_releases_one_shot_without_uncertainty(
     backend = RecordingBackend()
     adapter = RecordingAdapter(backend, "robot")
     orchestrator = await _orchestrator(backend, adapter)
-    await orchestrator.rooms.async_grant("kitchen", ReleaseKind.ONCE)
+    await orchestrator.rooms.async_grant("library", ReleaseKind.ONCE)
     job = await orchestrator.async_create_job(_intent())
 
     async def no_start(*_args):
@@ -170,7 +170,7 @@ async def test_pre_start_failure_releases_one_shot_without_uncertainty(
     monkeypatch.setattr(adapter, "async_prepare", no_start)
     with pytest.raises(DispatchNotStartedError):
         await orchestrator.async_start_job(job)
-    grant = orchestrator.rooms.registry.resolve("kitchen").release
+    grant = orchestrator.rooms.registry.resolve("library").release
     assert grant.reserved_job_id is None and not grant.consumed
     assert orchestrator.state.jobs[job].state is JobState.FAILED
     assert not orchestrator.state.robot_leases
@@ -186,7 +186,7 @@ async def test_revocation_during_settings_prevents_start(
     job = await orchestrator.async_create_job(_intent())
 
     async def settings_then_start(*_args):
-        await orchestrator.rooms.async_revoke("kitchen")
+        await orchestrator.rooms.async_revoke("library")
         check_command_authorization()
         pytest.fail("Start must not be reached")
 
@@ -205,7 +205,7 @@ async def test_robot_specific_room_requirement_selects_other_robot() -> None:
         backend, first, second, states={"binary_sensor.door": "off"}
     )
     await orchestrator.rooms.async_update(
-        "kitchen",
+        "library",
         lambda room: replace(
             room,
             requirements=(StateRequirement("binary_sensor.door", robot_id="first"),),
@@ -243,12 +243,12 @@ async def test_bad_observer_and_listener_do_not_block_healthy_robot(
 async def test_area_alias_is_canonicalized_and_duplicate_aliases_are_rejected() -> None:
     backend = RecordingBackend()
     orchestrator = await _orchestrator(backend, seed_rooms=False)
-    room_id = await orchestrator.rooms.async_create("Kitchen", area_id="kitchen")
+    room_id = await orchestrator.rooms.async_create("Library", area_id="library")
     job = await orchestrator.async_create_job(_intent())
     assert orchestrator.state.jobs[job].intent.areas == (TargetRef(room_id),)
     with pytest.raises(Exception, match="duplicate_area"):
         await orchestrator.async_create_job(
-            JobIntent((TargetRef("kitchen"), TargetRef(room_id)), CleaningMode.VACUUM)
+            JobIntent((TargetRef("library"), TargetRef(room_id)), CleaningMode.VACUUM)
         )
 
 
@@ -266,7 +266,7 @@ async def test_derived_completion_projects_quality_and_preserves_last_confirmed(
         adapter.observation, observed_at=NOW + timedelta(minutes=10)
     )
     await orchestrator.async_process_robot_observation("robot")
-    confirmed = orchestrator.rooms.registry.resolve("kitchen").last_confirmed[
+    confirmed = orchestrator.rooms.registry.resolve("library").last_confirmed[
         OperationKind.VACUUM
     ]
     adapter.confirm_completions = False
@@ -286,7 +286,7 @@ async def test_derived_completion_projects_quality_and_preserves_last_confirmed(
     )
     await orchestrator.async_process_robot_observation("robot")
     assert orchestrator.state.jobs[second].state is JobState.COMPLETED
-    room = orchestrator.rooms.registry.resolve("kitchen")
+    room = orchestrator.rooms.registry.resolve("library")
     assert room.last_cleaning[OperationKind.VACUUM].quality is CompletionQuality.DERIVED
     assert room.last_confirmed[OperationKind.VACUUM] == confirmed
     assert (
@@ -294,7 +294,7 @@ async def test_derived_completion_projects_quality_and_preserves_last_confirmed(
     )
     await orchestrator.async_delete_job(second)
     assert (
-        orchestrator.rooms.registry.resolve("kitchen").last_cleaning
+        orchestrator.rooms.registry.resolve("library").last_cleaning
         == room.last_cleaning
     )
 
@@ -328,7 +328,7 @@ async def test_recovery_requires_stopped_robot_and_preserves_consumed_grant() ->
     backend = RecordingBackend()
     adapter = RecordingAdapter(backend, "robot")
     orchestrator = await _orchestrator(backend, adapter)
-    await orchestrator.rooms.async_grant("kitchen", ReleaseKind.ONCE)
+    await orchestrator.rooms.async_grant("library", ReleaseKind.ONCE)
     job = await orchestrator.async_create_job(_intent())
     adapter.fail_dispatch = True
     with pytest.raises(RuntimeError):
@@ -346,7 +346,7 @@ async def test_recovery_requires_stopped_robot_and_preserves_consumed_grant() ->
     assert orchestrator.state.jobs[job].state is JobState.FAILED
     assert not orchestrator.state.robot_leases
     assert not orchestrator.state.blocked_robots
-    assert orchestrator.rooms.registry.resolve("kitchen").release.consumed
+    assert orchestrator.rooms.registry.resolve("library").release.consumed
     assert not orchestrator.rooms.registry.receipts
 
 
@@ -398,7 +398,7 @@ async def test_prestart_error_conflicting_with_observed_start_requires_recovery(
 
 @pytest.mark.parametrize(
     "targets,expected_rooms",
-    [(("a",), ()), (("a", "b"), ("kitchen",)), (("a", "foreign"), ())],
+    [(("a",), ()), (("a", "b"), ("library",)), (("a", "foreign"), ())],
 )
 async def test_a_changed_confirmed_scope_completes_and_books_only_proven_rooms(
     monkeypatch, targets, expected_rooms
@@ -409,12 +409,12 @@ async def test_a_changed_confirmed_scope_completes_and_books_only_proven_rooms(
         adapter.profile,
         capabilities=replace(
             adapter.profile.capabilities,
-            target_map={"kitchen": ("a", "b"), "hall": "c"},
+            target_map={"library": ("a", "b"), "studio": "c"},
         ),
     )
     core = await _orchestrator(backend, adapter)
     job = await core.async_create_job(
-        JobIntent((TargetRef("kitchen"), TargetRef("hall")), CleaningMode.VACUUM)
+        JobIntent((TargetRef("library"), TargetRef("studio")), CleaningMode.VACUUM)
     )
     await core.async_start_job(job)
     await core.async_confirm_start(core.state.jobs[job].active_attempt_id)
@@ -442,7 +442,7 @@ async def test_a_changed_confirmed_scope_completes_and_books_only_proven_rooms(
         == expected_rooms
     )
     if expected_rooms:
-        stamp = core.rooms.registry.resolve("kitchen").last_confirmed[
+        stamp = core.rooms.registry.resolve("library").last_confirmed[
             OperationKind.VACUUM
         ]
         assert stamp.quality is CompletionQuality.CONFIRMED
@@ -466,11 +466,11 @@ async def test_late_proof_upgrades_same_receipt_without_counting_cleaning_twice(
         await core.async_process_robot_observation("robot")
     correlation = core.state.correlations[attempt_id]
     run = core.state.robot_runs[correlation.robot_run_id]
-    stamp = core.rooms.registry.resolve("kitchen").last_cleaning[OperationKind.VACUUM]
+    stamp = core.rooms.registry.resolve("library").last_cleaning[OperationKind.VACUUM]
     await core.async_record_robot_run(
         attempt_id, replace(run, completion_quality=CompletionQuality.CONFIRMED)
     )
-    room = core.rooms.registry.resolve("kitchen")
+    room = core.rooms.registry.resolve("library")
     assert room.last_confirmed[OperationKind.VACUUM].completed_at == stamp.completed_at
     assert room.last_confirmed[OperationKind.VACUUM].receipt_id == stamp.receipt_id
     assert len(core.rooms.registry.receipts) == 1
@@ -525,7 +525,7 @@ async def test_readiness_is_reported_before_each_phase_but_never_while_running()
     states = {"binary_sensor.mop_ready": "off"}
     orchestrator = await _orchestrator(backend, adapter, states=states)
     await orchestrator.rooms.async_update(
-        "kitchen",
+        "library",
         lambda room: replace(
             room,
             requirements=(

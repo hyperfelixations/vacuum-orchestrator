@@ -56,7 +56,7 @@ from tests.test_websocket import Connection
 
 def test_job_counters_follow_job_states() -> None:
     state = OrchestratorState.empty("installation").add_job(
-        "a", JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM), NOW
+        "a", JobIntent((TargetRef("library"),), CleaningMode.VACUUM), NOW
     )
     jobs = dict(state.jobs)
     jobs["b"] = replace(jobs["a"], job_id="b", state=JobState.RUNNING)
@@ -75,7 +75,7 @@ async def test_commits_report_the_changed_scopes() -> None:
     core.subscribe_view(lambda: seen.append(core.changed_scopes))
 
     job = await core.async_create_job(_intent())
-    await core.rooms.async_grant("hall", ReleaseKind.PERMANENT)
+    await core.rooms.async_grant("studio", ReleaseKind.PERMANENT)
     await core.async_start_job(job)
 
     assert seen[0] == {"jobs", "queue"}
@@ -113,13 +113,13 @@ async def test_holds_and_the_start_delay_signal_their_read_models() -> None:
 async def test_a_job_waiting_for_a_release_signals_its_room() -> None:
     backend = RecordingBackend()
     core = await _orchestrator(backend, RecordingAdapter(backend, "robot"))
-    await core.rooms.async_revoke("hall")
+    await core.rooms.async_revoke("studio")
     seen: list[frozenset[str]] = []
     core.subscribe_view(lambda: seen.append(core.changed_scopes))
 
-    job = await core.async_create_job(_intent("hall"))
-    await core.rooms.async_grant("hall", ReleaseKind.PERMANENT)
-    await core.rooms.async_revoke("hall")
+    job = await core.async_create_job(_intent("studio"))
+    await core.rooms.async_grant("studio", ReleaseKind.PERMANENT)
+    await core.rooms.async_revoke("studio")
     await core.async_delete_job(job)
 
     assert seen == [{"jobs", "queue", "rooms"}] * 4
@@ -132,10 +132,10 @@ async def test_a_new_area_of_a_named_room_signals_the_jobs_naming_it() -> None:
     seen: list[frozenset[str]] = []
     core.subscribe_view(lambda: seen.append(core.changed_scopes))
 
-    await core.rooms.async_update("kitchen", lambda room: replace(room, name="Cook"))
-    await core.rooms.async_update("hall", lambda room: replace(room, area_id="lobby"))
+    await core.rooms.async_update("library", lambda room: replace(room, name="Cook"))
+    await core.rooms.async_update("studio", lambda room: replace(room, area_id="lobby"))
     await core.rooms.async_update(
-        "kitchen", lambda room: replace(room, area_id="galley")
+        "library", lambda room: replace(room, area_id="galley")
     )
 
     assert seen == [{"rooms"}, {"rooms"}, {"jobs", "queue", "rooms"}]
@@ -216,7 +216,7 @@ async def test_a_new_room_signals_the_reach_of_every_robot(hass: HomeAssistant) 
     await hass.async_block_till_done()
     before = len(subscriber.events)
 
-    room = (await call(hass, "create_room", name="Hall"))["room_id"]
+    room = (await call(hass, "create_room", name="Studio"))["room_id"]
     await hass.async_block_till_done()
 
     changed = set().union(
@@ -239,7 +239,7 @@ async def test_controller_skips_passes_without_visible_change(
     vacuum = registry.async_get_or_create(
         "vacuum", "demo", "unit", suggested_object_id="test"
     )
-    area = ar.async_get(hass).async_create("Kitchen")
+    area = ar.async_get(hass).async_create("Library")
     registry.async_update_entity_options(
         vacuum.entity_id, "vacuum", {"area_mapping": {area.id: ["16"]}}
     )

@@ -20,15 +20,15 @@ from tests.test_validate_api import validate
 
 
 async def _home(hass: HomeAssistant) -> dict[str, str]:
-    """Kitchen and hall with areas, an attic without, one robot reaching both."""
+    """Library and studio with areas, an attic without, one robot reaching both."""
     areas = ar.async_get(hass)
-    kitchen, hall = areas.async_create("Kitchen"), areas.async_create("Hall")
+    library, studio = areas.async_create("Library"), areas.async_create("Studio")
     registry = er.async_get(hass)
     vacuum = registry.async_get_or_create("vacuum", "demo", "downstairs")
     registry.async_update_entity_options(
         vacuum.entity_id,
         "vacuum",
-        {"area_mapping": {kitchen.id: ["16"], hall.id: ["17"]}},
+        {"area_mapping": {library.id: ["16"], studio.id: ["17"]}},
     )
     hass.states.async_set(
         vacuum.entity_id,
@@ -43,10 +43,10 @@ async def _home(hass: HomeAssistant) -> dict[str, str]:
     await hass.async_block_till_done()
     rooms = async_get_runtime(hass).orchestrator.rooms
     return {
-        "kitchen_area": kitchen.id,
-        "hall_area": hall.id,
-        "kitchen": rooms.room_id(kitchen.id),
-        "hall": rooms.room_id(hall.id),
+        "library_area": library.id,
+        "studio_area": studio.id,
+        "library": rooms.room_id(library.id),
+        "studio": rooms.room_id(studio.id),
         "attic": (await call(hass, "create_room", name="Attic"))["room_id"],
         "vacuum": vacuum.entity_id,
         "robot": robot,
@@ -63,12 +63,12 @@ async def test_rooms_are_released_and_revoked_by_area_or_room_id(
     released = await call(
         hass,
         "release_room",
-        areas=[home["kitchen_area"], home["hall_area"]],
+        areas=[home["library_area"], home["studio_area"]],
         rooms=[home["attic"]],
         kind="timed",
         duration_seconds={"minutes": 15},
     )
-    assert released["room_ids"] == [home["kitchen"], home["hall"], home["attic"]]
+    assert released["room_ids"] == [home["library"], home["studio"], home["attic"]]
     assert (len(released["grant_ids"]), released["commit_id"]) == (3, commit + 1)
     rooms = {item["room_id"]: item for item in (await call(hass, "get_rooms"))["rooms"]}
     timed = rooms[home["attic"]]["release"]
@@ -77,14 +77,16 @@ async def test_rooms_are_released_and_revoked_by_area_or_room_id(
     ) == timedelta(minutes=15)
 
     revoked = await call(
-        hass, "revoke_room", areas=[home["kitchen_area"]], rooms=[home["attic"]]
+        hass, "revoke_room", areas=[home["library_area"]], rooms=[home["attic"]]
     )
     assert (revoked["room_ids"], revoked["commit_id"]) == (
-        [home["kitchen"], home["attic"]],
+        [home["library"], home["attic"]],
         commit + 2,
     )
     rooms = {item["room_id"]: item for item in (await call(hass, "get_rooms"))["rooms"]}
-    assert [room for room, item in rooms.items() if item["released"]] == [home["hall"]]
+    assert [room for room, item in rooms.items() if item["released"]] == [
+        home["studio"]
+    ]
 
 
 @pytest.mark.usefixtures("configured")
@@ -97,17 +99,17 @@ async def test_a_release_error_names_the_area_or_room_and_changes_nothing(
 
     for parameters, code, field in (
         (
-            {"areas": [home["kitchen_area"]], "rooms": ["cellar"]},
+            {"areas": [home["library_area"]], "rooms": ["cellar"]},
             "unknown_room",
             "rooms.0",
         ),
         (
-            {"areas": [home["kitchen_area"]], "rooms": [home["kitchen"]]},
+            {"areas": [home["library_area"]], "rooms": [home["library"]]},
             "duplicate_room",
             "rooms.0",
         ),
         (
-            {"areas": [home["hall_area"]], "kind": "timed"},
+            {"areas": [home["studio_area"]], "kind": "timed"},
             "release_duration_mismatch",
             "duration_seconds",
         ),
@@ -134,26 +136,26 @@ async def test_jobs_take_areas_then_rooms_once_each_or_all_rooms(
     job = await call(
         hass,
         "create_job",
-        areas=[home["hall_area"], home["kitchen_area"]],
-        rooms=[home["attic"], home["kitchen"]],
+        areas=[home["studio_area"], home["library_area"]],
+        rooms=[home["attic"], home["library"]],
     )
     detail = await call(hass, "get_job", job_id=job["job_id"])
     assert (detail["room_ids"], detail["all_rooms"]) == (
-        [home["hall"], home["kitchen"], home["attic"]],
+        [home["studio"], home["library"], home["attic"]],
         False,
     )
     assert await validate(hass, "create_job", rooms=["cellar"]) == [
         ("rooms.0", "unknown_room")
     ]
     assert await validate(
-        hass, "create_job", areas=[home["kitchen_area"]], all_rooms=True
+        hass, "create_job", areas=[home["library_area"]], all_rooms=True
     ) == [("all_rooms", "all_rooms_with_selection")]
-    await call(hass, "disable_room", room_id=home["hall"])
+    await call(hass, "disable_room", room_id=home["studio"])
     assert await validate(
-        hass, "create_job", areas=[home["kitchen_area"], home["hall_area"]]
+        hass, "create_job", areas=[home["library_area"], home["studio_area"]]
     ) == [("areas.1", "room_unavailable")]
     assert await validate(
-        hass, "update_job", job_id=job["job_id"], rooms=[home["hall"]]
+        hass, "update_job", job_id=job["job_id"], rooms=[home["studio"]]
     ) == [("rooms.0", "room_unavailable")]
 
 
@@ -168,11 +170,11 @@ async def test_actions_name_a_robot_by_its_vacuum(hass: HomeAssistant) -> None:
         ("name", "invalid_robot_name")
     ]
     preview = await call(
-        hass, "preview_job", areas=[home["kitchen_area"]], robot_id=home["vacuum"]
+        hass, "preview_job", areas=[home["library_area"]], robot_id=home["vacuum"]
     )
     assert [item["robot_id"] for item in preview["robots"]] == [home["robot"]]
 
-    await call(hass, "release_room", areas=[home["kitchen_area"]], kind="permanent")
+    await call(hass, "release_room", areas=[home["library_area"]], kind="permanent")
     started: list[ServiceCall] = []
 
     async def clean(service: ServiceCall) -> None:
@@ -182,7 +184,7 @@ async def test_actions_name_a_robot_by_its_vacuum(hass: HomeAssistant) -> None:
     await call(
         hass,
         "create_job",
-        areas=[home["kitchen_area"]],
+        areas=[home["library_area"]],
         start=True,
         robot_id=home["vacuum"],
     )

@@ -41,7 +41,7 @@ from custom_components.vacuum_orchestrator.domain.types import (
 )
 
 NOW = datetime(2026, 9, 7, 12, 0, tzinfo=UTC)
-INTENT = JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM)
+INTENT = JobIntent((TargetRef("library"),), CleaningMode.VACUUM)
 
 
 def _queue() -> OrchestratorState:
@@ -159,7 +159,7 @@ def test_strong_completion_finishes_single_unit_job() -> None:
 
 
 def test_two_phase_completion_exposes_next_dependency_satisfied_unit() -> None:
-    intent = JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM_THEN_MOP)
+    intent = JobIntent((TargetRef("library"),), CleaningMode.VACUUM_THEN_MOP)
     prepared, first_id = _prepared(intent)
     state = prepared.mark_command_sent("attempt", NOW)
     state = state.mark_start_confirmed("attempt", NOW)
@@ -234,7 +234,7 @@ def test_active_jobs_cannot_be_edited_moved_or_deleted() -> None:
 
 
 def test_invariants_reject_duplicate_dedupe_key_and_bad_queue() -> None:
-    intent = replace(INTENT, dedupe_key="auto|kitchen")
+    intent = replace(INTENT, dedupe_key="auto|library")
     state = OrchestratorState.empty("installation").add_job("a", intent, NOW)
     with pytest.raises(ConflictError, match="dedupe_key_already_queued"):
         state.add_job("b", intent, NOW)
@@ -342,7 +342,7 @@ def test_failure_and_retry_preconditions_preserve_history() -> None:
 
 def test_a_failed_phase_cancels_the_later_phases() -> None:
     prepared, unit_id = _prepared(
-        JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM_THEN_MOP)
+        JobIntent((TargetRef("library"),), CleaningMode.VACUUM_THEN_MOP)
     )
     failed = prepared.fail_job("a", "attempt", "robot_fault_timeout", NOW)
 
@@ -385,7 +385,7 @@ def test_restart_keeps_watching_sent_and_started_attempts() -> None:
         later,
     )
     assert not watched.needs_attention
-    assert watched.active_target_sets() == (frozenset({"kitchen"}),)
+    assert watched.active_target_sets() == (frozenset({"library"}),)
     assert watched.resolve_interrupted_leases(later + timedelta(minutes=1)) is watched
 
 
@@ -407,7 +407,7 @@ def test_restart_of_a_sent_cancel_needs_attention_once() -> None:
 
     assert blocked.needs_attention
     assert blocked.blocked_robots == {"source": "runtime_interrupted"}
-    assert blocked.active_target_sets() == (frozenset({"kitchen"}),)
+    assert blocked.active_target_sets() == (frozenset({"library"}),)
     assert blocked.resolve_interrupted_leases(NOW) is blocked
 
 

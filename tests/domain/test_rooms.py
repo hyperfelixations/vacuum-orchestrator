@@ -108,7 +108,7 @@ def test_invalid_grants_are_rejected(changes: dict) -> None:
 
 
 def test_derived_completion_keeps_last_confirmed_and_partial_operations() -> None:
-    room = Room("room", "Kitchen", due_policy=DuePolicy(vacuum_seconds=3600))
+    room = Room("room", "Library", due_policy=DuePolicy(vacuum_seconds=3600))
     room = room.apply_receipt(receipt())
     later = receipt(
         "derived", at=NOW + timedelta(minutes=30), quality=CompletionQuality.DERIVED
@@ -127,7 +127,7 @@ def test_derived_completion_keeps_last_confirmed_and_partial_operations() -> Non
 
 
 def test_combined_receipt_advances_both_but_never_moves_time_backwards() -> None:
-    room = Room("room", "Kitchen").apply_receipt(
+    room = Room("room", "Library").apply_receipt(
         receipt(operation=OperationKind.VACUUM_AND_MOP)
     )
     assert set(room.last_cleaning) == {OperationKind.VACUUM, OperationKind.MOP}
@@ -140,7 +140,7 @@ def test_combined_receipt_advances_both_but_never_moves_time_backwards() -> None
 
 
 def test_never_cleaned_and_future_clock_are_explicit() -> None:
-    room = Room("room", "Kitchen", due_policy=DuePolicy(vacuum_seconds=3600))
+    room = Room("room", "Library", due_policy=DuePolicy(vacuum_seconds=3600))
     assert room.due(OperationKind.VACUUM, NOW).reason == "never_cleaned"
     room = room.apply_receipt(receipt())
     assert room.due(OperationKind.VACUUM, NOW).state is DueState.FRESH
@@ -154,7 +154,7 @@ def test_occupied_time_ignores_unoccupied_periods_without_inventing_due_date() -
     counter = OccupancyCounter().advance(NOW, False)
     room = Room(
         "room",
-        "Kitchen",
+        "Library",
         occupancy=counter,
         due_policy=DuePolicy(DueBasis.OCCUPIED, 3600, 7200, "binary_sensor.presence"),
     )
@@ -175,7 +175,7 @@ def test_occupied_time_ignores_unoccupied_periods_without_inventing_due_date() -
 def test_restart_gap_is_unknown_unless_measured_time_already_exceeds_limit() -> None:
     room = Room(
         "room",
-        "Kitchen",
+        "Library",
         occupancy=OccupancyCounter().advance(NOW, True),
         due_policy=DuePolicy(DueBasis.OCCUPIED, 3600, None, "binary_sensor.presence"),
     )
@@ -198,7 +198,7 @@ def test_restart_gap_is_unknown_unless_measured_time_already_exceeds_limit() -> 
 def test_late_receipt_does_not_invent_an_occupancy_baseline() -> None:
     room = Room(
         "room",
-        "Kitchen",
+        "Library",
         occupancy=OccupancyCounter().advance(NOW + timedelta(hours=2), True),
         due_policy=DuePolicy(DueBasis.OCCUPIED, 3600, None, "binary_sensor.presence"),
     )
@@ -321,9 +321,9 @@ def test_admitted_job_survives_expiry_and_consumes_only_its_grant(
         NOW + timedelta(hours=2) if kind is ReleaseKind.TIMED else None,
     )
     registry = RoomRegistry(
-        {"room": Room("room", "Kitchen", area_id="kitchen", release=release)}
+        {"room": Room("room", "Library", area_id="library", release=release)}
     )
-    admitted = registry.admit("job", ("kitchen",), NOW)
+    admitted = registry.admit("job", ("library",), NOW)
     assert admitted.admit("job", ("room",), NOW + timedelta(days=1)) is admitted
     started = admitted.mark_started("job")
     if kind is ReleaseKind.ONCE:
@@ -347,7 +347,7 @@ def test_unstarted_reservation_can_be_released_but_uncertain_start_consumes_it()
     registry = RoomRegistry(
         {
             "room": Room(
-                "room", "Kitchen", release=RoomRelease("grant", ReleaseKind.ONCE, NOW)
+                "room", "Library", release=RoomRelease("grant", ReleaseKind.ONCE, NOW)
             )
         }
     )
@@ -367,7 +367,7 @@ def test_unstarted_reservation_can_be_released_but_uncertain_start_consumes_it()
 
 
 def test_receipt_identity_is_idempotent_and_conflicting_replay_is_rejected() -> None:
-    registry = RoomRegistry({"room": Room("room", "Kitchen")})
+    registry = RoomRegistry({"room": Room("room", "Library")})
     fact = receipt()
     recorded = registry.record(fact)
     assert recorded.record(fact) is recorded
@@ -393,7 +393,7 @@ def test_occupancy_counters_reject_invalid_persisted_values(changes: dict) -> No
 
 
 def test_projection_validation_rejects_wrong_operation_and_false_confirmation() -> None:
-    room = Room("room", "Kitchen").apply_receipt(receipt())
+    room = Room("room", "Library").apply_receipt(receipt())
     stamp = room.last_cleaning[OperationKind.VACUUM]
     with pytest.raises(ValidationError, match="invalid_cleaning_projection"):
         replace(room, last_cleaning={OperationKind.VACUUM_AND_MOP: stamp})

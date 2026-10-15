@@ -385,7 +385,7 @@ def test_own_codes_and_known_vendor_values_stay_readable() -> None:
     assert LoggingSink().sanitize({"reason": "returning_home"})["reason"] == (
         "redacted"
     )
-    assert sink.sanitize({"reason": "Kitchen door"})["reason"] == "redacted"
+    assert sink.sanitize({"reason": "Library door"})["reason"] == "redacted"
 
 
 def test_phase_changes_are_never_folded_into_repetitions(caplog) -> None:
@@ -415,7 +415,7 @@ def test_unknown_observation_facts_stay_visible_as_none() -> None:
             "event": "robot_observation",
             "cleaning_active": None,
             "normal_end": False,
-            "faults": "water_empty:station_mop:dock,Kitchen:general:robot",
+            "faults": "water_empty:station_mop:dock,Library:general:robot",
         }
     )
     assert clean["cleaning_active"] is None and clean["normal_end"] is False

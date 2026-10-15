@@ -81,9 +81,9 @@ def test_choosing_rooms_explicitly_ends_the_all_rooms_choice() -> None:
     everything = replace(_intent(), all_rooms=True)
 
     assert JobIntentPatch(passes=2).apply(everything).all_rooms
-    assert not JobIntentPatch(areas=(TargetRef("hall"),)).apply(everything).all_rooms
+    assert not JobIntentPatch(areas=(TargetRef("studio"),)).apply(everything).all_rooms
     assert (
-        JobIntentPatch(areas=(TargetRef("hall"),), all_rooms=True)
+        JobIntentPatch(areas=(TargetRef("studio"),), all_rooms=True)
         .apply(everything)
         .all_rooms
     )
@@ -91,7 +91,7 @@ def test_choosing_rooms_explicitly_ends_the_all_rooms_choice() -> None:
 
 async def test_template_jobs_and_due_jobs_name_their_template() -> None:
     core = await setup_due()
-    manual = await core.templates.async_save("Manual", _intent("hall"))
+    manual = await core.templates.async_save("Manual", _intent("studio"))
     rule = await core.templates.async_save(
         "Rule", replace(_intent(), reason="weekly"), automatic=True
     )
@@ -118,7 +118,7 @@ async def test_template_jobs_and_due_jobs_name_their_template() -> None:
 async def test_job_saved_as_template_keeps_what_was_cleaned_and_how() -> None:
     core = await setup_due()
     intent = JobIntent(
-        (TargetRef("kitchen"), TargetRef("hall")),
+        (TargetRef("library"), TargetRef("studio")),
         CleaningMode.MOP,
         name="Evening",
         preferences=CleaningPreferences(None, WaterLevel.HIGH, MopRoute.DEEP),

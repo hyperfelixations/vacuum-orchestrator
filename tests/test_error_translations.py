@@ -199,7 +199,7 @@ async def test_websocket_errors_use_the_same_translation_fields(
         "field": "",
     }
     located = service_error(
-        ValidationError("duplicate_room", "bath").within("grants", 1, "room")
+        ValidationError("duplicate_room", "conservatory").within("grants", 1, "room")
     )
     assert located.translation_placeholders["field"] == "grants.1.room"
 

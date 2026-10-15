@@ -45,12 +45,12 @@ async def setup_run():
 
 async def test_blocked_pending_jobs_do_not_keep_run_open_and_only_run_grants_expire():
     core, _, now = await setup_run()
-    await core.rooms.async_grant("kitchen", ReleaseKind.QUEUE_RUN)
-    await core.rooms.async_revoke("hall")
-    job = await core.async_create_job(_intent(area="hall"))
+    await core.rooms.async_grant("library", ReleaseKind.QUEUE_RUN)
+    await core.rooms.async_revoke("studio")
+    job = await core.async_create_job(_intent(area="studio"))
     await core.async_run_queue()
     run = core.state.queue_run
-    assert core.rooms.registry.resolve("kitchen").release.queue_run_id == run.run_id
+    assert core.rooms.registry.resolve("library").release.queue_run_id == run.run_id
     await core.async_reconcile_queue_run()
     assert core.state.queue_run.deadline == NOW + timedelta(minutes=15)
     assert (
@@ -63,23 +63,23 @@ async def test_blocked_pending_jobs_do_not_keep_run_open_and_only_run_grants_exp
     await core.async_reconcile_queue_run()
     assert not core.state.queue_run.active
     assert core.state.mode is QueueMode.IDLE and core.state.queue == (job,)
-    assert core.rooms.registry.resolve("kitchen").release is None
+    assert core.rooms.registry.resolve("library").release is None
     await core.async_run_queue()
     assert core.state.queue_run.run_id != run.run_id
 
 
 async def test_readiness_change_clears_idle_window_and_pause_preserves_run():
     core, _, now = await setup_run()
-    await core.rooms.async_revoke("kitchen")
+    await core.rooms.async_revoke("library")
     job = await core.async_create_job(_intent())
     await core.async_run_queue()
     await core.async_reconcile_queue_run()
     run_id = core.state.queue_run.run_id
     now[0] += timedelta(minutes=14)
-    await core.rooms.async_grant("kitchen", ReleaseKind.QUEUE_RUN)
+    await core.rooms.async_grant("library", ReleaseKind.QUEUE_RUN)
     await core.async_reconcile_queue_run()
     assert core.state.queue_run.idle_since is None
-    assert core.rooms.registry.resolve("kitchen").release.queue_run_id == run_id
+    assert core.rooms.registry.resolve("library").release.queue_run_id == run_id
     await core.async_set_queue_mode(QueueMode.PAUSED)
     now[0] += timedelta(hours=1)
     await core.async_reconcile_queue_run()
@@ -95,7 +95,7 @@ async def test_readiness_change_clears_idle_window_and_pause_preserves_run():
 
 async def test_started_phases_and_uncertain_ownership_prevent_run_completion():
     core, adapter, now = await setup_run()
-    await core.rooms.async_grant("kitchen", ReleaseKind.QUEUE_RUN)
+    await core.rooms.async_grant("library", ReleaseKind.QUEUE_RUN)
     job = await core.async_create_job(_intent(mode=CleaningMode.VACUUM_THEN_MOP))
     await core.async_run_queue()
     attempt = core.state.jobs[job].active_attempt_id
@@ -119,7 +119,7 @@ async def test_started_phases_and_uncertain_ownership_prevent_run_completion():
 
 async def test_new_work_joins_same_run_and_superseding_permanent_grant_survives():
     core, _, now = await setup_run()
-    await core.rooms.async_grant("kitchen", ReleaseKind.QUEUE_RUN)
+    await core.rooms.async_grant("library", ReleaseKind.QUEUE_RUN)
     await core.async_run_queue()
     await core.async_reconcile_queue_run()
     run_id = core.state.queue_run.run_id
@@ -130,12 +130,12 @@ async def test_new_work_joins_same_run_and_superseding_permanent_grant_survives(
         core.state.queue_run.run_id == run_id
         and core.state.queue_run.idle_since is None
     )
-    await core.rooms.async_grant("kitchen", ReleaseKind.PERMANENT)
+    await core.rooms.async_grant("library", ReleaseKind.PERMANENT)
     await core.async_cancel_job(core.state.queue[0])
     await core.async_reconcile_queue_run()
     now[0] += timedelta(minutes=15)
     await core.async_reconcile_queue_run()
-    assert core.rooms.registry.resolve("kitchen").release.kind is ReleaseKind.PERMANENT
+    assert core.rooms.registry.resolve("library").release.kind is ReleaseKind.PERMANENT
 
 
 async def test_immediate_run_end_is_optional_and_grace_changes_apply_to_next_run():
@@ -168,9 +168,9 @@ def test_invalid_queue_run_time_contracts_are_rejected(changes):
 
 async def test_idle_grace_and_grants_survive_restart_with_pending_blocked_work():
     core, adapter, _ = await setup_run()
-    await core.rooms.async_grant("kitchen", ReleaseKind.QUEUE_RUN)
-    await core.rooms.async_revoke("hall")
-    job = await core.async_create_job(_intent(area="hall"))
+    await core.rooms.async_grant("library", ReleaseKind.QUEUE_RUN)
+    await core.rooms.async_revoke("studio")
+    job = await core.async_create_job(_intent(area="studio"))
     await core.async_run_queue()
     await core.async_reconcile_queue_run()
     run_id = core.state.queue_run.run_id
@@ -181,7 +181,7 @@ async def test_idle_grace_and_grants_survive_restart_with_pending_blocked_work()
     await reloaded.async_reconcile_queue_run()
     assert reloaded.state.mode is QueueMode.IDLE
     assert reloaded.state.queue == (job,)
-    assert reloaded.rooms.registry.resolve("kitchen").release is None
+    assert reloaded.rooms.registry.resolve("library").release is None
 
 
 async def test_unavailable_robot_does_not_keep_unstarted_run_open():
@@ -189,7 +189,7 @@ async def test_unavailable_robot_does_not_keep_unstarted_run_open():
     adapter.observation = replace(
         adapter.observation, state=RobotAvailabilityState.UNKNOWN
     )
-    await core.rooms.async_grant("kitchen", ReleaseKind.QUEUE_RUN)
+    await core.rooms.async_grant("library", ReleaseKind.QUEUE_RUN)
     job = await core.async_create_job(_intent())
     await core.async_run_queue()
     await core.async_reconcile_queue_run()
@@ -215,12 +215,12 @@ async def test_the_run_phase_tells_pending_from_blocked_and_started_work():
     assert core.state.queue_run.idle_since is None
 
     await core.async_release_job_hold(hold.hold_id)
-    await core.rooms.async_revoke("kitchen")
+    await core.rooms.async_revoke("library")
     assert core.run_phase() is RunPhase.STANDBY
     await core.async_reconcile_queue_run()
     assert core.state.queue_run.idle_since == now[0]
 
-    await core.rooms.async_grant("kitchen", ReleaseKind.PERMANENT)
+    await core.rooms.async_grant("library", ReleaseKind.PERMANENT)
     await core.async_start_job(delayed)
     assert core.run_phase() is RunPhase.ACTIVE
     await core.async_set_queue_mode(QueueMode.PAUSED)

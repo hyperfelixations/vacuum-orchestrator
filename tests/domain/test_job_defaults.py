@@ -42,7 +42,7 @@ from custom_components.vacuum_orchestrator.domain.types import (
 from tests.domain.test_planning import _profile
 
 NOW = datetime(2026, 10, 5, 12, tzinfo=UTC)
-KITCHEN = (TargetRef("kitchen"),)
+LIBRARY = (TargetRef("library"),)
 
 
 @pytest.mark.parametrize(
@@ -113,7 +113,7 @@ def test_off_is_internal_and_defaults_are_validated() -> None:
 def test_complete_fills_only_the_settings_the_mode_uses(
     mode: CleaningMode, expected: tuple[object, ...]
 ) -> None:
-    intent = JobIntent(KITCHEN, mode, preferences=CleaningPreferences(VacuumLevel.HIGH))
+    intent = JobIntent(LIBRARY, mode, preferences=CleaningPreferences(VacuumLevel.HIGH))
     completed = JobDefaults().complete(intent)
     preferences = completed.preferences
     assert (
@@ -126,7 +126,7 @@ def test_complete_fills_only_the_settings_the_mode_uses(
 
 def test_irrelevant_settings_are_dropped_from_the_intent() -> None:
     intent = JobIntent(
-        KITCHEN,
+        LIBRARY,
         CleaningMode.VACUUM,
         preferences=CleaningPreferences(
             VacuumLevel.LOW, WaterLevel.HIGH, MopRoute.DEEP
@@ -137,7 +137,7 @@ def test_irrelevant_settings_are_dropped_from_the_intent() -> None:
 
 def test_queue_copies_defaults_at_creation_and_changes_never_reach_old_jobs() -> None:
     state = OrchestratorState.empty("installation")
-    state = state.add_job("a", JobIntent(KITCHEN, CleaningMode.MOP), NOW)
+    state = state.add_job("a", JobIntent(LIBRARY, CleaningMode.MOP), NOW)
     assert state.jobs["a"].intent.preferences == CleaningPreferences(
         None, WaterLevel.MEDIUM, MopRoute.STANDARD
     )
@@ -148,7 +148,7 @@ def test_queue_copies_defaults_at_creation_and_changes_never_reach_old_jobs() ->
             mop_intensity=WaterLevel.HIGH, mop_route=MopRoute.DEEP, configured=True
         ),
     )
-    state = state.add_job("b", JobIntent(KITCHEN, CleaningMode.MOP), NOW)
+    state = state.add_job("b", JobIntent(LIBRARY, CleaningMode.MOP), NOW)
 
     assert state.jobs["a"].intent.preferences.mop_intensity is WaterLevel.MEDIUM
     assert state.jobs["b"].intent.preferences == CleaningPreferences(
@@ -160,7 +160,7 @@ def test_mode_change_fills_newly_used_settings_and_drops_the_rest() -> None:
     state = OrchestratorState.empty("installation").add_job(
         "a",
         JobIntent(
-            KITCHEN,
+            LIBRARY,
             CleaningMode.VACUUM,
             preferences=CleaningPreferences(VacuumLevel.MAXIMUM),
         ),
@@ -181,7 +181,7 @@ def test_mode_change_fills_newly_used_settings_and_drops_the_rest() -> None:
 
 def test_retry_keeps_the_copied_settings() -> None:
     intent = JobIntent(
-        KITCHEN, CleaningMode.VACUUM, preferences=CleaningPreferences(VacuumLevel.HIGH)
+        LIBRARY, CleaningMode.VACUUM, preferences=CleaningPreferences(VacuumLevel.HIGH)
     )
     state = OrchestratorState.empty("installation").add_job("a", intent, NOW)
     job = state.jobs["a"]
@@ -218,7 +218,7 @@ def test_records_without_settings_use_the_current_defaults() -> None:
             vacuum_levels=frozenset(VACUUM_LADDER),
         ),
     )
-    unit = Planner().create_plan("job", JobIntent(KITCHEN, CleaningMode.VACUUM))
+    unit = Planner().create_plan("job", JobIntent(LIBRARY, CleaningMode.VACUUM))
     assignment = _assign(
         unit.work_units[0], profile, JobDefaults(vacuum_power=VacuumLevel.MAXIMUM)
     )
@@ -238,7 +238,7 @@ def test_strict_policy_never_substitutes_and_unbound_setting_is_not_applicable()
         ),
     )
     intent = JobIntent(
-        KITCHEN,
+        LIBRARY,
         CleaningMode.VACUUM_AND_MOP,
         preferences=CleaningPreferences(
             VacuumLevel.HIGH, WaterLevel.HIGH, MopRoute.FAST
@@ -266,6 +266,6 @@ def test_unusable_setting_entity_blocks_every_policy() -> None:
             unavailable_settings=frozenset({"vacuum_power"}),
         ),
     )
-    unit = Planner().create_plan("job", JobIntent(KITCHEN, CleaningMode.VACUUM))
+    unit = Planner().create_plan("job", JobIntent(LIBRARY, CleaningMode.VACUUM))
     with pytest.raises(PlanningError, match="setting_entity_unavailable"):
         _assign(unit.work_units[0], profile)

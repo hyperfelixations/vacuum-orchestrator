@@ -48,7 +48,7 @@ def _profile(robot_id: str = "robot-a", *, preference: int = 0) -> RobotProfile:
         revision=f"caps-{robot_id}",
         operations=frozenset(OperationKind),
         area_addressing=AreaAddressing.HOME_ASSISTANT_AREA,
-        target_map={"kitchen": "16", "hall": "17"},
+        target_map={"library": "16", "studio": "17"},
         map_context="main",
         passes=PassCapability(3, PassScope.TARGET_SET),
         vacuum_levels=frozenset({VacuumLevel.HIGH}),
@@ -88,18 +88,18 @@ def test_planner_preserves_four_mode_semantics(
 ) -> None:
     plan = Planner().create_plan(
         "job",
-        JobIntent((TargetRef("kitchen", "main"),), mode, passes=2),
+        JobIntent((TargetRef("library", "main"),), mode, passes=2),
     )
 
     assert tuple(unit.operation for unit in plan.work_units) == operations
-    assert plan.work_units[0].canonical_targets == ("kitchen",)
+    assert plan.work_units[0].canonical_targets == ("library",)
     assert plan.work_units[0].pass_scope is PassScope.TARGET_SET
     if len(plan.work_units) == 2:
         assert plan.work_units[1].depends_on == (plan.work_units[0].work_unit_id,)
 
 
 def test_plan_is_identical_regardless_of_robot_pool() -> None:
-    intent = JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM)
+    intent = JobIntent((TargetRef("library"),), CleaningMode.VACUUM)
     plan = Planner().create_plan("job", intent)
 
     assert not hasattr(plan.work_units[0], "robot_id")
@@ -108,7 +108,7 @@ def test_plan_is_identical_regardless_of_robot_pool() -> None:
 def test_selector_chooses_best_available_robot_and_honors_explicit_choice() -> None:
     unit = (
         Planner()
-        .create_plan("job", JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM))
+        .create_plan("job", JobIntent((TargetRef("library"),), CleaningMode.VACUUM))
         .work_units[0]
     )
     low = _profile("low")
@@ -136,7 +136,7 @@ def test_selector_enforces_availability_overlap_and_one_job_per_robot() -> None:
     profile = _profile()
     unit = (
         Planner()
-        .create_plan("job", JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM))
+        .create_plan("job", JobIntent((TargetRef("library"),), CleaningMode.VACUUM))
         .work_units[0]
     )
     observation = RobotObservation(
@@ -166,14 +166,14 @@ def test_selector_enforces_availability_overlap_and_one_job_per_robot() -> None:
             },
             {},
             frozenset(),
-            (frozenset({"kitchen"}),),
+            (frozenset({"library"}),),
         )
 
 
 def test_best_effort_substitutes_nearest_setting_but_strict_rejects() -> None:
     profile = _profile()
     intent = JobIntent(
-        (TargetRef("kitchen"),),
+        (TargetRef("library"),),
         CleaningMode.VACUUM,
         preferences=CleaningPreferences(vacuum_power=VacuumLevel.MAXIMUM),
     )
@@ -202,7 +202,7 @@ def test_capability_revision_is_fenced_and_errors_are_explainable() -> None:
     profile = _profile()
     unit = (
         Planner()
-        .create_plan("job", JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM))
+        .create_plan("job", JobIntent((TargetRef("library"),), CleaningMode.VACUUM))
         .work_units[0]
     )
     observation = RobotObservation(
@@ -257,7 +257,7 @@ def test_selector_reports_each_capability_and_ownership_blocker() -> None:
     unit = (
         Planner()
         .create_plan(
-            "job", JobIntent((TargetRef("kitchen", "main"),), CleaningMode.VACUUM)
+            "job", JobIntent((TargetRef("library", "main"),), CleaningMode.VACUUM)
         )
         .work_units[0]
     )
@@ -440,7 +440,7 @@ def test_selector_applies_supported_preferences_and_validates_observation() -> N
         .create_plan(
             "job",
             JobIntent(
-                (TargetRef("kitchen"),),
+                (TargetRef("library"),),
                 CleaningMode.VACUUM_AND_MOP,
                 preferences=CleaningPreferences(
                     vacuum_power=VacuumLevel.HIGH,
@@ -504,7 +504,7 @@ def test_phase_only_applies_relevant_preferences(
         .create_plan(
             "job",
             JobIntent(
-                (TargetRef("kitchen"),),
+                (TargetRef("library"),),
                 CleaningMode.VACUUM_THEN_MOP,
                 preferences=CleaningPreferences(
                     VacuumLevel.HIGH, WaterLevel.HIGH, MopRoute.DEEP
@@ -541,7 +541,7 @@ def test_supported_preferences_outrank_preferred_robot_and_battery_minimum_block
         .create_plan(
             "job",
             JobIntent(
-                (TargetRef("kitchen"),),
+                (TargetRef("library"),),
                 CleaningMode.VACUUM,
                 preferences=CleaningPreferences(vacuum_power=VacuumLevel.HIGH),
             ),

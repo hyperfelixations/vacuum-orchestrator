@@ -86,7 +86,7 @@ async def test_a_robot_resting_at_the_deadline_fails_the_job_and_is_free(
     assert attempt.state is AttemptState.FAILED
     assert core.state.robot_leases == {}
     assert core.state.blocked_robots == {}
-    assert core.state.room_registry.rooms["kitchen"].last_cleaning == {}
+    assert core.state.room_registry.rooms["library"].last_cleaning == {}
 
 
 async def test_a_robot_still_faulted_at_the_deadline_needs_recovery(

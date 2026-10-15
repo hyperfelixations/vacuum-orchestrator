@@ -52,8 +52,8 @@ def rich_registry(kind: ReleaseKind = ReleaseKind.ONCE) -> RoomRegistry:
     )
     room = Room(
         "room",
-        "Kitchen",
-        area_id="kitchen",
+        "Library",
+        area_id="library",
         floor_id="ground",
         bindings=(RoomBinding("robot", ("1", "2"), "map"),),
         requirements=(
@@ -125,7 +125,7 @@ def test_forged_cleaning_projection_is_rejected() -> None:
 
 def test_evidence_upgrade_preserves_occupied_time_baseline() -> None:
     initial = replace(receipt(), quality=CompletionQuality.DERIVED)
-    room = Room("room", "Kitchen", occupancy=OccupancyCounter().advance(NOW, True))
+    room = Room("room", "Library", occupancy=OccupancyCounter().advance(NOW, True))
     registry = RoomRegistry({"room": room}).record(initial)
     later = replace(
         registry.rooms["room"],
@@ -162,8 +162,8 @@ async def test_v2_import_preserves_source_and_does_not_grant_rooms() -> None:
 
     assert imported.jobs == old_state.jobs
     assert imported.queue == old_state.queue
-    assert imported.room_registry.rooms["kitchen"].release is None
-    assert imported.room_registry.rooms["kitchen"].area_missing
+    assert imported.room_registry.rooms["library"].release is None
+    assert imported.room_registry.rooms["library"].area_missing
     assert old.data == original
     old.data = {"invalid": True}
     assert await repository.async_load() == imported

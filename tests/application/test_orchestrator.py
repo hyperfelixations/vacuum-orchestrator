@@ -97,7 +97,7 @@ class RecordingAdapter:
         robot_id: str,
         *,
         preference: int = 0,
-        targets: tuple[str, ...] = ("kitchen", "hall"),
+        targets: tuple[str, ...] = ("library", "studio"),
     ) -> None:
         capabilities = RobotCapabilities(
             revision=f"caps-{robot_id}",
@@ -217,7 +217,7 @@ class DoubleFailureAdapter(RecordingAdapter):
 
 
 def _intent(
-    area: str = "kitchen", mode: CleaningMode = CleaningMode.VACUUM
+    area: str = "library", mode: CleaningMode = CleaningMode.VACUUM
 ) -> JobIntent:
     return JobIntent((TargetRef(area),), mode)
 
@@ -237,7 +237,7 @@ async def _orchestrator(
                 area_id=name,
                 release=RoomRelease(f"grant-{name}", ReleaseKind.PERMANENT, NOW),
             )
-            for name in (("kitchen", "hall") if seed_rooms else ())
+            for name in (("library", "studio") if seed_rooms else ())
         }
         await CriticalOrchestratorRepository(backend).async_commit(
             replace(
@@ -341,16 +341,16 @@ async def test_run_queue_dispatches_non_overlapping_jobs_to_distinct_robots() ->
     first = RecordingAdapter(backend, "first")
     second = RecordingAdapter(backend, "second")
     orchestrator = await _orchestrator(backend, first, second)
-    kitchen = await orchestrator.async_create_job(_intent("kitchen"))
-    hall = await orchestrator.async_create_job(_intent("hall"))
+    library = await orchestrator.async_create_job(_intent("library"))
+    studio = await orchestrator.async_create_job(_intent("studio"))
 
     assignments = await orchestrator.async_run_queue()
 
     assert len(assignments) == 2
     assert {item.robot_id for item in assignments} == {"first", "second"}
     assert orchestrator.state.queue == ()
-    assert orchestrator.state.jobs[kitchen].state is JobState.RUNNING
-    assert orchestrator.state.jobs[hall].state is JobState.RUNNING
+    assert orchestrator.state.jobs[library].state is JobState.RUNNING
+    assert orchestrator.state.jobs[studio].state is JobState.RUNNING
 
 
 async def test_overlapping_job_remains_queued_until_area_is_free() -> None:
@@ -372,8 +372,8 @@ async def test_observation_completes_job_and_automatically_dispatches_next() -> 
     backend = RecordingBackend()
     adapter = RecordingAdapter(backend, "robot")
     orchestrator = await _orchestrator(backend, adapter)
-    first = await orchestrator.async_create_job(_intent("kitchen"))
-    second = await orchestrator.async_create_job(_intent("hall"))
+    first = await orchestrator.async_create_job(_intent("library"))
+    second = await orchestrator.async_create_job(_intent("studio"))
     await orchestrator.async_run_queue()
     attempt_id = orchestrator.state.jobs[first].active_attempt_id
     assert attempt_id is not None
@@ -468,14 +468,14 @@ async def test_physical_failure_isolates_only_affected_robot() -> None:
     healthy = RecordingAdapter(backend, "healthy")
     broken.fail_dispatch = True
     orchestrator = await _orchestrator(backend, broken, healthy)
-    failed_job = await orchestrator.async_create_job(_intent("kitchen"))
+    failed_job = await orchestrator.async_create_job(_intent("library"))
 
     with pytest.raises(RuntimeError, match="dispatch uncertainty"):
         await orchestrator.async_start_job(failed_job)
 
     assert orchestrator.state.jobs[failed_job].state is JobState.NEEDS_ATTENTION
     assert orchestrator.state.blocked_robots == {"source-broken": "dispatch_failed"}
-    healthy_job = await orchestrator.async_create_job(_intent("hall"))
+    healthy_job = await orchestrator.async_create_job(_intent("studio"))
     assert (await orchestrator.async_start_job(healthy_job)).robot_id == "healthy"
 
 
@@ -501,7 +501,7 @@ async def test_simple_job_commands_need_no_public_revision() -> None:
     adapter = RecordingAdapter(backend, "robot")
     orchestrator = await _orchestrator(backend, adapter)
     first = await orchestrator.async_create_job(_intent())
-    second = await orchestrator.async_create_job(_intent("hall"))
+    second = await orchestrator.async_create_job(_intent("studio"))
 
     await orchestrator.async_update_job(first, JobIntentPatch(note="edited"))
     await orchestrator.async_move_job(second, MoveDirection.TOP)
@@ -601,7 +601,7 @@ async def test_direct_observation_commands_complete_and_confirm_cancel() -> None
     )
     assert orchestrator.state.jobs[job_id].state is JobState.COMPLETED
 
-    cancel_id = await orchestrator.async_create_job(_intent("hall"))
+    cancel_id = await orchestrator.async_create_job(_intent("studio"))
     await orchestrator.async_start_job(cancel_id)
     await orchestrator.async_cancel_job(cancel_id)
     await orchestrator.async_confirm_cancel(cancel_id)

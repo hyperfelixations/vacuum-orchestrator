@@ -38,7 +38,7 @@ from tests.application.test_orchestrator import (
 async def setup_due(*adapters):
     backend = adapters[0]._backend if adapters else RecordingBackend()
     core = await _orchestrator(backend, *adapters)
-    for room in ("kitchen", "hall"):
+    for room in ("library", "studio"):
         await core.rooms.async_update(
             room,
             lambda room: replace(
@@ -83,7 +83,7 @@ async def test_concurrent_wakeups_and_templates_do_not_duplicate_room_demand():
     core = await setup_due()
     key = await core.templates.async_save(
         "Both rooms",
-        JobIntent((TargetRef("kitchen"), TargetRef("hall")), CleaningMode.VACUUM),
+        JobIntent((TargetRef("library"), TargetRef("studio")), CleaningMode.VACUUM),
         automatic=True,
     )
     await core.templates.async_save("Other rule", _intent(), automatic=True)
@@ -118,7 +118,7 @@ async def test_failed_automatic_job_stays_suppressed_until_cleaning_or_explicit_
     adapter = RecordingAdapter(backend, "robot")
     core = await _orchestrator(backend, adapter)
     await core.rooms.async_update(
-        "kitchen", lambda room: replace(room, due_policy=DuePolicy(vacuum_seconds=3600))
+        "library", lambda room: replace(room, due_policy=DuePolicy(vacuum_seconds=3600))
     )
     key = await core.templates.async_save("Rule", _intent(), automatic=True)
     await core.templates.async_generate_due()
@@ -138,7 +138,7 @@ async def test_failed_automatic_job_stays_suppressed_until_cleaning_or_explicit_
             "fresh",
             CleaningSource.EXTERNAL,
             "external",
-            ("kitchen",),
+            ("library",),
             OperationKind.VACUUM,
             NOW,
             CompletionQuality.CONFIRMED,
@@ -154,7 +154,7 @@ async def test_failed_automatic_job_stays_suppressed_until_cleaning_or_explicit_
 
 async def test_excluded_rooms_and_unknown_due_do_not_create_work():
     core = await setup_due()
-    await core.rooms.async_disable("kitchen")
+    await core.rooms.async_disable("library")
     await core.templates.async_save("Rule", _intent(), automatic=True)
     await core.templates.async_generate_due()
     assert not core.state.jobs

@@ -80,7 +80,7 @@ async def test_robot_subentry_persists_stable_registry_identity(
     )
     result = await hass.config_entries.subentries.async_configure(
         result["flow_id"],
-        {CONF_ROBOT_ENTITY_ID: entity.entity_id, CONF_TARGET_AREAS: ["kitchen"]},
+        {CONF_ROBOT_ENTITY_ID: entity.entity_id, CONF_TARGET_AREAS: ["library"]},
     )
 
     assert result["type"] == "create_entry"
@@ -108,7 +108,7 @@ async def test_robot_subentry_rejects_wrong_or_missing_entity(
         )
         result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
-            {CONF_ROBOT_ENTITY_ID: entity_id, CONF_TARGET_AREAS: ["kitchen"]},
+            {CONF_ROBOT_ENTITY_ID: entity_id, CONF_TARGET_AREAS: ["library"]},
         )
         assert result["errors"] == {CONF_ROBOT_ENTITY_ID: expected}
 
@@ -198,7 +198,7 @@ async def test_minor_two_migration_follows_the_ha_mapping_where_lists_restrict_n
     registry.async_update_entity_options(
         vacuum.entity_id,
         "vacuum",
-        {"area_mapping": {"kitchen": ["16"], "hall": ["17", "18"]}},
+        {"area_mapping": {"library": ["16"], "studio": ["17", "18"]}},
     )
     unmapped = registry.async_get_or_create("vacuum", "demo", "unmapped")
     entry = MockConfigEntry(
@@ -206,10 +206,10 @@ async def test_minor_two_migration_follows_the_ha_mapping_where_lists_restrict_n
     )
     entry.add_to_hass(hass)
     lists = {
-        "copy": ["hall", "kitchen"],
-        "copy_with_removed_area": ["kitchen", "hall", "cellar"],
+        "copy": ["studio", "library"],
+        "copy_with_removed_area": ["library", "studio", "cellar"],
         "empty": [],
-        "restriction": ["kitchen"],
+        "restriction": ["library"],
     }
     for unique_id, targets in lists.items():
         hass.config_entries.async_add_subentry(
@@ -235,7 +235,7 @@ async def test_minor_two_migration_follows_the_ha_mapping_where_lists_restrict_n
             entry,
             ConfigSubentry(
                 data=MappingProxyType(
-                    {CONF_ROBOT_ENTITY_ID: entity_id, CONF_TARGET_AREAS: ["kitchen"]}
+                    {CONF_ROBOT_ENTITY_ID: entity_id, CONF_TARGET_AREAS: ["library"]}
                 ),
                 subentry_type=SUBENTRY_TYPE_ROBOT,
                 title=unique_id,
@@ -253,9 +253,9 @@ async def test_minor_two_migration_follows_the_ha_mapping_where_lists_restrict_n
         "copy": None,
         "copy_with_removed_area": None,
         "empty": None,
-        "restriction": ["kitchen"],
-        "unregistered": ["kitchen"],
-        "unmapped": ["kitchen"],
+        "restriction": ["library"],
+        "unregistered": ["library"],
+        "unmapped": ["library"],
     }
     assert entry.minor_version == 2
 
@@ -290,13 +290,13 @@ async def test_reconfigure_tracks_renames_and_blocks_active_robot(
     )
     result = await hass.config_entries.subentries.async_configure(
         flow["flow_id"],
-        {CONF_ROBOT_ENTITY_ID: "vacuum.renamed", CONF_TARGET_AREAS: ["kitchen"]},
+        {CONF_ROBOT_ENTITY_ID: "vacuum.renamed", CONF_TARGET_AREAS: ["library"]},
     )
     assert result["errors"] == {CONF_ROBOT_ENTITY_ID: "robot_busy"}
     entry.runtime_data.orchestrator.state.robot_leases.clear()
     result = await hass.config_entries.subentries.async_configure(
         flow["flow_id"],
-        {CONF_ROBOT_ENTITY_ID: "vacuum.renamed", CONF_TARGET_AREAS: ["kitchen"]},
+        {CONF_ROBOT_ENTITY_ID: "vacuum.renamed", CONF_TARGET_AREAS: ["library"]},
     )
     assert result["type"] == "abort"
     assert result["reason"] == "reconfigure_successful"

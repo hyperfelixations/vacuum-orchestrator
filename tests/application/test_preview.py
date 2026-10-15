@@ -43,14 +43,14 @@ async def _fleet():
     first = _robot(
         backend,
         "a",
-        ("kitchen", "hall"),
+        ("library", "studio"),
         vacuum=(VacuumLevel.LOW, VacuumLevel.STANDARD, VacuumLevel.HIGH),
         water=(WaterLevel.MEDIUM,),
     )
     second = _robot(
         backend,
         "b",
-        ("kitchen",),
+        ("library",),
         vacuum=(VacuumLevel.STANDARD, VacuumLevel.MAXIMUM),
         water=(WaterLevel.LOW, WaterLevel.MEDIUM, WaterLevel.HIGH),
         routes=(MopRoute.FAST, MopRoute.STANDARD),
@@ -85,7 +85,7 @@ async def test_rooms_narrow_options_and_unsupported_wishes_stay_requested():
     core, first, _second = await _fleet()
     before = core.state.commit_id
     intent = JobIntent(
-        (TargetRef("hall"),),
+        (TargetRef("studio"),),
         CleaningMode.VACUUM,
         preferences=CleaningPreferences(VacuumLevel.MAXIMUM),
     )
@@ -96,17 +96,17 @@ async def test_rooms_narrow_options_and_unsupported_wishes_stay_requested():
     assert _options(choice) == {"low": True, "standard": True, "high": True}
     assert choice.requested == "maximum"
     assert preview.reason is None and preview.unreachable_room_ids == ()
-    hall = {item.robot_id: item for item in preview.robots}
-    assert hall["a"].reason is None
-    assert hall["a"].settings.settings[0].applied == "high"
-    assert hall["b"].reason == "unmapped_target"
+    studio = {item.robot_id: item for item in preview.robots}
+    assert studio["a"].reason is None
+    assert studio["a"].settings.settings[0].applied == "high"
+    assert studio["b"].reason == "unmapped_target"
     assert core.state.commit_id == before and not first.dispatches
 
 
 async def test_two_phase_draft_lists_every_setting_and_robot_per_phase():
     core, _first, _second = await _fleet()
     await core.async_configure_job_defaults({"mop_route": MopRoute.DEEP})
-    intent = JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM_THEN_MOP)
+    intent = JobIntent((TargetRef("library"),), CleaningMode.VACUUM_THEN_MOP)
 
     preview = await preview_job(core, intent.mode, intent.preferences, intent)
 
@@ -129,7 +129,7 @@ async def test_two_phase_draft_lists_every_setting_and_robot_per_phase():
 
 async def test_no_capable_robot_offers_the_full_ladder_without_support():
     backend = RecordingBackend()
-    core = await _orchestrator(backend, _robot(backend, "a", ("kitchen",)))
+    core = await _orchestrator(backend, _robot(backend, "a", ("library",)))
 
     preview = await preview_job(core, CleaningMode.MOP, CleaningPreferences())
 
@@ -144,7 +144,7 @@ async def test_no_capable_robot_offers_the_full_ladder_without_support():
 async def test_rooms_no_robot_reaches_are_named_and_do_not_narrow_options():
     core, _first, _second = await _fleet()
     attic = await core.rooms.async_create("Attic")
-    intent = JobIntent((TargetRef("kitchen"), TargetRef(attic)), CleaningMode.VACUUM)
+    intent = JobIntent((TargetRef("library"), TargetRef(attic)), CleaningMode.VACUUM)
 
     preview = await preview_job(core, intent.mode, intent.preferences, intent)
 
@@ -161,7 +161,7 @@ async def test_rooms_no_robot_reaches_are_named_and_do_not_narrow_options():
 async def test_start_blockers_match_dispatch():
     core, first, second = await _fleet()
     intent = JobIntent(
-        (TargetRef("kitchen"),),
+        (TargetRef("library"),),
         CleaningMode.VACUUM,
         preferences=CleaningPreferences(VacuumLevel.MAXIMUM),
         settings_policy=SettingsPolicy.STRICT,
@@ -180,7 +180,7 @@ async def test_start_blockers_match_dispatch():
     assert busy.reason == "robot_busy"
     assert {item.reason for item in busy.robots} == {"robot_busy"}
 
-    await core.rooms.async_revoke("kitchen")
+    await core.rooms.async_revoke("library")
     blocked = await preview_job(core, intent.mode, intent.preferences, intent)
     assert blocked.reason == "job_blocked"
     assert {item.reason for item in blocked.robots} == {"room_not_released"}
@@ -188,7 +188,7 @@ async def test_start_blockers_match_dispatch():
 
 async def test_duplicate_dedupe_key_is_reported_not_raised():
     core, _first, _second = await _fleet()
-    intent = JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM, dedupe_key="daily")
+    intent = JobIntent((TargetRef("library"),), CleaningMode.VACUUM, dedupe_key="daily")
     await core.async_create_job(intent)
 
     preview = await preview_job(core, intent.mode, intent.preferences, intent)

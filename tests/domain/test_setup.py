@@ -13,7 +13,7 @@ from custom_components.vacuum_orchestrator.domain.setup import evaluate_setup
 NOW = datetime(2026, 10, 9, 8, tzinfo=UTC)
 ROOMS = RoomRegistry(
     {
-        "kitchen": Room("kitchen", "Kitchen", area_id="kitchen"),
+        "library": Room("library", "Library", area_id="library"),
         "garden": Room("garden", "Garden", area_id="garden"),
         "attic": Room("attic", "Attic", area_id="attic", enabled=False),
     }
@@ -21,10 +21,10 @@ ROOMS = RoomRegistry(
 STATE = replace(OrchestratorState.empty("installation"), room_registry=ROOMS)
 REACH = {
     "robot": (
-        RoomReach("kitchen", ReachStatus.REACHABLE, ("16",)),
+        RoomReach("library", ReachStatus.REACHABLE, ("16",)),
         RoomReach("garden", ReachStatus.AREA_NOT_MAPPED),
     ),
-    "other": (RoomReach("kitchen", ReachStatus.NOT_ON_CURRENT_MAP),),
+    "other": (RoomReach("library", ReachStatus.NOT_ON_CURRENT_MAP),),
 }
 
 
@@ -33,7 +33,7 @@ def test_a_fresh_installation_has_the_assistant_pending_with_its_facts() -> None
 
     assert status.assistant_pending
     assert status.robot_ids == ("robot", "other")
-    assert status.room_ids == ("kitchen", "garden")
+    assert status.room_ids == ("library", "garden")
     assert status.unreachable_room_ids == ("garden",)
     assert not status.defaults_configured
     assert (status.grace_seconds, status.start_delay_seconds) == (900, 5)
@@ -51,4 +51,4 @@ def test_a_finished_setup_is_no_longer_pending_and_nothing_is_mandatory() -> Non
     assert status.completed_at == NOW
     assert status.defaults_configured
     assert status.robot_ids == ()
-    assert status.unreachable_room_ids == ("kitchen", "garden")
+    assert status.unreachable_room_ids == ("library", "garden")

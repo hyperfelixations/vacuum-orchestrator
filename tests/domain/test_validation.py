@@ -72,24 +72,24 @@ def test_value_objects_reject_ambiguous_empty_data() -> None:
 def test_job_rejects_mixed_or_partially_unspecified_map_contexts() -> None:
     with pytest.raises(ValidationError, match="mixed_map_contexts"):
         JobIntent(
-            (TargetRef("kitchen", "ground"), TargetRef("hall", "upper")),
+            (TargetRef("library", "ground"), TargetRef("studio", "upper")),
             CleaningMode.VACUUM,
         )
     with pytest.raises(ValidationError, match="mixed_map_contexts"):
         JobIntent(
-            (TargetRef("kitchen", "ground"), TargetRef("hall")),
+            (TargetRef("library", "ground"), TargetRef("studio")),
             CleaningMode.VACUUM,
         )
 
 
 def test_partial_patch_changes_only_supplied_fields_and_supports_clear() -> None:
     intent = JobIntent(
-        (TargetRef("a"),), CleaningMode.VACUUM, name="Kitchen", note="old"
+        (TargetRef("a"),), CleaningMode.VACUUM, name="Library", note="old"
     )
     changed = JobIntentPatch(note=None, passes=2).apply(intent)
 
     assert changed.note is None
     assert changed.passes == 2
-    assert changed.name == "Kitchen"
+    assert changed.name == "Library"
     with pytest.raises(ValidationError, match="empty_job_update"):
         JobIntentPatch().apply(intent)

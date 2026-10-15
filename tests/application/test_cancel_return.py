@@ -39,7 +39,7 @@ async def test_return_keeps_the_lease_until_the_robot_rests_at_the_dock() -> Non
     adapter = RecordingAdapter(backend, "robot")
     core = await _orchestrator(backend, adapter)
     job = await core.async_create_job(_intent())
-    waiting = await core.async_create_job(_intent("hall"))
+    waiting = await core.async_create_job(_intent("studio"))
     await core.async_start_job(job)
     await core.async_run_queue()
     assert len(adapter.dispatches) == 1
@@ -69,7 +69,7 @@ async def test_staying_frees_the_robot_where_it_rests() -> None:
     adapter = RecordingAdapter(backend, "robot")
     core = await _orchestrator(backend, adapter)
     job = await core.async_create_job(_intent())
-    waiting = await core.async_create_job(_intent("hall"))
+    waiting = await core.async_create_job(_intent("studio"))
     await core.async_start_job(job)
     await core.async_run_queue()
 
@@ -101,7 +101,7 @@ async def test_return_needs_a_robot_that_can_drive_home() -> None:
         await core.async_cancel_job(job, return_to_dock=True)
 
     assert core.state.commit_id == before and adapter.cancel_count == 0
-    queued = await core.async_create_job(_intent("hall"))
+    queued = await core.async_create_job(_intent("studio"))
     await core.async_cancel_job(queued, return_to_dock=True)
     assert core.state.jobs[queued].state is JobState.CANCELLED
 

@@ -78,29 +78,29 @@ async def _core(backend: RecordingBackend, adapter: object) -> VacuumOrchestrato
 async def _started(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> tuple[VacuumOrchestrator, str, RecordingBackend, RoborockAdapter]:
-    """Start a vacuum job in the kitchen with a real Roborock adapter."""
+    """Start a vacuum job in the library with a real Roborock adapter."""
     freezer.move_to(NOW)
     adapter, _inventory, calls = setup_robot(hass)
     await adapter.async_refresh_maps()
     simulate_settings(hass)
     backend = RecordingBackend()
-    kitchen = Room(
-        "kitchen",
-        "Kitchen",
-        area_id="kitchen",
+    library = Room(
+        "library",
+        "Library",
+        area_id="library",
         release=RoomRelease("grant", ReleaseKind.PERMANENT, NOW),
     )
     await CriticalOrchestratorRepository(backend).async_commit(
         replace(
             OrchestratorState.empty("installation"),
-            room_registry=RoomRegistry({"kitchen": kitchen}),
+            room_registry=RoomRegistry({"library": library}),
         ),
         expected_previous_commit_id=-1,
     )
     core = await _core(backend, adapter)
     await core.async_process_robot_observation("robot")
     job_id, _assignment = await core.async_create_and_start_job(
-        JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM)
+        JobIntent((TargetRef("library"),), CleaningMode.VACUUM)
     )
     assert calls
     return core, job_id, backend, adapter
@@ -169,10 +169,10 @@ async def test_a_run_that_returns_home_with_another_mode_setting_completes(
         "quality": "derived",
         "notes": [],
     }
-    stamp = core.state.room_registry.rooms["kitchen"].last_cleaning
+    stamp = core.state.room_registry.rooms["library"].last_cleaning
     assert OperationKind.VACUUM in stamp
     await observe("charging", "off", seconds=30)
-    assert core.state.room_registry.rooms["kitchen"].last_cleaning == stamp
+    assert core.state.room_registry.rooms["library"].last_cleaning == stamp
 
     reloaded = await _core(backend, adapter)
     assert reloaded.state.jobs[job_id].state is JobState.COMPLETED
@@ -202,7 +202,7 @@ async def test_a_mode_changed_while_cleaning_completes_with_what_both_covered(
         OperationKind.VACUUM_AND_MOP,
     )
     (receipt,) = core.state.room_registry.receipts.values()
-    assert (receipt.operation, receipt.room_ids) == (OperationKind.VACUUM, ("kitchen",))
+    assert (receipt.operation, receipt.room_ids) == (OperationKind.VACUUM, ("library",))
     assert receipt.evidence == ("derived_completion", "mode_changed")
     assert present_job_view(core, core.state.jobs[job_id])["completion"] == {
         "quality": "derived",
@@ -224,9 +224,9 @@ async def test_a_run_switched_to_another_operation_completes_without_a_receipt(
 
     assert core.state.jobs[job_id].state is JobState.COMPLETED
     assert core.state.room_registry.receipts == {}
-    assert core.state.room_registry.rooms["kitchen"].last_cleaning == {}
+    assert core.state.room_registry.rooms["library"].last_cleaning == {}
     (run,) = core.state.robot_runs.values()
-    assert (run.operation, run.canonical_targets) == (None, ("kitchen",))
+    assert (run.operation, run.canonical_targets) == (None, ("library",))
     assert core.state.completion(job_id) is not None
     assert core.state.completion(job_id).notes == ("mode_changed",)
     assert not core.state.robot_leases
@@ -287,4 +287,4 @@ async def test_a_recovery_export_shows_its_cause_and_triggering_observation(
     assert window["capacity"] == 512 and window["first_sequence"] == 1
     assert window["last_sequence"] == window["recorded"]
     assert export["diagnostic_version"] == 3
-    assert "kitchen" not in str(export["attempts"])
+    assert "library" not in str(export["attempts"])

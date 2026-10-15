@@ -91,7 +91,7 @@ def legacy_payload(operation_kinds: tuple[str, ...] = ("vacuum",)) -> JsonObject
                 "job_id": "job",
                 "revision": 3,
                 "intent": {
-                    "targets": [{"area_id": "kitchen", "map_context": "ground-floor"}],
+                    "targets": [{"area_id": "library", "map_context": "ground-floor"}],
                     "operations": operations,
                     "requirements": [
                         {"reference": "binary_sensor.door", "expected_state": "on"},
@@ -100,7 +100,7 @@ def legacy_payload(operation_kinds: tuple[str, ...] = ("vacuum",)) -> JsonObject
                             "expected_state": "off",
                         },
                     ],
-                    "idempotency_key": "automatic|kitchen",
+                    "idempotency_key": "automatic|library",
                 },
                 "state": "queued",
                 "created_at": NOW.isoformat(),
@@ -141,7 +141,7 @@ def _legacy_active_payload(attempt_state: str = "command_sent") -> JsonObject:
                 {
                     "work_unit_id": "unit",
                     "operation": operation,
-                    "canonical_targets": ["kitchen"],
+                    "canonical_targets": ["library"],
                     "map_context": "ground-floor",
                     "depends_on": [],
                     "robot_id": "robot",
@@ -185,16 +185,16 @@ def _legacy_active_payload(attempt_state: str = "command_sent") -> JsonObject:
 
 def _state() -> OrchestratorState:
     intent = JobIntent(
-        (TargetRef("kitchen", "main"),),
+        (TargetRef("library", "main"),),
         CleaningMode.VACUUM_AND_MOP,
-        name="Kitchen",
+        name="Library",
         preferences=CleaningPreferences(
             VacuumLevel.HIGH, WaterLevel.MEDIUM, MopRoute.DEEP
         ),
         passes=2,
         reason="dirty",
         note="note",
-        dedupe_key="manual|kitchen",
+        dedupe_key="manual|library",
         required_on=("binary_sensor.door",),
         required_off=("binary_sensor.person",),
         settings_policy=SettingsPolicy.STRICT,
@@ -269,7 +269,7 @@ def _schema_four(state: OrchestratorState) -> dict:
 
 def test_schema_four_jobs_get_no_start_delay_and_installs_the_default() -> None:
     state = replace(_state(), start_delay_seconds=30).add_job(
-        "queued", JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM), NOW
+        "queued", JobIntent((TargetRef("library"),), CleaningMode.VACUUM), NOW
     )
     assert state.jobs["queued"].start_after == NOW + timedelta(seconds=30)
     data = _schema_four(state)
@@ -292,7 +292,7 @@ def test_schema_four_jobs_get_no_start_delay_and_installs_the_default() -> None:
 
 def test_start_delay_start_after_and_holds_round_trip_and_are_required() -> None:
     state = replace(_state(), start_delay_seconds=0.5).add_job(
-        "queued", JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM), NOW
+        "queued", JobIntent((TargetRef("library"),), CleaningMode.VACUUM), NOW
     )
     state = state.hold_job(
         JobHold("hold", "queued", HoldPurpose.CONFIRM, NOW, lease_end(NOW)), NOW
@@ -338,14 +338,14 @@ def _schema_three(state: OrchestratorState) -> dict:
 
 
 def test_schema_three_vocabulary_is_mapped_and_unstarted_jobs_get_defaults() -> None:
-    queued = JobIntent((TargetRef("hall"),), CleaningMode.VACUUM_AND_MOP)
+    queued = JobIntent((TargetRef("studio"),), CleaningMode.VACUUM_AND_MOP)
     state = _state().add_job("queued", queued, NOW)
     state = replace(
         state,
-        room_registry=state.room_registry.put_room(Room("hall", "Hall")),
+        room_registry=state.room_registry.put_room(Room("studio", "Studio")),
         templates={
             "t": JobTemplate(
-                "t", "Routine", JobIntent((TargetRef("hall"),), CleaningMode.MOP), NOW
+                "t", "Routine", JobIntent((TargetRef("studio"),), CleaningMode.MOP), NOW
             )
         },
     )
@@ -407,9 +407,9 @@ def test_schema_three_derives_job_origin_and_moves_all_rooms_into_intent() -> No
             **state.jobs,
             "retry": replace(state.jobs["retry"], retries_job_id="user"),
         },
-        room_registry=state.room_registry.put_room(Room("hall", "Hall")),
+        room_registry=state.room_registry.put_room(Room("studio", "Studio")),
         templates={
-            "t": JobTemplate("t", "All", JobIntent((TargetRef("hall"),), MODE), NOW)
+            "t": JobTemplate("t", "All", JobIntent((TargetRef("studio"),), MODE), NOW)
         },
     )
     data = _schema_three(state)

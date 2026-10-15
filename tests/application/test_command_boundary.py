@@ -146,7 +146,7 @@ async def test_readiness_loss_at_boundary_fails_without_start(
     job = await core.async_create_job(_intent())
 
     async def revoke_after_settings(*_args: object) -> None:
-        await core.rooms.async_revoke("kitchen")
+        await core.rooms.async_revoke("library")
 
     monkeypatch.setattr(adapter, "async_prepare", revoke_after_settings)
     with pytest.raises(DispatchNotStartedError, match="readiness_changed"):

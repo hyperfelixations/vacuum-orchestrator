@@ -39,7 +39,7 @@ class StubOrchestrator:
     """Expose the read-side methods consumed by the WebSocket layer."""
 
     def __init__(self) -> None:
-        intent = JobIntent((TargetRef("kitchen"),), CleaningMode.VACUUM)
+        intent = JobIntent((TargetRef("library"),), CleaningMode.VACUUM)
         self.state = OrchestratorState.empty("installation").add_job("job", intent, NOW)
         self.listener: Callable[[], None] | None = None
         self.unsubscribed = False

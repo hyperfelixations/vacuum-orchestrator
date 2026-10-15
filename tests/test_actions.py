@@ -47,7 +47,7 @@ from tests.errors import raises_code
 
 @pytest.fixture(autouse=True)
 def registered_areas(hass: HomeAssistant) -> None:
-    for name in ("Kitchen", "Hall"):
+    for name in ("Library", "Studio"):
         ar.async_get(hass).async_create(name)
 
 
@@ -87,7 +87,7 @@ async def test_actions_need_no_config_entry_or_revision_and_accept_mode_aliases(
     created = await hass.services.async_call(
         DOMAIN,
         SERVICE_CREATE_JOB,
-        {ATTR_AREAS: ["kitchen"], ATTR_MODE: "vac_then_mop", "note": "old"},
+        {ATTR_AREAS: ["library"], ATTR_MODE: "vac_then_mop", "note": "old"},
         blocking=True,
         return_response=True,
     )
@@ -144,14 +144,14 @@ async def test_queue_management_actions_are_simple_and_response_is_optional(
     first = await hass.services.async_call(
         DOMAIN,
         SERVICE_CREATE_JOB,
-        {ATTR_AREAS: ["kitchen"], ATTR_MODE: "vac"},
+        {ATTR_AREAS: ["library"], ATTR_MODE: "vac"},
         blocking=True,
         return_response=True,
     )
     second = await hass.services.async_call(
         DOMAIN,
         SERVICE_CREATE_JOB,
-        {ATTR_AREAS: ["hall"], ATTR_MODE: "mop"},
+        {ATTR_AREAS: ["studio"], ATTR_MODE: "mop"},
         blocking=True,
         return_response=True,
     )
@@ -238,16 +238,16 @@ async def test_action_fields_support_complete_create_and_partial_clear(
         DOMAIN,
         SERVICE_CREATE_JOB,
         {
-            ATTR_AREAS: ["kitchen"],
+            ATTR_AREAS: ["library"],
             ATTR_MODE: "vac_and_mop",
-            "name": "Kitchen",
+            "name": "Library",
             ATTR_VACUUM_POWER: "high",
             ATTR_MOP_INTENSITY: "medium",
             ATTR_MOP_ROUTE: "deep",
             ATTR_PASSES: 2,
             "reason": "dirty",
             "note": "before",
-            "dedupe_key": "automatic|kitchen",
+            "dedupe_key": "automatic|library",
             ATTR_REQUIRED_ON: ["binary_sensor.door"],
             ATTR_REQUIRED_OFF: ["binary_sensor.person"],
             ATTR_SETTINGS_POLICY: "strict",
@@ -262,7 +262,7 @@ async def test_action_fields_support_complete_create_and_partial_clear(
         SERVICE_UPDATE_JOB,
         {
             ATTR_JOB_ID: job_id,
-            ATTR_AREAS: ["hall"],
+            ATTR_AREAS: ["studio"],
             ATTR_MODE: "vacuum",
             "name": None,
             ATTR_VACUUM_POWER: None,
@@ -296,7 +296,7 @@ async def test_action_fields_support_complete_create_and_partial_clear(
         "commit_id": created["commit_id"] + 1,
         ATTR_JOB_ID: job_id,
     }
-    assert queried[ATTR_AREAS] == ["hall"]
+    assert queried[ATTR_AREAS] == ["studio"]
     assert queried[ATTR_VACUUM_POWER] == "standard"
     assert queried[ATTR_MOP_INTENSITY] is None
     assert queried["origin"] == {"kind": "automation", "template_id": None}
@@ -328,7 +328,7 @@ async def test_job_conditions_follow_a_renamed_entity(
         DOMAIN,
         SERVICE_CREATE_JOB,
         {
-            ATTR_AREAS: ["kitchen"],
+            ATTR_AREAS: ["library"],
             ATTR_REQUIRED_ON: [door.entity_id],
             ATTR_REQUIRED_OFF: ["input_boolean.away"],
         },
@@ -378,7 +378,7 @@ async def test_action_validation_permissions_and_unloaded_runtime_are_clear(
         await hass.services.async_call(
             DOMAIN,
             SERVICE_CREATE_JOB,
-            {ATTR_AREAS: ["kitchen"], ATTR_MODE: "vacuum"},
+            {ATTR_AREAS: ["library"], ATTR_MODE: "vacuum"},
             blocking=True,
             return_response=True,
         )
@@ -386,7 +386,7 @@ async def test_action_validation_permissions_and_unloaded_runtime_are_clear(
         await hass.services.async_call(
             DOMAIN,
             SERVICE_CREATE_JOB,
-            {ATTR_AREAS: ["kitchen"], ATTR_MODE: "polish"},
+            {ATTR_AREAS: ["library"], ATTR_MODE: "polish"},
             blocking=True,
             return_response=True,
         )
@@ -410,7 +410,7 @@ async def test_non_admin_commands_and_unknown_queries_are_rejected(
         await hass.services.async_call(
             DOMAIN,
             SERVICE_CREATE_JOB,
-            {ATTR_AREAS: ["kitchen"], ATTR_MODE: "vacuum"},
+            {ATTR_AREAS: ["library"], ATTR_MODE: "vacuum"},
             blocking=True,
             return_response=True,
             context=Context(user_id=hass_read_only_user.id),
@@ -428,7 +428,7 @@ async def test_non_admin_commands_and_unknown_queries_are_rejected(
         created = await hass.services.async_call(
             DOMAIN,
             SERVICE_CREATE_JOB,
-            {ATTR_AREAS: ["kitchen"], ATTR_MODE: "vacuum"},
+            {ATTR_AREAS: ["library"], ATTR_MODE: "vacuum"},
             blocking=True,
             return_response=True,
         )

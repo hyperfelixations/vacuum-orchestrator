@@ -89,8 +89,8 @@ async def test_rooms_releases_and_settings_are_checked_without_effect(
     room = (await call(hass, "create_room", name="Office"))["room_id"]
     before = async_get_runtime(hass).orchestrator.state
 
-    assert await validate(hass, "create_room", name="Hall") == []
-    assert await validate(hass, "create_room", name="Hall", area_id="nowhere") == [
+    assert await validate(hass, "create_room", name="Studio") == []
+    assert await validate(hass, "create_room", name="Studio", area_id="nowhere") == [
         ("area_id", "unknown_area")
     ]
     assert await validate(

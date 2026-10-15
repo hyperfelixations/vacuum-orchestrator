@@ -37,9 +37,9 @@ async def _finish_active_attempt(core, job_id):
 
 async def test_finish_lets_both_phases_complete_then_closes_without_grace():
     core, adapter, _now = await setup_run()
-    await core.rooms.async_grant("kitchen", ReleaseKind.QUEUE_RUN)
+    await core.rooms.async_grant("library", ReleaseKind.QUEUE_RUN)
     job = await core.async_create_job(_intent(mode=CleaningMode.VACUUM_THEN_MOP))
-    waiting = await core.async_create_job(_intent("hall"))
+    waiting = await core.async_create_job(_intent("studio"))
     await core.async_run_queue()
     run_id = core.state.queue_run.run_id
 
@@ -62,19 +62,19 @@ async def test_finish_lets_both_phases_complete_then_closes_without_grace():
     assert core.state.jobs[job].state is JobState.COMPLETED
     run = core.state.queue_run
     assert (run.run_id, run.active, core.state.mode) == (run_id, False, QueueMode.IDLE)
-    assert core.rooms.registry.resolve("kitchen").release is None
+    assert core.rooms.registry.resolve("library").release is None
     assert core.state.queue == (waiting,) and len(adapter.dispatches) == 2
 
 
 async def test_finish_without_started_work_closes_immediately_and_is_idempotent():
     core, _adapter, _now = await setup_run()
-    await core.rooms.async_grant("kitchen", ReleaseKind.QUEUE_RUN)
+    await core.rooms.async_grant("library", ReleaseKind.QUEUE_RUN)
     await core.async_run_queue()
 
     await core.async_end_queue()
 
     assert core.state.mode is QueueMode.IDLE and not core.state.queue_run.active
-    assert core.rooms.registry.resolve("kitchen").release is None
+    assert core.rooms.registry.resolve("library").release is None
     before = core.state.commit_id
     await core.async_end_queue()
     await core.async_end_queue(cancel_running=True)
@@ -84,12 +84,12 @@ async def test_finish_without_started_work_closes_immediately_and_is_idempotent(
 async def test_unbound_grants_survive_and_paused_queue_without_run_goes_idle():
     core, _adapter, _now = await setup_run()
     await core.async_set_queue_mode(QueueMode.PAUSED)
-    await core.rooms.async_grant("kitchen", ReleaseKind.QUEUE_RUN)
+    await core.rooms.async_grant("library", ReleaseKind.QUEUE_RUN)
 
     await core.async_end_queue()
 
     assert core.state.mode is QueueMode.IDLE and core.state.queue_run is None
-    release = core.rooms.registry.resolve("kitchen").release
+    release = core.rooms.registry.resolve("library").release
     assert release.kind is ReleaseKind.QUEUE_RUN and release.queue_run_id is None
 
 
@@ -121,9 +121,9 @@ async def test_resuming_while_ending_withdraws_the_end_request():
 @pytest.mark.parametrize("return_to_dock", [False, True])
 async def test_cancel_stops_started_jobs_and_closes_the_run_now(return_to_dock):
     core, adapter, _now = await setup_run()
-    await core.rooms.async_grant("kitchen", ReleaseKind.QUEUE_RUN)
+    await core.rooms.async_grant("library", ReleaseKind.QUEUE_RUN)
     job = await core.async_create_job(_intent())
-    waiting = await core.async_create_job(_intent("hall"))
+    waiting = await core.async_create_job(_intent("studio"))
     await core.async_run_queue()
 
     await core.async_end_queue(cancel_running=True, return_to_dock=return_to_dock)
@@ -131,7 +131,7 @@ async def test_cancel_stops_started_jobs_and_closes_the_run_now(return_to_dock):
     assert adapter.cancel_returns == [return_to_dock]
     assert core.state.jobs[job].state is JobState.CANCELING
     assert core.state.mode is QueueMode.IDLE and not core.state.queue_run.active
-    assert core.rooms.registry.resolve("kitchen").release is None
+    assert core.rooms.registry.resolve("library").release is None
     assert core.state.queue == (waiting,)
 
 
@@ -166,11 +166,11 @@ async def test_failed_cancel_still_closes_the_run_and_is_reported():
 @pytest.mark.parametrize("stage", ["request", "fence"])
 async def test_one_failing_job_never_keeps_the_others_running(monkeypatch, stage):
     backend = RecordingBackend()
-    kitchen = RecordingAdapter(backend, "a", targets=("kitchen",))
-    hall = RecordingAdapter(backend, "b", targets=("hall",))
-    core = await _orchestrator(backend, kitchen, hall)
+    library = RecordingAdapter(backend, "a", targets=("library",))
+    studio = RecordingAdapter(backend, "b", targets=("studio",))
+    core = await _orchestrator(backend, library, studio)
     broken = await core.async_create_job(_intent())
-    healthy = await core.async_create_job(_intent("hall"))
+    healthy = await core.async_create_job(_intent("studio"))
     for job in (broken, healthy):
         await core.async_start_job(job)
     await core.async_run_queue()
@@ -196,6 +196,6 @@ async def test_one_failing_job_never_keeps_the_others_running(monkeypatch, stage
     with pytest.raises(ConflictError):
         await core.async_end_queue(cancel_running=True)
 
-    assert (kitchen.cancel_count, hall.cancel_count) == (0, 1)
+    assert (library.cancel_count, studio.cancel_count) == (0, 1)
     assert core.state.jobs[healthy].state is JobState.CANCELING
     assert core.state.mode is QueueMode.IDLE and not core.state.queue_run.active

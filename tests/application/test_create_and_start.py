@@ -66,7 +66,7 @@ async def test_job_that_cannot_start_is_not_created(prepare: str, code: str) -> 
     adapter = RecordingAdapter(backend, "robot")
     core = await _orchestrator(backend, adapter)
     if prepare == "revoke":
-        await core.rooms.async_revoke("kitchen")
+        await core.rooms.async_revoke("library")
     if prepare == "busy":
         adapter.observation = replace(
             adapter.observation, state=RobotAvailabilityState.BUSY
@@ -86,7 +86,7 @@ async def test_concurrent_queue_dispatch_wins_the_robot_without_leftovers() -> N
     backend = RecordingBackend()
     adapter = RecordingAdapter(backend, "robot")
     core = await _orchestrator(backend, adapter)
-    queued = await core.async_create_job(_intent("hall"))
+    queued = await core.async_create_job(_intent("studio"))
 
     results = await asyncio.gather(
         core.async_run_queue(),
@@ -109,8 +109,8 @@ async def test_concurrent_queue_dispatch_wins_the_robot_without_leftovers() -> N
 async def test_duplicate_dedupe_key_creates_nothing() -> None:
     backend = RecordingBackend()
     core = await _orchestrator(backend, RecordingAdapter(backend, "robot"))
-    await core.rooms.async_revoke("hall")
-    await core.async_create_job(replace(_intent("hall"), dedupe_key="daily"))
+    await core.rooms.async_revoke("studio")
+    await core.async_create_job(replace(_intent("studio"), dedupe_key="daily"))
     before = core.state
 
     with pytest.raises(ConflictError, match="dedupe_key_already_queued"):

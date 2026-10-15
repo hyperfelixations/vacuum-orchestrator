@@ -45,7 +45,7 @@ END = replace(
 STATE = replace(
     OrchestratorState.empty("installation"),
     room_registry=RoomRegistry(
-        {"kitchen": Room("kitchen", "Kitchen"), "hall": Room("hall", "Hall")}
+        {"library": Room("library", "Library"), "studio": Room("studio", "Studio")}
     ),
 )
 
@@ -69,29 +69,29 @@ def test_uncertain_external_run_stays_history_only() -> None:
 def test_confirmed_external_scope_mode_and_success_update_only_matching_rooms() -> None:
     state = apply(STATE, START)
     state = apply(
-        state, replace(END, completion_confirmed=True, completed_targets=("kitchen",))
+        state, replace(END, completion_confirmed=True, completed_targets=("library",))
     )
-    stamp = state.room_registry.rooms["kitchen"].last_cleaning[OperationKind.VACUUM]
+    stamp = state.room_registry.rooms["library"].last_cleaning[OperationKind.VACUUM]
     assert stamp.quality is CompletionQuality.CONFIRMED
-    assert not state.room_registry.rooms["hall"].last_cleaning
+    assert not state.room_registry.rooms["studio"].last_cleaning
     assert len(state.room_registry.receipts) == 1
 
 
 def test_incomplete_mapping_unknown_mode_and_disconnect_never_update_rooms() -> None:
     for end in (
         replace(
-            END, completion_confirmed=True, completed_targets=("kitchen", "missing")
+            END, completion_confirmed=True, completed_targets=("library", "missing")
         ),
         replace(
             END,
             completion_confirmed=True,
-            completed_targets=("kitchen",),
+            completed_targets=("library",),
             completed_operation=None,
         ),
         replace(
             END,
             completion_confirmed=True,
-            completed_targets=("kitchen",),
+            completed_targets=("library",),
             faults=(Fault("stuck", FaultSource.ROBOT, FaultScope.GENERAL),),
         ),
     ):
@@ -107,7 +107,7 @@ def test_incomplete_mapping_unknown_mode_and_disconnect_never_update_rooms() -> 
     )
     assert not apply(
         interrupted,
-        replace(END, completion_confirmed=True, completed_targets=("kitchen",)),
+        replace(END, completion_confirmed=True, completed_targets=("library",)),
     ).room_registry.receipts
 
 
@@ -118,7 +118,7 @@ def test_out_of_order_external_completion_does_not_close_the_run() -> None:
 
 def test_changed_map_or_conflicting_mode_cannot_attribute_external_completion():
     started = apply(STATE, START)
-    end = replace(END, completion_confirmed=True, completed_targets=("kitchen",))
+    end = replace(END, completion_confirmed=True, completed_targets=("library",))
     changed = replace(
         PROFILE, capabilities=replace(PROFILE.capabilities, revision="new-map")
     )
@@ -138,7 +138,7 @@ def test_only_robot_faults_outside_cleaning_interrupt_an_external_run() -> None:
     """Same rule as for VOI's runs; see dev doc "Gerätefehler"."""
     brush = Fault("main_brush_jammed", FaultSource.ROBOT, FaultScope.VACUUM)
     dust = Fault("duct_blockage", FaultSource.DOCK, FaultScope.STATION_VACUUM)
-    end = replace(END, completion_confirmed=True, completed_targets=("kitchen",))
+    end = replace(END, completion_confirmed=True, completed_targets=("library",))
     returning = replace(START, cleaning_active=False)
     for during in (
         replace(START, faults=(brush, dust)),

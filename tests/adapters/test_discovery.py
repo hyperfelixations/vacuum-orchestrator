@@ -80,12 +80,12 @@ def test_roborock_dock_roles_are_isolated_per_device(
             translation_key=role,
         )
     registry.async_update_entity_options(
-        vacuum.entity_id, "vacuum", {"area_mapping": {"kitchen": ["0_16", "0_17"]}}
+        vacuum.entity_id, "vacuum", {"area_mapping": {"library": ["0_16", "0_17"]}}
     )
     candidate = candidate_for(hass, vacuum.id)
     assert candidate.roles["battery"] == battery.id
     assert candidate.roles["dock_error"] == dock_error.id
-    assert candidate.area_targets == {"kitchen": ("0_16", "0_17")}
+    assert candidate.area_targets == {"library": ("0_16", "0_17")}
     assert candidate.protocol == "roborock_v1"
     registry.async_update_entity(vacuum.entity_id, new_entity_id="vacuum.renamed")
     assert resolve_entity_id(hass, vacuum.id) == "vacuum.renamed"
@@ -157,7 +157,7 @@ def test_generic_vacuum_accepts_manual_roles_without_claiming_a_mode(
         ({}, None),
         ({"target_areas": None}, None),
         ({"target_areas": []}, None),
-        ({"target_areas": ["hall", "kitchen", "hall"]}, ["hall", "kitchen"]),
+        ({"target_areas": ["studio", "library", "studio"]}, ["studio", "library"]),
     ],
 )
 def test_only_a_chosen_area_list_restricts_the_ha_mapping(
@@ -168,7 +168,7 @@ def test_only_a_chosen_area_list_restricts_the_ha_mapping(
     registry = er.async_get(hass)
     vacuum = registry.async_get_or_create("vacuum", "demo", "robot")
     registry.async_update_entity_options(
-        vacuum.entity_id, "vacuum", {"area_mapping": {"kitchen": ["16"]}}
+        vacuum.entity_id, "vacuum", {"area_mapping": {"library": ["16"]}}
     )
     data = validate_robot_configuration(
         hass, entry, {"robot_entity_id": vacuum.entity_id, **targets}

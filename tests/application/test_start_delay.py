@@ -66,11 +66,11 @@ async def test_start_now_and_immediate_creation_skip_the_delay() -> None:
 
 async def test_edits_restart_the_delay_but_releases_and_no_op_saves_do_not() -> None:
     core, _adapter, now = await setup_delay()
-    await core.rooms.async_revoke("kitchen")
+    await core.rooms.async_revoke("library")
     job = await core.async_create_job(_intent())
     now[0] += timedelta(minutes=1)
 
-    await core.rooms.async_grant("kitchen", ReleaseKind.PERMANENT)
+    await core.rooms.async_grant("library", ReleaseKind.PERMANENT)
     assert core.state.jobs[job].start_after == NOW + DELAY
 
     await core.async_update_job(job, JobIntentPatch(vacuum_power=VacuumLevel.HIGH))

@@ -10,7 +10,7 @@ from custom_components.vacuum_orchestrator.domain.types import (
 
 def _intent() -> JobIntent:
     return JobIntent(
-        (TargetRef("kitchen"),),
+        (TargetRef("library"),),
         CleaningMode.VACUUM,
         required_on=("binary_sensor.door",),
         required_off=("binary_sensor.person",),

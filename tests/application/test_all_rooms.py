@@ -24,13 +24,13 @@ from tests.application.test_templates import setup_due
 async def test_active_rooms_are_enabled_and_present_whatever_robots_reach() -> None:
     core = await setup_due(RecordingAdapter(RecordingBackend(), "robot"))
     study = await core.rooms.async_create("Study")
-    assert core.active_room_ids() == ("kitchen", "hall", study)
+    assert core.active_room_ids() == ("library", "studio", study)
 
     await core.async_replace_adapters({})
-    assert core.active_room_ids() == ("kitchen", "hall", study)
+    assert core.active_room_ids() == ("library", "studio", study)
 
-    await core.rooms.async_disable("hall")
-    assert core.active_room_ids() == ("kitchen", study)
+    await core.rooms.async_disable("studio")
+    assert core.active_room_ids() == ("library", study)
 
     await core.rooms.async_import_areas({})
     assert core.active_room_ids() == (study,)
@@ -42,16 +42,16 @@ async def test_active_rooms_are_enabled_and_present_whatever_robots_reach() -> N
 
 async def test_all_rooms_templates_resolve_on_every_generation() -> None:
     core = await setup_due(RecordingAdapter(RecordingBackend(), "robot"))
-    await core.rooms.async_disable("hall")
+    await core.rooms.async_disable("studio")
     key = await core.templates.async_save(
         "Everything", replace(_intent(), all_rooms=True), automatic=True
     )
-    await core.rooms.async_enable("hall")
+    await core.rooms.async_enable("studio")
 
     job = await core.templates.async_create_job(key)
     assert [target.area_id for target in core.state.jobs[job].intent.areas] == [
-        "kitchen",
-        "hall",
+        "library",
+        "studio",
     ]
     assert core.state.jobs[job].intent.all_rooms
     await core.async_delete_job(job)
@@ -61,7 +61,7 @@ async def test_all_rooms_templates_resolve_on_every_generation() -> None:
         for item in core.state.jobs.values()
         for target in item.intent.areas
     }
-    assert generated == {"kitchen", "hall"}
+    assert generated == {"library", "studio"}
     assert not any(item.intent.all_rooms for item in core.state.jobs.values())
     assert core.state.templates[key].intent.all_rooms
     assert (
@@ -82,8 +82,8 @@ async def test_all_rooms_include_rooms_no_robot_can_reach() -> None:
 
     job = await core.templates.async_create_job(key)
     assert [target.area_id for target in core.state.jobs[job].intent.areas] == [
-        "kitchen",
-        "hall",
+        "library",
+        "studio",
     ]
     await core.async_delete_job(job)
     await core.templates.async_generate_due()
@@ -91,7 +91,7 @@ async def test_all_rooms_include_rooms_no_robot_can_reach() -> None:
         target.area_id
         for item in core.state.jobs.values()
         for target in item.intent.areas
-    } == {"kitchen", "hall"}
+    } == {"library", "studio"}
 
 
 async def test_editing_other_fields_keeps_an_all_rooms_selection() -> None:
@@ -108,5 +108,5 @@ async def test_editing_other_fields_keeps_an_all_rooms_selection() -> None:
     assert core.state.jobs[job].intent.all_rooms
     assert core.state.jobs[job].intent.note == "Before guests"
 
-    await core.async_update_job(job, JobIntentPatch(areas=(TargetRef("kitchen"),)))
+    await core.async_update_job(job, JobIntentPatch(areas=(TargetRef("library"),)))
     assert not core.state.jobs[job].intent.all_rooms

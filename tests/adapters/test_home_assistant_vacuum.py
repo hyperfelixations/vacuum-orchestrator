@@ -61,7 +61,7 @@ def _adapter(hass: HomeAssistant) -> HomeAssistantVacuumAdapter:
         "vacuum", "demo", "test", suggested_object_id="test"
     )
     registry.async_update_entity_options(
-        vacuum.entity_id, "vacuum", {"area_mapping": {"kitchen": ["segment"]}}
+        vacuum.entity_id, "vacuum", {"area_mapping": {"library": ["segment"]}}
     )
     return HomeAssistantVacuumAdapter(
         hass,
@@ -69,7 +69,7 @@ def _adapter(hass: HomeAssistant) -> HomeAssistantVacuumAdapter:
         source_robot_id="source",
         entity_id="vacuum.test",
         adapter_name="roborock",
-        target_areas=("kitchen",),
+        target_areas=("library",),
         configuration={"fixed_mode": "vacuum_and_mop"},
         last_clean_start_entity_id="sensor.start",
         last_clean_end_entity_id="sensor.end",
@@ -80,7 +80,7 @@ def _unit() -> WorkUnit:
     return WorkUnit(
         "unit",
         OperationKind.VACUUM_AND_MOP,
-        ("kitchen",),
+        ("library",),
         None,
         1,
         PassScope.TARGET_SET,
@@ -117,7 +117,7 @@ async def test_dispatch_uses_public_clean_area_with_late_assignment(
         "robot",
         "source",
         "roborock",
-        ("kitchen",),
+        ("library",),
         adapter.profile.capabilities.revision,
         SettingsResolution(),
     )
@@ -127,7 +127,7 @@ async def test_dispatch_uses_public_clean_area_with_late_assignment(
 
     assert calls[0].data == {
         "entity_id": "vacuum.test",
-        "cleaning_area_id": ["kitchen"],
+        "cleaning_area_id": ["library"],
     }
     assert adapter.profile.capabilities.operations == frozenset(
         {OperationKind.VACUUM_AND_MOP}
@@ -205,7 +205,7 @@ def _assignment(
         "robot",
         "source",
         "roborock",
-        ("kitchen",),
+        ("library",),
         adapter.profile.capabilities.revision,
         SettingsResolution(
             tuple(
@@ -243,13 +243,13 @@ def test_room_addressing_never_invents_mode_or_unmapped_targets(
         robot_id="robot",
         source_robot_id="source",
         entity_id="vacuum.test",
-        target_areas=("kitchen", "missing"),
+        target_areas=("library", "missing"),
     )
     assert unknown.profile.capabilities.operations == frozenset()
-    assert unknown.profile.capabilities.target_map == {"kitchen": ("kitchen",)}
+    assert unknown.profile.capabilities.target_map == {"library": ("library",)}
     before = known.profile.capabilities.revision
     er.async_get(hass).async_update_entity_options(
-        "vacuum.test", "vacuum", {"area_mapping": {"kitchen": ["different"]}}
+        "vacuum.test", "vacuum", {"area_mapping": {"library": ["different"]}}
     )
     assert known.profile.capabilities.revision != before
 
@@ -321,7 +321,7 @@ def _mode_adapter(
         source_robot_id="source",
         entity_id="vacuum.test",
         adapter_name="roborock",
-        target_areas=("kitchen",),
+        target_areas=("library",),
         configuration={
             "roles": {"cleaning_mode": mode.id},
             "mode_options": {"vacuum": "Sweep", "vacuum_and_mop": "Both", "mop": "Mop"},
@@ -454,19 +454,19 @@ def test_canonical_rooms_require_complete_explicit_bindings(
     _ready(hass)
     _adapter(hass)
     rooms = {
-        "auto": Room("auto", "Auto", area_id="kitchen"),
+        "auto": Room("auto", "Auto", area_id="library"),
         "custom": Room(
-            "custom", "Custom", bindings=(RoomBinding("robot", ("kitchen",)),)
+            "custom", "Custom", bindings=(RoomBinding("robot", ("library",)),)
         ),
         "incomplete": Room(
             "incomplete",
             "Incomplete",
-            bindings=(RoomBinding("robot", ("kitchen", "missing")),),
+            bindings=(RoomBinding("robot", ("library", "missing")),),
         ),
         "wrong-map": Room(
             "wrong-map",
             "Wrong map",
-            area_id="kitchen",
+            area_id="library",
             bindings=(RoomBinding("robot", ("16",), "upper"),),
         ),
     }
@@ -475,12 +475,12 @@ def test_canonical_rooms_require_complete_explicit_bindings(
         robot_id="robot",
         source_robot_id="source",
         entity_id="vacuum.test",
-        target_areas=("kitchen",),
+        target_areas=("library",),
         rooms=lambda: rooms,
     )
     assert adapter.profile.capabilities.target_map == {}
     rooms.pop("auto")
-    assert adapter.profile.capabilities.target_map == {"custom": ("kitchen",)}
+    assert adapter.profile.capabilities.target_map == {"custom": ("library",)}
     reach = {item.room_id: item for item in adapter.room_reach()}
     assert reach["incomplete"].status is ReachStatus.BINDING_INVALID
     assert reach["incomplete"].ignored == ("missing",)
@@ -527,16 +527,16 @@ def test_overlapping_physical_segments_are_excluded(hass: HomeAssistant):
     registry.async_update_entity_options(
         "vacuum.test",
         "vacuum",
-        {"area_mapping": {"kitchen": ["16"], "hall": ["16", "17"]}},
+        {"area_mapping": {"library": ["16"], "studio": ["16", "17"]}},
     )
-    adapter._target_areas = ("kitchen", "hall")
+    adapter._target_areas = ("library", "studio")
     assert adapter.target_mapping() == {}
     registry.async_update_entity_options(
         "vacuum.test",
         "vacuum",
-        {"area_mapping": {"kitchen": ["16"], "hall": ["17"]}},
+        {"area_mapping": {"library": ["16"], "studio": ["17"]}},
     )
-    assert adapter.target_mapping() == {"kitchen": ("kitchen",), "hall": ("hall",)}
+    assert adapter.target_mapping() == {"library": ("library",), "studio": ("studio",)}
 
 
 async def test_start_revalidates_after_boundary_without_service_call(
@@ -654,7 +654,7 @@ async def test_clean_percent_is_read_with_the_time_it_last_changed(
         source_robot_id="source",
         entity_id="vacuum.test",
         adapter_name="roborock",
-        target_areas=("kitchen",),
+        target_areas=("library",),
         configuration={"roles": {"clean_percent": sensor.id}},
     )
     observation = await adapter.async_observe()
