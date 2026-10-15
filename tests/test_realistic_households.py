@@ -206,6 +206,23 @@ async def test_a_job_cleans_the_segments_of_its_areas_and_completes(
     }
 
 
+async def test_a_cleaning_roborock_reports_the_room_it_was_sent_to(
+    hass: HomeAssistant, install
+) -> None:
+    home = await install(single_roborock)
+    robot = home.roborock
+    areas = [home.areas["Studio"]]
+
+    await call(hass, "release_room", areas=areas, kind="permanent")
+    await call(hass, "create_job", areas=areas, mode="vacuum", start=True)
+    await hass.async_block_till_done()
+    robot.clean()
+
+    current = hass.states.get(robot.entities["current_room"].entity_id)
+    assert current is not None
+    assert current.state == "Studio"
+
+
 def _advancer(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> Callable[[float], Awaitable[None]]:

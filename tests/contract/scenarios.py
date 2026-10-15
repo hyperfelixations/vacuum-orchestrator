@@ -7,13 +7,16 @@ the card's WebSocket and changes the home only as its devices would.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.vacuum_orchestrator.const import CONF_INSTALLATION_ID, DOMAIN
+from custom_components.vacuum_orchestrator.domain.intents import settings_for_mode
+from custom_components.vacuum_orchestrator.domain.job_defaults import JobDefaults
+from custom_components.vacuum_orchestrator.domain.types import CleaningMode
 from tests.contract.recorder import Session, action
 from tests.realistic import Household, busy, no_robot, single_roborock, two_robots
 from tests.realistic import roborock as roborock_runs
@@ -34,10 +37,13 @@ class Stage:
         assert await self.hass.config_entries.async_setup(self.entry.entry_id)
         await self.session.settle()
 
-    async def open(self) -> None:
-        """Load the integration, then open the card: subscribe, check and read."""
+    async def open(self, *, set_up: bool = True) -> None:
+        """Load the integration, then open the card: subscribe, check and read. A
+        lived-in home finished the assistant long before."""
         await self.load()
         await self.session.request({"type": f"{DOMAIN}/subscribe"})
+        if set_up:
+            await self.session.command("complete_setup")
         await self.session.read_static()
         await self.session.mark("The card opens")
 
@@ -58,6 +64,61 @@ class Stage:
     def areas(self, *names: str) -> list[str]:
         """HA area IDs by name."""
         return [self.home.areas[name] for name in names]
+
+    async def robot(self, name: str) -> dict[str, Any]:
+        """A robot as VOI lists it."""
+        robots = (await self.session.collection("get_robots"))["robots"]
+        return next(robot for robot in robots if robot["name"] == name)
+
+
+INITIAL = JobDefaults()
+
+
+def initial_defaults(**changes: Any) -> dict[str, Any]:
+    """Every job default VOI starts with, as `configure_job_defaults` takes them."""
+    values = {
+        field.name: getattr(INITIAL, field.name)
+        for field in fields(INITIAL)
+        if field.name != "configured"
+    }
+    return {
+        name: getattr(value, "value", value) for name, value in values.items()
+    } | changes
+
+
+def draft_fields(mode: str = "vacuum", **where: Any) -> dict[str, Any]:
+    """A draft before any setting is chosen, so its preview names every level VOI
+    offers: the mode, VOI's initial passes and settings policy, no conditions."""
+    defaults = initial_defaults()
+    return {
+        **where,
+        "mode": mode,
+        "passes": defaults["passes"],
+        "settings_policy": defaults["settings_policy"],
+        "required_on": [],
+        "required_off": [],
+    }
+
+
+def job_fields(
+    rooms: list[str] | None = None, mode: str = "vacuum", **changes: Any
+) -> dict[str, Any]:
+    """A job or template intent naming every setting of its mode, its passes,
+    both condition lists and its settings policy, filled from VOI's initial
+    defaults; without rooms, for every room."""
+    where: dict[str, Any] = {"areas": rooms} if rooms else {"all_rooms": True}
+    defaults = initial_defaults()
+    settings = sorted(settings_for_mode(CleaningMode(mode)))
+    return {
+        **where,
+        "mode": mode,
+        **{name: defaults[name] for name in settings},
+        "passes": defaults["passes"],
+        "required_on": [],
+        "required_off": [],
+        "settings_policy": defaults["settings_policy"],
+        **changes,
+    }
 
 
 @dataclass(frozen=True)
@@ -193,6 +254,7 @@ async def reload(stage: Stage) -> None:
     session = stage.session
     await stage.open()
     await session.action("create_job", areas=stage.areas("Studio"))
+    await session.mark("A studio job waits")
     assert await stage.hass.config_entries.async_reload(stage.entry.entry_id)
     await session.home("Home Assistant reloads the integration")
     # The card checks the reloaded integration as it does when it opens.
@@ -342,6 +404,8 @@ async def recovery(stage: Stage) -> None:
     await session.action("correct_job", job_id=job, outcome="completed")
     await session.read_job(job)
     await session.read()
+    await session.read_history()
+    await session.mark("The library job is corrected")
 
 
 async def showcase(stage: Stage) -> None:
@@ -349,7 +413,7 @@ async def showcase(stage: Stage) -> None:
     one never started; two templates are saved and the conservatory is cleaned
     only while its door is open. Then the rooms are released in every way and
     the queue runs: Rocky cleans the studio while a job waits for the locked and
-    closed conservatory and two wait for the robot. The editor previews new jobs."""
+    closed conservatory and two wait for the robot. New jobs are previewed."""
     session, robot = stage.session, stage.home.roborock
     stage.hass.states.async_set(
         CONSERVATORY_DOOR,
@@ -357,7 +421,6 @@ async def showcase(stage: Stage) -> None:
         {"device_class": "door", "friendly_name": "Conservatory Door"},
     )
     await stage.open()
-    await session.command("complete_setup")
     await session.command(
         "save_template", name="Weekly clean", intent={"all_rooms": True}
     )
@@ -378,6 +441,17 @@ async def showcase(stage: Stage) -> None:
             ]
         },
     )
+    # Vacuum due rules: every two days, daily and every three days.
+    for name, seconds in (
+        ("Dining Room", 172800),
+        ("Studio", 86400),
+        ("Library", 259200),
+    ):
+        await session.command(
+            "update_room",
+            room_id=(await stage.rooms())[name],
+            configuration={"due_policy": {"vacuum_seconds": seconds}},
+        )
     await stage.release("Dining Room", "Studio", "Library")
     await session.action("create_job", areas=stage.areas("Dining Room"), start=True)
     robot.clean()
@@ -419,11 +493,13 @@ async def showcase(stage: Stage) -> None:
     )
     await session.action("run_queue")
     running = _job_id(await session.action("create_job", areas=stage.areas("Studio")))
-    await session.action(
-        "create_job",
-        areas=stage.areas("Conservatory"),
-        mode="mop",
-        reason="Guests are coming",
+    conservatory = _job_id(
+        await session.action(
+            "create_job",
+            areas=stage.areas("Conservatory"),
+            mode="mop",
+            reason="Guests are coming",
+        )
     )
     await session.action(
         "create_job",
@@ -437,75 +513,76 @@ async def showcase(stage: Stage) -> None:
     await session.home("Rocky cleans the studio")
     await session.advance(240)
     await session.read_job(running)
+    await session.read_job(conservatory)
     await session.read_history()
     await session.read_diagnostics()
     await _preview_new_jobs(stage)
+    # Five per page: the queue's first page and both pages of every job.
+    await session.request({"type": f"{DOMAIN}/queue/get", "offset": 0, "limit": 5})
+    for offset in (0, 5):
+        await session.request(
+            {"type": f"{DOMAIN}/jobs/list", "offset": offset, "limit": 5}
+        )
     await session.mark("A busy afternoon")
 
 
 async def _preview_new_jobs(stage: Stage) -> None:
-    """Preview a new job as the editor drafts it from the defaults: without a
-    room yet, for the dining room, for every room and as a dining room mop job."""
+    """Preview new jobs before any setting is chosen, so VOI names every level
+    it offers: without a room yet, also once it waits for the conservatory door,
+    for the dining room, for every room and as a dining room mop job."""
     rooms = await stage.rooms()
-    draft = {
-        "mode": "vacuum",
-        "passes": 1,
-        "settings_policy": "best_effort",
-        "required_on": [],
-        "required_off": [],
-    }
-    await stage.session.preview(**draft)
-    await stage.session.preview(areas=[rooms["Dining Room"]], **draft)
-    await stage.session.preview(all_rooms=True, **draft)
-    await stage.session.preview(
-        areas=[rooms["Dining Room"]], **{**draft, "mode": "mop"}
-    )
+    await stage.session.preview(**draft_fields())
+    await stage.session.preview(**draft_fields() | {"required_on": [CONSERVATORY_DOOR]})
+    await stage.session.preview(**draft_fields(areas=[rooms["Dining Room"]]))
+    await stage.session.preview(**draft_fields(all_rooms=True))
+    await stage.session.preview(**draft_fields("mop", areas=[rooms["Dining Room"]]))
 
 
 async def queue_end(stage: Stage) -> None:
-    """The queue runs without work and waits; a job starts, the user ends the
-    queue and it closes once Rocky finished the started job, leaving the next
-    job waiting."""
-    session, robot = stage.session, stage.home.roborock
+    """The queue runs without work and waits until its wait time ends; the user
+    ends it early, which only confirms."""
+    session = stage.session
     await stage.open()
-    await session.command("complete_setup")
     await stage.release("Dining Room", "Studio")
     await session.action("run_queue")
     await session.advance(60)
     await session.mark("The queue waits for work")
-    await session.action("create_job", areas=stage.areas("Dining Room"))
-    await session.advance(5)
-    robot.clean()
-    await session.home("Rocky cleans the dining room")
-    await session.action("create_job", areas=stage.areas("Studio"))
     await session.action("end_queue")
-    await session.mark("The queue ends after the started job")
-    await session.advance(300)
-    robot.return_home()
-    await session.home("Rocky drives home")
-    await session.advance(60)
-    robot.dock_after_run()
-    await session.home("Rocky charges at its dock")
-    await session.advance(60)
     await session.mark("The queue has ended")
 
 
 async def robot_choice(stage: Stage) -> None:
-    """Rocky and Dusty both reach the dining room: a waiting job can start on
-    either, so the card asks which robot starts it."""
+    """Rocky and Dusty both reach the dining room once Dusty, an area vacuum
+    without modes of its own, vacuums by its profile: a waiting job can start on
+    either, and the user starts it on Dusty. While Dusty vacuums, a studio job
+    waits that Rocky could start at once."""
     session = stage.session
     await stage.open()
-    await session.command("complete_setup")
+    dusty = await stage.robot("Dusty")
+    # A configuration replaces the whole profile; unnamed fields reset.
+    await session.command(
+        "configure_robot",
+        robot_id=dusty["robot_id"],
+        configuration={**dusty["configuration"], "fixed_mode": "vacuum"},
+    )
     await stage.release("Dining Room", "Studio", "Library", "Conservatory")
     job = _job_id(await session.action("create_job", areas=stage.areas("Dining Room")))
     await session.read_job(job)
+    rooms = await stage.rooms()
+    await session.preview(**draft_fields(areas=[rooms["Dining Room"]]))
     await session.mark("Either robot can start the dining room")
+    await session.action("start_job", job_id=job, robot_id=dusty["robot_id"])
+    stage.home.robots["Dusty"].set_vacuum("cleaning")
+    await session.home("Dusty vacuums the dining room")
+    await session.mark("Dusty cleans the dining room")
+    await session.action("create_job", **job_fields([rooms["Studio"]]))
+    await session.mark("Rocky could start the studio while Dusty cleans")
 
 
 async def no_robot_found(stage: Stage) -> None:
     """The integration is set up in a home without a robot: VOI finds none and
     the card has nothing to clean with."""
-    await stage.open()
+    await stage.open(set_up=False)
 
 
 async def unloaded(stage: Stage) -> None:
@@ -527,6 +604,188 @@ async def robot_removed(stage: Stage) -> None:
     await session.mark("Rocky is not configured")
     (candidate,) = (await session.collection("get_robot_candidates"))["candidates"]
     await session.command("add_robot", entity_id=candidate["entity_id"])
+    await session.mark("Rocky is configured again")
+
+
+async def queue_controls(stage: Stage) -> None:
+    """Everyday queue work while Rocky cleans the studio: the user moves a job,
+    pauses and resumes the queue, adds jobs for one room and for every room,
+    edits one, saves it as a template, deletes one, starts one from a template
+    and ends the queue. Rocky finishes nothing yet: the user cancels its job so
+    it stays, sends it home and starts a new job at once. A mark precedes each
+    change, so a client can open right before it; before it, the scenario
+    previews each new or changed job and reads each job it saves or deletes."""
+    session, robot = stage.session, stage.home.roborock
+    await stage.open()
+    await stage.release("Dining Room", "Studio", "Library")
+    rooms = await stage.rooms()
+    studio_template = _result(
+        await session.command(
+            "save_template",
+            name="Mop the studio",
+            intent=job_fields([rooms["Studio"]], "mop"),
+            enabled=True,
+            automatic=False,
+        )
+    )["template_id"]
+    await session.action("run_queue")
+    studio = _job_id(
+        await session.action("create_job", **job_fields([rooms["Studio"]]))
+    )
+    await session.action("create_job", **job_fields([rooms["Dining Room"]]))
+    library = _job_id(
+        await session.action("create_job", **job_fields([rooms["Library"]]))
+    )
+    await session.advance(5)
+    robot.clean()
+    await session.home("Rocky cleans the studio")
+    await session.mark("Rocky cleans while two jobs wait")
+    await session.action("move_job", job_id=library, direction="up")
+    await session.mark("The library job is next")
+    await session.action("pause_queue")
+    await session.action("resume_queue")
+    await session.preview(**draft_fields())
+    await session.preview(**draft_fields("mop"))
+    await session.preview(**draft_fields("mop", areas=[rooms["Dining Room"]]))
+    await session.mark("The queue runs again")
+    await session.action("create_job", **job_fields([rooms["Dining Room"]], "mop"))
+    await session.preview(**draft_fields())
+    await session.preview(**draft_fields(all_rooms=True))
+    await session.mark("A mop job for the dining room waits")
+    everywhere = _job_id(await session.action("create_job", **job_fields()))
+    library_draft = draft_fields(areas=[rooms["Library"]])
+    await session.preview(**library_draft)
+    await session.preview(**library_draft | {"passes": 2})
+    await session.mark("A job for every room waits")
+    await session.action("update_job", job_id=library, passes=2)
+    await session.read_job(library)
+    await session.mark("The library job runs twice")
+    await session.command(
+        "save_job_as_template", job_id=library, name="Library twice", automatic=False
+    )
+    await session.read_job(everywhere)
+    await session.mark("The library job is a template")
+    await session.action("delete_job", job_id=everywhere)
+    await session.mark("The job for every room is gone")
+    await session.command("create_job_from_template", template_id=studio_template)
+    await session.mark("The studio template made a job")
+    await session.action("end_queue")
+    await session.mark("The queue ends after the started job")
+    await session.action("cancel_job", job_id=studio, after_cancel="stay")
+    robot.stop()
+    await session.home("Rocky stops in the studio")
+    await session.advance(30)
+    await session.mark("Rocky stopped in the studio")
+    rocky = await stage.robot("Rocky")
+    await session.action("return_robot", robot_id=rocky["robot_id"])
+    robot.return_home()
+    await session.home("Rocky drives home")
+    await session.advance(60)
+    robot.dock_after_run()
+    await session.home("Rocky charges at its dock")
+    await session.advance(60)
+    await session.preview(**draft_fields())
+    await session.preview(**draft_fields(areas=[rooms["Studio"]]))
+    await session.mark("Rocky is back at its dock")
+    await session.action("create_job", **job_fields([rooms["Studio"]]), start=True)
+    await session.mark("Rocky starts the studio at once")
+
+
+async def room_controls(stage: Stage) -> None:
+    """The user arranges the rooms: releases the library for 75 minutes and
+    locks the dining room again, excludes and includes the studio, gives the
+    dining room its own due rule and adds a room without an area."""
+    session = stage.session
+    await stage.open()
+    await stage.release("Dining Room")
+    rooms = await stage.rooms()
+    await session.mark("The dining room is released")
+    await session.command(
+        "release_rooms",
+        grants=[{"room": rooms["Library"], "kind": "timed", "duration_seconds": 4500}],
+    )
+    await session.command("revoke_rooms", rooms=[rooms["Dining Room"]])
+    await session.mark("The library is released for 75 minutes")
+    await session.command("disable_room", room_id=rooms["Studio"])
+    await session.command("enable_room", room_id=rooms["Studio"])
+    await session.mark("The studio is included again")
+    await session.command(
+        "update_room",
+        room_id=rooms["Dining Room"],
+        configuration={"due_policy": {"vacuum_seconds": 129600}},
+    )
+    await session.mark("The dining room is due every 36 hours")
+    await session.command("create_room", name="Office")
+    await session.mark("The office is a room")
+
+
+async def settings_controls(stage: Stage) -> None:
+    """The user lets the queue wait 30 minutes for more work and makes mopping
+    with the deep route the default for new jobs."""
+    session = stage.session
+    await stage.open()
+    await session.command("configure_queue", grace_seconds=1800)
+    await session.mark("The queue waits 30 minutes")
+    await session.command(
+        "configure_job_defaults", **initial_defaults(mode="mop", mop_route="deep_plus")
+    )
+    await session.mark("Mopping is the default")
+
+
+async def template_controls(stage: Stage) -> None:
+    """An automatic template made a job for the due dining room; the user lets it
+    make one again, starts one by hand, makes the template manual, adds a studio
+    template and removes it again. Before saving a template, the scenario
+    previews its intent."""
+    session = stage.session
+    await stage.open()
+    await stage.release("Dining Room", "Studio")
+    rooms = await stage.rooms()
+    await session.command(
+        "update_room",
+        room_id=rooms["Dining Room"],
+        configuration={"due_policy": {"vacuum_seconds": 86400}},
+    )
+    daily = job_fields([rooms["Dining Room"]])
+    template = _result(
+        await session.command(
+            "save_template",
+            name="Dining room daily",
+            intent=daily,
+            enabled=True,
+            automatic=True,
+        )
+    )["template_id"]
+    await session.mark("The daily template made a job")
+    await session.command("reset_template_demand", template_id=template)
+    await session.mark("The daily template may make a job again")
+    await session.command("create_job_from_template", template_id=template)
+    await session.preview(**draft_fields(areas=[rooms["Dining Room"]]))
+    await session.mark("The daily template made another job")
+    # Saving replaces the whole template.
+    await session.command(
+        "save_template",
+        template_id=template,
+        name="Dining room daily",
+        intent=daily,
+        enabled=True,
+        automatic=False,
+    )
+    await session.preview(**draft_fields())
+    await session.preview(**draft_fields(areas=[rooms["Studio"]]))
+    await session.mark("The daily template is manual")
+    studio = _result(
+        await session.command(
+            "save_template",
+            name="Studio weekly",
+            intent=job_fields([rooms["Studio"]]),
+            enabled=True,
+            automatic=False,
+        )
+    )["template_id"]
+    await session.mark("The studio has a template")
+    await session.command("remove_template", template_id=studio)
+    await session.mark("The studio template is gone")
 
 
 SCENARIOS: dict[str, Scenario] = {
@@ -547,6 +806,10 @@ SCENARIOS: dict[str, Scenario] = {
     "no_robot": Scenario(no_robot, no_robot_found),
     "unloaded": Scenario(single_roborock, unloaded, refusals=1),
     "robot_removed": Scenario(single_roborock, robot_removed),
+    "queue_controls": Scenario(single_roborock, queue_controls),
+    "room_controls": Scenario(single_roborock, room_controls),
+    "settings_controls": Scenario(single_roborock, settings_controls),
+    "template_controls": Scenario(single_roborock, template_controls),
 }
 
 

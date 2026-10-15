@@ -590,10 +590,28 @@ class RoborockV1:
         )
 
     def clean(self, status: str = "segment_cleaning") -> None:
-        """Clean, as the robot reports any run."""
+        """Clean, as the robot reports any run: in the room of the first segment
+        it was last sent to, on the selected map."""
         self.set("status", status)
         self.set("in_cleaning", "on")
+        if commands := self.segment_commands():
+            selected = self.hass.states.get(self.entities["selected_map"].entity_id)
+            rooms = next(
+                (
+                    rooms
+                    for _, name, rooms in MAPS
+                    if selected and name == selected.state
+                ),
+                MAPS[0][2],
+            )
+            self.set("current_room", rooms[str(commands[-1]["segments"][0])])
         self.set_vacuum("cleaning")
+
+    def stop(self) -> None:
+        """Stop where the robot is, as after a stop command."""
+        self.set("status", "idle")
+        self.set("in_cleaning", "off")
+        self.set_vacuum("idle")
 
     def fail(self, code: str) -> None:
         """Stop with a fault, as the robot reports one."""

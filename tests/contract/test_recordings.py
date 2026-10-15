@@ -138,6 +138,20 @@ async def test_scenario_records(
         (target / f"{name}.json").write_text(text, encoding="utf-8", newline="\n")
 
 
+def results(recording: dict[str, Any], kind: str) -> list[Any]:
+    """The results of every message of one type, without the domain prefix."""
+    asked = {
+        step["send"]["id"]
+        for step in recording["steps"]
+        if step.get("send", {}).get("type") == f"{DOMAIN}/{kind}"
+    }
+    return [
+        step["receive"]["result"]
+        for step in recording["steps"]
+        if step.get("receive", {}).get("id") in asked
+    ]
+
+
 def answers(recording: dict[str, Any], query: str) -> list[Any]:
     """The results of every configuration query of one kind."""
     asked = {
@@ -163,7 +177,7 @@ async def test_the_showcase_records_what_the_editor_and_the_map_show(
     }
     assert sorted(maps) == ["image.rocky_lower_floor", "image.rocky_main_floor"]
     assert all(picture.startswith("/api/image_proxy/") for picture in maps.values())
-    assert len(answers(recording, "preview_job")) == 4
+    assert len(answers(recording, "preview_job")) == 5
     conservatory = next(
         room
         for result in answers(recording, "get_rooms")[-1:]
@@ -173,6 +187,88 @@ async def test_the_showcase_records_what_the_editor_and_the_map_show(
     assert [item["entity_id"] for item in conservatory["requirements"]] == [
         CONSERVATORY_DOOR
     ]
+
+
+async def test_the_showcase_rooms_are_fresh_due_and_without_a_rule(
+    record: Any,
+) -> None:
+    (*_, rooms) = answers(await record("showcase"), "get_rooms")
+    assert {
+        room["name"]: room["due"]["vacuum"]["state"] for room in rooms["rooms"]
+    } == {
+        "Dining Room": "fresh",
+        "Studio": "due",
+        "Library": "due",
+        "Conservatory": "disabled",
+    }
+
+
+async def test_either_robot_can_start_the_waiting_job(record: Any) -> None:
+    recording = await record("robot_choice")
+    steps = recording["steps"]
+    either = steps.index({"mark": "Either robot can start the dining room"})
+    (*_, queue) = [
+        result
+        for result in results({"steps": steps[:either]}, "queue/get")
+        if result["limit"] > 1 and result["jobs"]
+    ]
+    (job,) = queue["jobs"]
+    candidates = job["waiting"]["robots"]["candidates"]
+    assert len(candidates) == 2
+    assert all(not candidate["blockers"] for candidate in candidates)
+    (preview,) = answers(recording, "preview_job")
+    options = preview["settings"]["vacuum_power"]["options"]
+    assert options
+    assert not any(option["supported_by_all"] for option in options)
+
+
+async def test_rocky_could_start_a_job_while_dusty_cleans(record: Any) -> None:
+    recording = await record("robot_choice")
+    (*_, queue) = [
+        result for result in results(recording, "queue/get") if result["limit"] > 1
+    ]
+    (studio,) = queue["jobs"]
+    assert studio["actions"]["start"]["available"]
+    (*_, running) = [
+        result for result in results(recording, "jobs/list") if result["jobs"]
+    ]
+    assert [job["state"] for job in running["jobs"]] == ["running"]
+
+
+async def test_the_showcase_reads_the_job_waiting_for_the_conservatory(
+    record: Any,
+) -> None:
+    waiting = [
+        job
+        for job in results(await record("showcase"), "job/get")
+        if job["state"] == "queued"
+    ]
+    assert [job["waiting"]["code"] for job in waiting] == ["room_not_released"]
+
+
+async def test_the_corrected_job_can_be_retried_and_corrected_again(
+    record: Any,
+) -> None:
+    recording = await record("recovery")
+    (*_, corrected) = results(recording, "job/get")
+    assert corrected["state"] == "completed"
+    assert all(corrected["actions"][name]["available"] for name in ("retry", "correct"))
+    assert {"mark": "The library job is corrected"} in recording["steps"]
+
+
+async def test_the_docked_robot_could_start_the_studio_at_once(record: Any) -> None:
+    (*_, studio) = answers(await record("queue_controls"), "preview_job")
+    assert studio["startable_now"] is True
+
+
+# Homes that are not set up yet; every other home finished the assistant long ago.
+FRESH = ("not_installed", "setup", "no_robot")
+
+
+@pytest.mark.parametrize("name", sorted(set(SCENARIOS) - set(FRESH)))
+async def test_a_lived_in_home_finished_the_assistant(record: Any, name: str) -> None:
+    (first, *_) = answers(await record(name), "get_setup")
+    assert first["assistant_pending"] is False
 
 
 async def test_a_card_checks_the_integration_again_after_a_reload(
@@ -207,6 +303,89 @@ def after_mark(recording: dict[str, Any], mark: str) -> list[dict[str, Any]]:
         len(steps),
     )
     return steps[start:end]
+
+
+# The changes of a scenario in order: the first ones after each mark where a
+# client opens right before them.
+CONTROLS: dict[str, list[tuple[str, list[str]]]] = {
+    "queue_controls": [
+        ("Rocky cleans while two jobs wait", ["move_job"]),
+        ("The library job is next", ["pause_queue", "resume_queue"]),
+        ("The queue runs again", ["create_job"]),
+        ("A mop job for the dining room waits", ["create_job"]),
+        ("A job for every room waits", ["update_job"]),
+        ("The library job runs twice", ["save_job_as_template"]),
+        ("The library job is a template", ["delete_job"]),
+        ("The job for every room is gone", ["create_job_from_template"]),
+        ("The studio template made a job", ["end_queue"]),
+        ("The queue ends after the started job", ["cancel_job"]),
+        ("Rocky stopped in the studio", ["return_robot"]),
+        ("Rocky is back at its dock", ["create_job"]),
+    ],
+    "queue_end": [
+        ("The queue waits for work", ["end_queue"]),
+    ],
+    "room_controls": [
+        ("The dining room is released", ["release_rooms", "revoke_rooms"]),
+        ("The library is released for 75 minutes", ["disable_room", "enable_room"]),
+        ("The studio is included again", ["update_room"]),
+        ("The dining room is due every 36 hours", ["create_room"]),
+    ],
+    "settings_controls": [
+        ("The card opens", ["configure_queue"]),
+        ("The queue waits 30 minutes", ["configure_job_defaults"]),
+    ],
+    "template_controls": [
+        ("The daily template made a job", ["reset_template_demand"]),
+        ("The daily template may make a job again", ["create_job_from_template"]),
+        ("The daily template made another job", ["save_template"]),
+        ("The daily template is manual", ["save_template"]),
+        ("The studio has a template", ["remove_template"]),
+    ],
+    "robot_choice": [
+        ("The card opens", ["configure_robot"]),
+        ("Either robot can start the dining room", ["start_job"]),
+        ("Dusty cleans the dining room", ["create_job"]),
+    ],
+    "robot_removed": [
+        ("Rocky is not configured", ["add_robot"]),
+    ],
+}
+
+
+def commands_after(recording: dict[str, Any], mark: str) -> list[str]:
+    """The changes sent after a mark, up to the next mark or home change."""
+    steps = recording["steps"]
+    start = steps.index({"mark": mark}) + 1
+    sent: list[str] = []
+    for step in steps[start:]:
+        if "mark" in step or "home" in step:
+            break
+        message = step.get("send", {})
+        if message.get("type") == "call_service":
+            sent.append(message["service"])
+        elif message.get("type") == f"{DOMAIN}/configuration/command":
+            sent.append(message["command"])
+    return sent
+
+
+@pytest.mark.parametrize("name", sorted(CONTROLS))
+async def test_each_change_follows_its_mark(record: Any, name: str) -> None:
+    recording = await record(name)
+    for mark, commands in CONTROLS[name]:
+        assert commands_after(recording, mark)[: len(commands)] == commands, mark
+
+
+@pytest.mark.parametrize("name", sorted(CONTROLS))
+async def test_a_mark_follows_the_last_change(record: Any, name: str) -> None:
+    steps = (await record(name))["steps"]
+    changes = [
+        index
+        for index, step in enumerate(steps)
+        if step.get("send", {}).get("type")
+        in ("call_service", f"{DOMAIN}/configuration/command")
+    ]
+    assert any("mark" in step for step in steps[changes[-1] :])
 
 
 @pytest.mark.parametrize("name", sorted(MARKS))

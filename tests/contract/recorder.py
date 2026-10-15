@@ -332,7 +332,7 @@ class Session:
         await self.query("get_trace", offset=0, limit=CARD_COLLECTION_LIMIT)
 
     async def preview(self, **parameters: Any) -> dict[str, Any]:
-        """Read a draft's preview as the card's editor asks for it."""
+        """Read a draft's preview, which changes nothing."""
         return await self.request(
             {
                 "type": f"{DOMAIN}/configuration/get",
