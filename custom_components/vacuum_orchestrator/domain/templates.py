@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from types import MappingProxyType
 
+from .errors import ValidationError, located
 from .intents import JobIntent
 from .types import CleaningMode, OperationKind
 from .validation import identifier, instant
@@ -24,7 +25,10 @@ class JobTemplate:
 
     def __post_init__(self) -> None:
         identifier(self.template_id)
-        identifier(self.name)
+        if not self.name.strip():
+            raise ValidationError("empty_name", path=("name",))
+        with located("name"):
+            identifier(self.name)
         instant(self.updated_at)
         for room_id, token in self.demand_tokens.items():
             identifier(room_id)

@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from homeassistant.components.vacuum.const import VacuumEntityFeature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
+from custom_components.vacuum_orchestrator.api import configuration
 from custom_components.vacuum_orchestrator.api.websocket import (
     websocket_configuration_get,
 )
@@ -80,6 +83,38 @@ async def test_an_edit_is_checked_with_the_hold_that_protects_it(
     assert await validate(
         hass, "update_job", job_id=job, reason=" ", hold_id=held["hold_id"]
     ) == [("reason", "empty_reason")]
+
+
+@pytest.mark.usefixtures("configured")
+async def test_saving_a_job_as_template_is_checked_without_effect(
+    hass: HomeAssistant,
+) -> None:
+    room = (await call(hass, "create_room", name="Office"))["room_id"]
+    job = (await call(hass, "create_job", areas=[room]))["job_id"]
+    before = async_get_runtime(hass).orchestrator.state
+
+    assert await validate(hass, "save_job_as_template", job_id=job, name="Daily") == []
+    assert await validate(hass, "save_job_as_template", job_id=job, name=" ") == [
+        ("name", "empty_name")
+    ]
+    assert await validate(
+        hass, "save_template", name=" ", intent={"areas": [room]}
+    ) == [("name", "empty_name")]
+    assert await validate(
+        hass, "save_template", name=" Daily", intent={"areas": [room]}
+    ) == [("name", "invalid_identifier")]
+    assert await validate(hass, "save_job_as_template", job_id=job) == [
+        ("name", "required_field")
+    ]
+    assert async_get_runtime(hass).orchestrator.state == before
+
+
+def test_the_validate_action_offers_exactly_the_validated_commands() -> None:
+    services = yaml.safe_load(
+        (Path(configuration.__file__).parent.parent / "services.yaml").read_text()
+    )
+    options = services["validate"]["fields"]["command"]["selector"]["select"]
+    assert tuple(options["options"]) == configuration.VALIDATED_COMMANDS
 
 
 @pytest.mark.usefixtures("configured")

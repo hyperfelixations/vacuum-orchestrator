@@ -228,6 +228,7 @@ VALIDATED_COMMANDS = (
     "create_job",
     "update_job",
     "save_template",
+    "save_job_as_template",
     "create_room",
     "update_room",
     "release_rooms",
