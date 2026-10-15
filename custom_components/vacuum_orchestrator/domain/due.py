@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 
 from .completion import CompletionQuality
-from .errors import ValidationError
+from .errors import ValidationError, located
 from .validation import identifier, instant, seconds
 
 
@@ -38,17 +38,22 @@ class DuePolicy:
     occupancy_entity_registry_id: str | None = None
 
     def __post_init__(self) -> None:
-        for duration in (self.vacuum_seconds, self.mop_seconds):
-            if duration is not None:
-                seconds(duration, positive=True)
+        for name in ("vacuum_seconds", "mop_seconds"):
+            if (duration := getattr(self, name)) is not None:
+                with located(name):
+                    seconds(duration, positive=True)
         if self.occupancy_entity_id is not None:
-            identifier(self.occupancy_entity_id)
+            with located("occupancy_entity_id"):
+                identifier(self.occupancy_entity_id)
         if self.occupancy_entity_registry_id is not None:
             identifier(self.occupancy_entity_registry_id)
         if self.basis is DueBasis.OCCUPIED and self.occupancy_entity_id is None:
-            raise ValidationError("occupancy_source_required")
-        identifier(self.occupied_state)
-        identifier(self.unoccupied_state)
+            raise ValidationError(
+                "occupancy_source_required", path=("occupancy_entity_id",)
+            )
+        for name in ("occupied_state", "unoccupied_state"):
+            with located(name):
+                identifier(getattr(self, name))
         if self.occupied_state == self.unoccupied_state or {
             self.occupied_state,
             self.unoccupied_state,

@@ -125,9 +125,34 @@ async def test_rooms_releases_and_settings_are_checked_without_effect(
     before = async_get_runtime(hass).orchestrator.state
 
     assert await validate(hass, "create_room", name="Studio") == []
+    assert await validate(hass, "create_room", name="") == [
+        ("name", "invalid_room_name")
+    ]
     assert await validate(hass, "create_room", name="Studio", area_id="nowhere") == [
         ("area_id", "unknown_area")
     ]
+    assert await validate(
+        hass, "update_room", room_id=room, configuration={"name": " Office"}
+    ) == [("configuration.name", "invalid_room_name")]
+    assert await validate(
+        hass,
+        "update_room",
+        room_id=room,
+        configuration={"due_policy": {"basis": "occupied"}},
+    ) == [("configuration.due_policy.occupancy_entity_id", "occupancy_source_required")]
+    assert await validate(
+        hass,
+        "update_room",
+        room_id=room,
+        configuration={"due_policy": {"occupied_state": "off"}},
+    ) == [("configuration.due_policy", "invalid_occupancy_states")]
+    binding = {"robot_id": "robot", "target_ids": ["16"]}
+    assert await validate(
+        hass,
+        "update_room",
+        room_id=room,
+        configuration={"bindings": [binding, binding | {"target_ids": ["16", "16"]}]},
+    ) == [("configuration.bindings.1", "invalid_room_targets")]
     assert await validate(
         hass, "update_room", room_id=room, configuration={"area_id": "nowhere"}
     ) == [("configuration.area_id", "unknown_area")]

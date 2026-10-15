@@ -41,6 +41,7 @@ from ..domain.maps import RobotMaps
 from ..domain.permissions import robot_actions, room_actions, template_actions
 from ..domain.queue import MAX_START_DELAY_SECONDS
 from ..domain.releases import GrantRequest, ReleaseKind
+from ..domain.rooms import Room
 from ..domain.templates import JobTemplate
 from ..domain.types import (
     ROUTE_LADDER,
@@ -727,7 +728,7 @@ async def _execute_configuration(
         with located("configuration"):
             values = normalize_room_patch(hass, data["configuration"])
         await core.rooms.async_update(
-            data["room_id"], lambda room: apply_room_patch(room, values)
+            data["room_id"], lambda room: _patched_room(room, values)
         )
     elif name == "disable_room":
         await core.rooms.async_disable(data["room_id"])
@@ -787,6 +788,12 @@ async def _execute_configuration(
         result["robot_id"] = robot_id
     result["commit_id"] = core.state.commit_id
     return result
+
+
+def _patched_room(room: Room, values: dict[str, Any]) -> Room:
+    """Apply a configuration patch; an error names its configuration field."""
+    with located("configuration"):
+        return apply_room_patch(room, values)
 
 
 def present_maps(maps: RobotMaps) -> dict[str, Any]:

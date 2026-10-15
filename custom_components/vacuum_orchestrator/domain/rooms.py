@@ -7,7 +7,7 @@ from types import MappingProxyType
 
 from .completion import CleaningReceipt, CompletionQuality
 from .due import CleaningStamp, DuePolicy, DueReport, OccupancyCounter, evaluate_due
-from .errors import ValidationError
+from .errors import ValidationError, located
 from .releases import RoomRelease
 from .requirements import StateRequirement
 from .types import OperationKind
@@ -53,7 +53,8 @@ class Room:
 
     def __post_init__(self) -> None:
         identifier(self.room_id)
-        identifier(self.name, "invalid_room_name")
+        with located("name"):
+            identifier(self.name, "invalid_room_name")
         for reference in (self.area_id, self.floor_id):
             if reference is not None:
                 identifier(reference)

@@ -81,8 +81,7 @@ def normalize_room_patch(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
             )
     if "bindings" in values:
         values["bindings"] = tuple(
-            RoomBinding(item["robot_id"], tuple(item["target_ids"]), item.get("map_id"))
-            for item in values["bindings"]
+            _binding(index, item) for index, item in enumerate(values["bindings"])
         )
     if "due_policy" in values:
         policy = dict(values["due_policy"])
@@ -96,11 +95,20 @@ def normalize_room_patch(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     return cast(dict[str, Any], values)
 
 
+def _binding(index: int, item: dict[str, Any]) -> RoomBinding:
+    """Read one binding; an error names its row."""
+    with located("bindings", index):
+        return RoomBinding(
+            item["robot_id"], tuple(item["target_ids"]), item.get("map_id")
+        )
+
+
 def apply_room_patch(room: Room, values: dict[str, Any]) -> Room:
     """Merge policy fields under the global writer lock."""
     changes = dict(values)
     if "due_policy" in changes:
-        changes["due_policy"] = replace(room.due_policy, **changes["due_policy"])
+        with located("due_policy"):
+            changes["due_policy"] = replace(room.due_policy, **changes["due_policy"])
     if "name" in changes and "follow_area_name" not in changes:
         changes["follow_area_name"] = False
     if "area_id" in changes:
