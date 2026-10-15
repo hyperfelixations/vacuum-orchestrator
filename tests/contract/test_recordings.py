@@ -317,7 +317,8 @@ CONTROLS: dict[str, list[tuple[str, list[str]]]] = {
         ("A mop job for the dining room waits", ["create_job"]),
         ("A job for every room waits", ["update_job"]),
         ("The library job runs twice", ["save_job_as_template"]),
-        ("The library job is a template", ["delete_job"]),
+        ("The library job is a template", ["hold_job", "release_job_hold"]),
+        ("The job for every room stays", ["hold_job", "delete_job"]),
         ("The job for every room is gone", ["create_job_from_template"]),
         ("The studio template made a job", ["end_queue"]),
         ("The queue ends after the started job", ["cancel_job"]),
@@ -326,6 +327,12 @@ CONTROLS: dict[str, list[tuple[str, list[str]]]] = {
     ],
     "queue_end": [
         ("The queue waits for work", ["end_queue"]),
+    ],
+    "job_hold": [
+        (
+            "The job waits for two rooms",
+            ["hold_job", "delete_job", "hold_job", "delete_job"],
+        ),
     ],
     "room_controls": [
         ("The dining room is released", ["release_rooms", "revoke_rooms"]),
@@ -478,6 +485,22 @@ async def test_an_unloaded_integration_is_only_checked(record: Any) -> None:
     ]
     (refused,) = [step["receive"] for step in steps if "receive" in step]
     assert refused["error"]["code"] == "orchestrator_not_loaded"
+
+
+async def test_a_deletion_under_a_lapsed_hold_is_confirmed_again(record: Any) -> None:
+    steps = (await record("job_hold"))["steps"]
+    start = steps.index({"mark": "The job waits for two rooms"})
+    deletions = {
+        step["send"]["id"]
+        for step in steps[start:]
+        if step.get("send", {}).get("service") == "delete_job"
+    }
+    answers = [
+        step["receive"].get("error", {}).get("translation_key")
+        for step in steps[start:]
+        if step.get("receive", {}).get("id") in deletions
+    ]
+    assert answers == ["hold_expired", None]
 
 
 async def test_a_removed_robot_is_offered_again(record: Any) -> None:

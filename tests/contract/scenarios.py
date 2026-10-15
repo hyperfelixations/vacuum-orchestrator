@@ -16,6 +16,7 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.vacuum_orchestrator.const import CONF_INSTALLATION_ID, DOMAIN
+from custom_components.vacuum_orchestrator.domain.holds import HOLD_LEASE_SECONDS
 from custom_components.vacuum_orchestrator.domain.intents import settings_for_mode
 from custom_components.vacuum_orchestrator.domain.job_defaults import JobDefaults
 from custom_components.vacuum_orchestrator.domain.types import CleaningMode
@@ -225,8 +226,10 @@ async def start_delay(stage: Stage) -> None:
 
 async def job_hold(stage: Stage) -> None:
     """Editing holds a waiting job: a second card's hold and a start are
-    refused with translated errors, saving restarts the start delay. A
-    deletion is confirmed under its own hold. Invalid input names its field."""
+    refused with translated errors, saving restarts the start delay. Invalid
+    input names its field. A deletion is confirmed under its own hold; one
+    confirmed after its hold lapsed is refused and confirmed again under a
+    new hold."""
     session = stage.session
     await stage.open()
     await stage.release("Dining Room", "Studio")
@@ -244,12 +247,18 @@ async def job_hold(stage: Stage) -> None:
         hold_id=hold,
         areas=stage.areas("Dining Room", "Studio"),
     )
-    confirm = await session.command("hold_job", job_id=job, purpose="confirm")
-    await session.action("delete_job", job_id=job, hold_id=confirm["result"]["hold_id"])
     await session.action(
         "create_job", areas=stage.areas("Dining Room"), all_rooms=True, mode="vacuum"
     )
     await session.command("configure_queue", start_delay_seconds=601)
+    await session.read_job(job)
+    await session.mark("The job waits for two rooms")
+    lapsed = await session.command("hold_job", job_id=job, purpose="confirm")
+    await session.advance(HOLD_LEASE_SECONDS + 1)
+    await session.action("delete_job", job_id=job, hold_id=_result(lapsed)["hold_id"])
+    confirm = await session.command("hold_job", job_id=job, purpose="confirm")
+    await session.action("delete_job", job_id=job, hold_id=_result(confirm)["hold_id"])
+    await session.mark("The job for two rooms is gone")
 
 
 async def reload(stage: Stage) -> None:
@@ -618,7 +627,8 @@ async def robot_removed(stage: Stage) -> None:
 async def queue_controls(stage: Stage) -> None:
     """Everyday queue work while Rocky cleans the studio: the user moves a job,
     pauses and resumes the queue, adds jobs for one room and for every room,
-    edits one, saves it as a template, deletes one, starts one from a template
+    edits one, saves it as a template, keeps one in the delete dialog and then
+    deletes it under the dialog's hold, starts one from a template
     and ends the queue. Rocky finishes nothing yet: the user cancels its job so
     it stays, sends it home and starts a new job at once. A mark precedes each
     change, so a client can open right before it; before it, the scenario
@@ -677,7 +687,14 @@ async def queue_controls(stage: Stage) -> None:
     await session.command("save_job_as_template", **named)
     await session.read_job(everywhere)
     await session.mark("The library job is a template")
-    await session.action("delete_job", job_id=everywhere)
+    kept = await session.command("hold_job", job_id=everywhere, purpose="confirm")
+    await session.command("release_job_hold", hold_id=_result(kept)["hold_id"])
+    await session.read_job(everywhere)
+    await session.mark("The job for every room stays")
+    gone = await session.command("hold_job", job_id=everywhere, purpose="confirm")
+    await session.action(
+        "delete_job", job_id=everywhere, hold_id=_result(gone)["hold_id"]
+    )
     await session.mark("The job for every room is gone")
     await session.command("create_job_from_template", template_id=studio_template)
     await session.mark("The studio template made a job")
@@ -814,7 +831,7 @@ SCENARIOS: dict[str, Scenario] = {
     "queue_end": Scenario(single_roborock, queue_end),
     "robot_choice": Scenario(two_robots, robot_choice),
     "start_delay": Scenario(single_roborock, start_delay),
-    "job_hold": Scenario(single_roborock, job_hold, refusals=4),
+    "job_hold": Scenario(single_roborock, job_hold, refusals=5),
     "reload": Scenario(single_roborock, reload),
     "delayed_answer": Scenario(single_roborock, delayed_answer),
     "device_fault": Scenario(single_roborock, device_fault),
