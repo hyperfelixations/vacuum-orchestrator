@@ -1,7 +1,9 @@
 """What a card experiences in realistic homes; each scenario becomes a recording.
 
 See dev doc "Aufzeichnungen". A scenario drives the integration only through
-the card's WebSocket and changes the home only as its devices would.
+the card's WebSocket and changes the home only as its devices would. Where a
+client sends a form, the scenario checks the form's input right before, with
+the same data.
 """
 
 from __future__ import annotations
@@ -105,8 +107,10 @@ def job_fields(
 ) -> dict[str, Any]:
     """A job or template intent naming every setting of its mode, its passes,
     both condition lists and its settings policy, filled from VOI's initial
-    defaults; without rooms, for every room."""
-    where: dict[str, Any] = {"areas": rooms} if rooms else {"all_rooms": True}
+    defaults; without a room list, for every room."""
+    where: dict[str, Any] = (
+        {"areas": rooms} if rooms is not None else {"all_rooms": True}
+    )
     defaults = initial_defaults()
     settings = sorted(settings_for_mode(CleaningMode(mode)))
     return {
@@ -523,6 +527,8 @@ async def showcase(stage: Stage) -> None:
         await session.request(
             {"type": f"{DOMAIN}/jobs/list", "offset": offset, "limit": 5}
         )
+    # A new job saved before a room is chosen: VOI names what is missing.
+    await session.validate("create_job", **job_fields([]))
     await session.mark("A busy afternoon")
 
 
@@ -560,11 +566,12 @@ async def robot_choice(stage: Stage) -> None:
     await stage.open()
     dusty = await stage.robot("Dusty")
     # A configuration replaces the whole profile; unnamed fields reset.
-    await session.command(
-        "configure_robot",
-        robot_id=dusty["robot_id"],
-        configuration={**dusty["configuration"], "fixed_mode": "vacuum"},
-    )
+    profile = {
+        "robot_id": dusty["robot_id"],
+        "configuration": {**dusty["configuration"], "fixed_mode": "vacuum"},
+    }
+    await session.validate("configure_robot", **profile)
+    await session.command("configure_robot", **profile)
     await stage.release("Dining Room", "Studio", "Library", "Conservatory")
     job = _job_id(await session.action("create_job", areas=stage.areas("Dining Room")))
     await session.read_job(job)
@@ -575,6 +582,7 @@ async def robot_choice(stage: Stage) -> None:
     stage.home.robots["Dusty"].set_vacuum("cleaning")
     await session.home("Dusty vacuums the dining room")
     await session.mark("Dusty cleans the dining room")
+    await session.validate("create_job", **job_fields([rooms["Studio"]]))
     await session.action("create_job", **job_fields([rooms["Studio"]]))
     await session.mark("Rocky could start the studio while Dusty cleans")
 
@@ -648,21 +656,25 @@ async def queue_controls(stage: Stage) -> None:
     await session.preview(**draft_fields("mop"))
     await session.preview(**draft_fields("mop", areas=[rooms["Dining Room"]]))
     await session.mark("The queue runs again")
-    await session.action("create_job", **job_fields([rooms["Dining Room"]], "mop"))
+    mop = job_fields([rooms["Dining Room"]], "mop")
+    await session.validate("create_job", **mop)
+    await session.action("create_job", **mop)
     await session.preview(**draft_fields())
     await session.preview(**draft_fields(all_rooms=True))
     await session.mark("A mop job for the dining room waits")
+    await session.validate("create_job", **job_fields())
     everywhere = _job_id(await session.action("create_job", **job_fields()))
     library_draft = draft_fields(areas=[rooms["Library"]])
     await session.preview(**library_draft)
     await session.preview(**library_draft | {"passes": 2})
     await session.mark("A job for every room waits")
+    await session.validate("update_job", job_id=library, passes=2)
     await session.action("update_job", job_id=library, passes=2)
     await session.read_job(library)
     await session.mark("The library job runs twice")
-    await session.command(
-        "save_job_as_template", job_id=library, name="Library twice", automatic=False
-    )
+    named = {"job_id": library, "name": "Library twice", "automatic": False}
+    await session.validate("save_job_as_template", **named)
+    await session.command("save_job_as_template", **named)
     await session.read_job(everywhere)
     await session.mark("The library job is a template")
     await session.action("delete_job", job_id=everywhere)
@@ -687,34 +699,39 @@ async def queue_controls(stage: Stage) -> None:
     await session.preview(**draft_fields())
     await session.preview(**draft_fields(areas=[rooms["Studio"]]))
     await session.mark("Rocky is back at its dock")
-    await session.action("create_job", **job_fields([rooms["Studio"]]), start=True)
+    now = job_fields([rooms["Studio"]], start=True)
+    await session.validate("create_job", **now)
+    await session.action("create_job", **now)
     await session.mark("Rocky starts the studio at once")
 
 
 async def room_controls(stage: Stage) -> None:
     """The user arranges the rooms: releases the library for 75 minutes and
     locks the dining room again, excludes and includes the studio, gives the
-    dining room its own due rule and adds a room without an area."""
+    dining room its own due rule and adds a room without an area, first
+    without a name."""
     session = stage.session
     await stage.open()
     await stage.release("Dining Room")
     rooms = await stage.rooms()
     await session.mark("The dining room is released")
-    await session.command(
-        "release_rooms",
-        grants=[{"room": rooms["Library"], "kind": "timed", "duration_seconds": 4500}],
-    )
+    grants = [{"room": rooms["Library"], "kind": "timed", "duration_seconds": 4500}]
+    await session.validate("release_rooms", grants=grants)
+    await session.command("release_rooms", grants=grants)
     await session.command("revoke_rooms", rooms=[rooms["Dining Room"]])
     await session.mark("The library is released for 75 minutes")
     await session.command("disable_room", room_id=rooms["Studio"])
     await session.command("enable_room", room_id=rooms["Studio"])
     await session.mark("The studio is included again")
-    await session.command(
-        "update_room",
-        room_id=rooms["Dining Room"],
-        configuration={"due_policy": {"vacuum_seconds": 129600}},
-    )
+    due = {
+        "room_id": rooms["Dining Room"],
+        "configuration": {"due_policy": {"vacuum_seconds": 129600}},
+    }
+    await session.validate("update_room", **due)
+    await session.command("update_room", **due)
     await session.mark("The dining room is due every 36 hours")
+    await session.validate("create_room", name="")
+    await session.validate("create_room", name="Office")
     await session.command("create_room", name="Office")
     await session.mark("The office is a room")
 
@@ -724,19 +741,20 @@ async def settings_controls(stage: Stage) -> None:
     with the deep route the default for new jobs."""
     session = stage.session
     await stage.open()
+    await session.validate("configure_queue", grace_seconds=1800)
     await session.command("configure_queue", grace_seconds=1800)
     await session.mark("The queue waits 30 minutes")
-    await session.command(
-        "configure_job_defaults", **initial_defaults(mode="mop", mop_route="deep_plus")
-    )
+    defaults = initial_defaults(mode="mop", mop_route="deep_plus")
+    await session.validate("configure_job_defaults", **defaults)
+    await session.command("configure_job_defaults", **defaults)
     await session.mark("Mopping is the default")
 
 
 async def template_controls(stage: Stage) -> None:
     """An automatic template made a job for the due dining room; the user lets it
     make one again, starts one by hand, makes the template manual, adds a studio
-    template and removes it again. Before saving a template, the scenario
-    previews its intent."""
+    template, first without a name, and removes it again. Before saving a
+    template, the scenario previews its intent."""
     session = stage.session
     await stage.open()
     await stage.release("Dining Room", "Studio")
@@ -763,26 +781,27 @@ async def template_controls(stage: Stage) -> None:
     await session.preview(**draft_fields(areas=[rooms["Dining Room"]]))
     await session.mark("The daily template made another job")
     # Saving replaces the whole template.
-    await session.command(
-        "save_template",
-        template_id=template,
-        name="Dining room daily",
-        intent=daily,
-        enabled=True,
-        automatic=False,
-    )
+    manual = {
+        "template_id": template,
+        "name": "Dining room daily",
+        "intent": daily,
+        "enabled": True,
+        "automatic": False,
+    }
+    await session.validate("save_template", **manual)
+    await session.command("save_template", **manual)
     await session.preview(**draft_fields())
     await session.preview(**draft_fields(areas=[rooms["Studio"]]))
     await session.mark("The daily template is manual")
-    studio = _result(
-        await session.command(
-            "save_template",
-            name="Studio weekly",
-            intent=job_fields([rooms["Studio"]]),
-            enabled=True,
-            automatic=False,
-        )
-    )["template_id"]
+    weekly = {
+        "name": "Studio weekly",
+        "intent": job_fields([rooms["Studio"]]),
+        "enabled": True,
+        "automatic": False,
+    }
+    await session.validate("save_template", **weekly | {"name": None})
+    await session.validate("save_template", **weekly)
+    studio = _result(await session.command("save_template", **weekly))["template_id"]
     await session.mark("The studio has a template")
     await session.command("remove_template", template_id=studio)
     await session.mark("The studio template is gone")

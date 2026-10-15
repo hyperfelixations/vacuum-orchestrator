@@ -341,6 +341,14 @@ class Session:
             }
         )
 
+    async def validate(self, command: str, /, **data: Any) -> dict[str, Any]:
+        """Check a form's input as a client does right before it sends it, which
+        changes nothing; the verdict."""
+        verdict: dict[str, Any] = await self.query(
+            "validate", command=command, data=data
+        )
+        return verdict
+
     async def read_manifest(self) -> dict[str, Any]:
         """Ask HA for the integration's manifest, as a card does while VOI is not
         loaded, and return the result frame."""

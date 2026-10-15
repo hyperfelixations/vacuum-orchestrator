@@ -7,6 +7,7 @@ card records them on demand with `python -m tests.contract --record-to <dir>`.
 import json
 import re
 import subprocess
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,7 @@ from homeassistant.helpers.translation import (
 )
 from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 
+from custom_components.vacuum_orchestrator.api.configuration import VALIDATED_COMMANDS
 from custom_components.vacuum_orchestrator.const import API_VERSION, DOMAIN
 from tests.contract.__main__ import arguments
 from tests.contract.recorder import (
@@ -386,6 +388,80 @@ async def test_a_mark_follows_the_last_change(record: Any, name: str) -> None:
         in ("call_service", f"{DOMAIN}/configuration/command")
     ]
     assert any("mark" in step for step in steps[changes[-1] :])
+
+
+# Commands a client sends from a form; adding a robot from the list asks nothing.
+FORMS = frozenset(VALIDATED_COMMANDS) - {"add_robot"}
+CHANGES = ("call_service", f"{DOMAIN}/configuration/command")
+
+
+def first_change_after(
+    recording: dict[str, Any], mark: str
+) -> tuple[str, Any, dict[str, Any], Any]:
+    """The first change after a mark with its data, and the message sent right
+    before it with that message's answer."""
+    steps = recording["steps"]
+    sent = [
+        step["send"] for step in steps[steps.index({"mark": mark}) :] if "send" in step
+    ]
+    before, change = next(pair for pair in pairwise(sent) if pair[1]["type"] in CHANGES)
+    (answer,) = [
+        step["receive"].get("result")
+        for step in steps
+        if step.get("receive", {}).get("id") == before["id"]
+    ]
+    if change["type"] == "call_service":
+        return change["service"], change["service_data"], before, answer
+    return change["command"], change["parameters"], before, answer
+
+
+@pytest.mark.parametrize("name", sorted(CONTROLS))
+async def test_a_client_checks_each_form_right_before_sending_it(
+    record: Any, name: str
+) -> None:
+    recording = await record(name)
+    for mark, _ in CONTROLS[name]:
+        command, data, before, verdict = first_change_after(recording, mark)
+        if command not in FORMS:
+            continue
+        assert before.get("query") == "validate", mark
+        assert before["parameters"] == {"command": command, "data": data}, mark
+        assert verdict["valid"] is True, mark
+
+
+def verdicts(recording: dict[str, Any], command: str) -> list[list[list[str]]]:
+    """The errors of every recorded check of one command, as path and code."""
+    asked = {
+        step["send"]["id"]
+        for step in recording["steps"]
+        if step.get("send", {}).get("query") == "validate"
+        and step["send"]["parameters"]["command"] == command
+    }
+    return [
+        [
+            [".".join(map(str, error["path"])), error["code"]]
+            for error in step["receive"]["result"]["errors"]
+        ]
+        for step in recording["steps"]
+        if step.get("receive", {}).get("id") in asked
+    ]
+
+
+# The errors a client shows at a form's fields, by scenario: the command and
+# the errors of each of its checks in order.
+FORM_ERRORS = {
+    "showcase": ("create_job", [[["areas", "job_requires_area"]]]),
+    "room_controls": ("create_room", [[["name", "invalid_room_name"]], []]),
+    "template_controls": ("save_template", [[], [["name", "invalid_value"]], []]),
+}
+
+
+@pytest.mark.parametrize("name", sorted(FORM_ERRORS))
+async def test_the_form_errors_a_client_shows_are_recorded(
+    record: Any, name: str
+) -> None:
+    command, errors = FORM_ERRORS[name]
+    assert verdicts(await record(name), command) == errors
 
 
 @pytest.mark.parametrize("name", sorted(MARKS))
