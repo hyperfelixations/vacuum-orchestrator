@@ -315,7 +315,7 @@ CONTROLS: dict[str, list[tuple[str, list[str]]]] = {
         ("The library job is next", ["pause_queue", "resume_queue"]),
         ("The queue runs again", ["create_job"]),
         ("A mop job for the dining room waits", ["create_job"]),
-        ("A job for every room waits", ["update_job"]),
+        ("A job for every room waits", ["hold_job", "update_job"]),
         ("The library job runs twice", ["save_job_as_template"]),
         ("The library job is a template", ["hold_job", "release_job_hold"]),
         ("The job for every room stays", ["hold_job", "delete_job"]),
@@ -327,6 +327,13 @@ CONTROLS: dict[str, list[tuple[str, list[str]]]] = {
     ],
     "queue_end": [
         ("The queue waits for work", ["end_queue"]),
+    ],
+    "edit_hold": [
+        ("A dining room job waits", ["hold_job", "release_job_hold"]),
+        (
+            "The card gave the job back",
+            ["hold_job", "renew_job_hold", "hold_job", "release_job_hold"],
+        ),
     ],
     "job_hold": [
         (

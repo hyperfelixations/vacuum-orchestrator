@@ -267,6 +267,29 @@ async def job_hold(stage: Stage) -> None:
     await session.mark("The job for two rooms is gone")
 
 
+async def edit_hold(stage: Stage) -> None:
+    """A card edits a waiting job under its own hold. Leaving the editor gives the
+    hold back. A hold the card does not renew, as when its connection drops, lapses:
+    its renewal is refused and the card holds the job again."""
+    session = stage.session
+    await stage.open()
+    rooms = await stage.rooms()
+    job = _job_id(
+        await session.action("create_job", **job_fields([rooms["Dining Room"]]))
+    )
+    await session.preview(**draft_fields(areas=[rooms["Dining Room"]]))
+    await session.mark("A dining room job waits")
+    edit = await session.command("hold_job", job_id=job, purpose="edit")
+    await session.command("release_job_hold", hold_id=_result(edit)["hold_id"])
+    await session.mark("The card gave the job back")
+    lapsing = await session.command("hold_job", job_id=job, purpose="edit")
+    await session.advance(HOLD_LEASE_SECONDS + 1)
+    await session.command("renew_job_hold", hold_id=_result(lapsing)["hold_id"])
+    again = await session.command("hold_job", job_id=job, purpose="edit")
+    await session.command("release_job_hold", hold_id=_result(again)["hold_id"])
+    await session.mark("The card held the job again")
+
+
 async def reload(stage: Stage) -> None:
     """The integration reloads while the card is open: the card sees it
     unloaded, then loaded with a new runtime and unchanged data."""
@@ -687,8 +710,10 @@ async def queue_controls(stage: Stage) -> None:
     await session.preview(**library_draft)
     await session.preview(**library_draft | {"passes": 2})
     await session.mark("A job for every room waits")
-    await session.validate("update_job", job_id=library, passes=2)
-    await session.action("update_job", job_id=library, passes=2)
+    edit = await session.command("hold_job", job_id=library, purpose="edit")
+    hold = _result(edit)["hold_id"]
+    await session.validate("update_job", job_id=library, hold_id=hold, passes=2)
+    await session.action("update_job", job_id=library, hold_id=hold, passes=2)
     await session.read_job(library)
     await session.mark("The library job runs twice")
     named = {"job_id": library, "name": "Library twice", "automatic": False}
@@ -841,6 +866,7 @@ SCENARIOS: dict[str, Scenario] = {
     "robot_choice": Scenario(two_robots, robot_choice),
     "start_delay": Scenario(single_roborock, start_delay),
     "job_hold": Scenario(single_roborock, job_hold, refusals=5),
+    "edit_hold": Scenario(single_roborock, edit_hold, refusals=1),
     "reload": Scenario(single_roborock, reload),
     "delayed_answer": Scenario(single_roborock, delayed_answer),
     "device_fault": Scenario(single_roborock, device_fault),
