@@ -95,7 +95,7 @@ def test_distribution_metadata_and_translations_are_consistent():
         "issue_tracker",
         "codeowners",
     } <= manifest.keys()
-    assert manifest["version"] == "0.1.1"
+    assert manifest["version"] == "0.1.2"
     # The tested baseline is the pinned HA test stack; HACS and README name it.
     (baseline,) = (
         line.removeprefix("homeassistant==")
@@ -106,6 +106,7 @@ def test_distribution_metadata_and_translations_are_consistent():
     assert json.loads((ROOT / "hacs.json").read_text())["homeassistant"] == baseline
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert f"**Home Assistant {baseline}** or newer" in readme
+    assert f"**Version {manifest['version']} is a preview" in readme
     strings = json.loads((integration / "strings.json").read_text(encoding="utf-8"))
     english = json.loads(
         (integration / "translations/en.json").read_text(encoding="utf-8")
