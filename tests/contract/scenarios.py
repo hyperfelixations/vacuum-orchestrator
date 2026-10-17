@@ -204,13 +204,12 @@ async def start_delay(stage: Stage) -> None:
     await session.advance(1)
     await session.mark("The job waits for its two rooms")
     rooms = await stage.rooms()
-    await session.command(
-        "release_rooms",
-        grants=[
-            {"room": rooms["Dining Room"], "kind": "once"},
-            {"room": rooms["Studio"], "kind": "timed", "duration_seconds": 14400},
-        ],
-    )
+    grants = [
+        {"room": rooms["Dining Room"], "kind": "once"},
+        {"room": rooms["Studio"], "kind": "timed", "duration_seconds": 14400},
+    ]
+    await session.validate("release_rooms", grants=grants)
+    await session.command("release_rooms", grants=grants)
     await session.mark("The job starts in four seconds")
     await session.advance(4)
     await session.read()
