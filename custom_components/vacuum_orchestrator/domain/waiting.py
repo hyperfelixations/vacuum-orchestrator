@@ -120,12 +120,18 @@ class Waiting:
     def primary(self) -> Blocker:
         """Return the reason a person should resolve first.
 
-        An ending run comes before the robots: no job starts again in it.
+        An ending run comes before the robots and before rooms in use, which the
+        run frees: no job starts again in it.
         """
-        if self.job:
+        ending = (
+            self.queue[0]
+            if self.queue and self.queue[0].code == "queue_ending"
+            else None
+        )
+        if self.job and not (ending and self.job[0].code == "rooms_in_use"):
             return self.job[0]
-        if self.queue and self.queue[0].code == "queue_ending":
-            return self.queue[0]
+        if ending:
+            return ending
         robot = self.robots.primary
         if robot is not None:
             return robot

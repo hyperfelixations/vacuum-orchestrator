@@ -91,6 +91,11 @@ def test_an_ending_run_comes_before_the_robots() -> None:
         (Blocker("room_not_released", room_ids=("studio",)),), busy, ending
     )
     assert locked is not None and locked.primary.code == "room_not_released"
+    # The room comes free when the running job ends, and still nothing starts.
+    in_use = waiting((Blocker("rooms_in_use"),), busy, ending)
+    assert in_use is not None and in_use.primary.code == "queue_ending"
+    not_ending = waiting((Blocker("rooms_in_use"),), busy, (Blocker("queue_idle"),))
+    assert not_ending is not None and not_ending.primary.code == "rooms_in_use"
 
 
 def test_alternatives_between_robots_are_never_merged() -> None:
