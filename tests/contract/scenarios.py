@@ -195,7 +195,8 @@ async def setup(stage: Stage) -> None:
 async def start_delay(stage: Stage) -> None:
     """The queue runs; a job for two locked rooms waits for their release.
     Released one second later, dining room once and studio for four hours, it starts
-    after the remaining start delay and cleans both rooms."""
+    after the remaining start delay and cleans both rooms; halfway through, Rocky
+    reports its progress."""
     session, robot = stage.session, stage.home.roborock
     await stage.open()
     await session.action("run_queue")
@@ -209,12 +210,16 @@ async def start_delay(stage: Stage) -> None:
             {"room": rooms["Studio"], "kind": "timed", "duration_seconds": 14400},
         ],
     )
+    await session.mark("The job starts in four seconds")
     await session.advance(4)
     await session.read()
     robot.clean()
     await session.home("Rocky cleans the dining room and the studio")
     await session.advance(300)
     await session.read()
+    robot.set("clean_percent", "50")
+    await session.home("Rocky has cleaned half")
+    await session.mark("Rocky is halfway through")
     robot.return_home()
     await session.home("Rocky drives home")
     await session.advance(60)
@@ -237,6 +242,7 @@ async def job_hold(stage: Stage) -> None:
     job = _job_id(await session.action("create_job", areas=stage.areas("Dining Room")))
     edit = await session.command("hold_job", job_id=job, purpose="edit")
     hold = edit["result"]["hold_id"]
+    await session.mark("Another card edits the job")
     await session.command("hold_job", job_id=job, purpose="edit")
     await session.action("start_job", job_id=job)
     await session.advance(30)
@@ -308,6 +314,7 @@ async def device_fault(stage: Stage) -> None:
     await session.home("The mop carriage drops off; Rocky stops")
     await session.advance(300)
     await session.read()
+    await session.mark("The job waits for the fix")
     robot.set("vacuum_error", "none")
     robot.pause()
     await session.home("Someone reattaches the mop carriage")
