@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..domain.dispatching import RobotSelector
+from ..domain.dispatching import RobotSelector, eligibility
 from ..domain.errors import ConflictError, PlanningError
 from ..domain.planning import Planner, SettingsResolution
 from ..domain.readiness import ReadinessReport
@@ -59,7 +59,18 @@ async def explain_job(
                 )
                 settings = assignment.settings
             except PlanningError as err:
-                reason = err.code
+                # As on the waiting axes, what the robot can never do as
+                # configured comes before its state now; see dev doc "Wartegrund".
+                reasons = eligibility(
+                    unit,
+                    adapter.profile,
+                    observations.get(robot_id),
+                    state.robot_leases,
+                    frozenset(state.blocked_robots),
+                    state.job_defaults,
+                )
+                ranked = sorted(reasons, key=lambda item: not item.structural)
+                reason = ranked[0].code if ranked else err.code
             results.append(
                 RobotExplanation(robot_id, unit.operation, report, reason, settings)
             )

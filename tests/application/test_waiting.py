@@ -3,6 +3,7 @@
 from dataclasses import replace
 from datetime import timedelta
 
+from custom_components.vacuum_orchestrator.application.explanation import explain_job
 from custom_components.vacuum_orchestrator.domain.holds import HoldPurpose
 from custom_components.vacuum_orchestrator.domain.intents import JobIntent, TargetRef
 from custom_components.vacuum_orchestrator.domain.requirements import StateRequirement
@@ -332,3 +333,18 @@ async def test_a_lapsed_hold_blocks_dispatch_and_explanation_until_it_ends() -> 
 
     await core.async_expire_job_holds()
     assert core.waiting(job).primary.code == "start_delayed"
+
+
+async def test_the_execution_explanation_names_a_structural_reason_first() -> None:
+    backend = RecordingBackend()
+    adapter = RecordingAdapter(backend, "robot", targets=("library",))
+    core, _now = await setup_waiting(adapter)
+    running = await core.async_create_job(_intent())
+    await core.async_start_job(running)
+    job = await core.async_create_job(_intent(area="studio"))
+
+    # The robot is busy now, but it could never clean the studio as configured.
+    (unsuitable,) = core.waiting(job).robots.unsuitable
+    assert unsuitable.blockers[0].code == "room_unreachable"
+    (explanation,) = await explain_job(core, job)
+    assert explanation.eligibility_reason == "unmapped_target"
