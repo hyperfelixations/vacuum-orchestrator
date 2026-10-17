@@ -202,6 +202,7 @@ async def start_delay(stage: Stage) -> None:
     await session.action("run_queue")
     await session.action("create_job", areas=stage.areas("Dining Room", "Studio"))
     await session.advance(1)
+    await session.mark("The job waits for its two rooms")
     rooms = await stage.rooms()
     await session.command(
         "release_rooms",
