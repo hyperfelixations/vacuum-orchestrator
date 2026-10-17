@@ -118,9 +118,14 @@ class Waiting:
 
     @property
     def primary(self) -> Blocker:
-        """Return the reason a person should resolve first."""
+        """Return the reason a person should resolve first.
+
+        An ending run comes before the robots: no job starts again in it.
+        """
         if self.job:
             return self.job[0]
+        if self.queue and self.queue[0].code == "queue_ending":
+            return self.queue[0]
         robot = self.robots.primary
         if robot is not None:
             return robot

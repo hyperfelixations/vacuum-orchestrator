@@ -81,6 +81,18 @@ def test_the_job_leads_then_the_robots_then_the_queue() -> None:
     assert alone is not None and alone.primary.until == NOW
 
 
+def test_an_ending_run_comes_before_the_robots() -> None:
+    # No job starts again in this run, whichever robot becomes free.
+    busy = Robots(RobotsState.NO_ROBOT_READY, (_robot("a", "robot_busy"),))
+    ending = (Blocker("queue_ending"), Blocker("start_delayed", until=NOW))
+    explained = waiting((), busy, ending)
+    assert explained is not None and explained.primary.code == "queue_ending"
+    locked = waiting(
+        (Blocker("room_not_released", room_ids=("studio",)),), busy, ending
+    )
+    assert locked is not None and locked.primary.code == "room_not_released"
+
+
 def test_alternatives_between_robots_are_never_merged() -> None:
     door_a = Blocker("requirement_not_satisfied", entity_ids=("binary_sensor.a",))
     door_b = Blocker("requirement_not_satisfied", entity_ids=("binary_sensor.b",))
