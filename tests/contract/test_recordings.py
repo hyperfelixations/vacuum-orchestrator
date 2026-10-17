@@ -357,6 +357,7 @@ CONTROLS: dict[str, list[tuple[str, list[str]]]] = {
         ("The daily template made another job", ["save_template"]),
         ("The daily template is manual", ["save_template"]),
         ("The studio has a template", ["remove_template"]),
+        ("The studio template is gone", ["save_template"]),
     ],
     "robot_choice": [
         ("The card opens", ["configure_robot"]),
@@ -466,7 +467,7 @@ def verdicts(recording: dict[str, Any], command: str) -> list[list[list[str]]]:
 FORM_ERRORS = {
     "showcase": ("create_job", [[["areas", "job_requires_area"]]]),
     "room_controls": ("create_room", [[["name", "invalid_room_name"]], []]),
-    "template_controls": ("save_template", [[], [["name", "invalid_value"]], []]),
+    "template_controls": ("save_template", [[], [["name", "invalid_value"]], [], []]),
 }
 
 

@@ -804,8 +804,9 @@ async def settings_controls(stage: Stage) -> None:
 async def template_controls(stage: Stage) -> None:
     """An automatic template made a job for the due dining room; the user lets it
     make one again, starts one by hand, makes the template manual, adds a studio
-    template, first without a name, and removes it again. Before saving a
-    template, the scenario previews its intent."""
+    template, first without a name, and removes it again; then it saves a job
+    draft as a template. Before saving a template, the scenario previews its
+    intent."""
     session = stage.session
     await stage.open()
     await stage.release("Dining Room", "Studio")
@@ -856,6 +857,16 @@ async def template_controls(stage: Stage) -> None:
     await session.mark("The studio has a template")
     await session.command("remove_template", template_id=studio)
     await session.mark("The studio template is gone")
+    # What the job editor shows, not a stored job.
+    drafted = {
+        "name": "Dining Room",
+        "intent": job_fields([rooms["Dining Room"]]),
+        "enabled": True,
+        "automatic": False,
+    }
+    await session.validate("save_template", **drafted)
+    await session.command("save_template", **drafted)
+    await session.mark("The card saved a job draft as a template")
 
 
 SCENARIOS: dict[str, Scenario] = {
