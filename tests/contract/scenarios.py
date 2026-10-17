@@ -664,6 +664,8 @@ async def queue_controls(stage: Stage) -> None:
     await session.advance(5)
     robot.clean()
     await session.home("Rocky cleans the studio")
+    # A wide card shows the started job's detail beside the list.
+    await session.read_job(studio)
     await session.mark("Rocky cleans while two jobs wait")
     await session.action("move_job", job_id=library, direction="up")
     await session.mark("The library job is next")
