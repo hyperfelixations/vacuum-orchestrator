@@ -872,6 +872,7 @@ class VacuumOrchestrator:
                 if err.code not in {
                     "job_blocked",
                     "job_unknown",
+                    "job_not_dispatchable",
                     "start_delayed",
                     "job_held",
                     "queue_not_running",
@@ -1286,6 +1287,9 @@ class VacuumOrchestrator:
             if job is None:
                 raise ConflictError("unknown_job")
             if job.state not in {JobState.QUEUED, JobState.DISPATCHING}:
+                raise ConflictError("job_not_dispatchable")
+            if automatic and job.active_attempt_id is not None:
+                # Another pass dispatched it after this pass listed it.
                 raise ConflictError("job_not_dispatchable")
             if job.state is JobState.QUEUED:
                 # The candidate list predates the observation await; a pause or

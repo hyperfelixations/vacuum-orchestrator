@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -351,6 +352,31 @@ async def test_run_queue_dispatches_non_overlapping_jobs_to_distinct_robots() ->
     assert orchestrator.state.queue == ()
     assert orchestrator.state.jobs[library].state is JobState.RUNNING
     assert orchestrator.state.jobs[studio].state is JobState.RUNNING
+
+
+async def test_a_pass_during_a_dispatch_leaves_that_job_alone() -> None:
+    """Plan R1.4: a job dispatched since the candidate list is no blocked job."""
+    backend = RecordingBackend()
+    adapter = RecordingAdapter(backend, "robot")
+    orchestrator = await _orchestrator(backend, adapter)
+    job = await orchestrator.async_create_job(_intent())
+    await orchestrator.async_set_queue_mode(QueueMode.RUNNING)
+
+    passes = await asyncio.wait_for(
+        asyncio.gather(
+            orchestrator.async_dispatch_available(),
+            orchestrator.async_dispatch_available(),
+        ),
+        5,
+    )
+
+    assert sorted(len(assignments) for assignments in passes) == [0, 1]
+    assert orchestrator.state.jobs[job].state is JobState.RUNNING
+    assert [
+        record
+        for record in orchestrator.trace.snapshot()
+        if record["event"] == "dispatch_blocked"
+    ] == []
 
 
 async def test_overlapping_job_remains_queued_until_area_is_free() -> None:
