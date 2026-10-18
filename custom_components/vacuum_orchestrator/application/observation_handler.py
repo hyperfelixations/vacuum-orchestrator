@@ -11,6 +11,7 @@ from ..domain.execution import RobotRun
 from ..domain.monitoring import (
     MonitorAction,
     MonitorDecision,
+    end_in_gap,
     evaluate_observation,
     record_observation,
 )
@@ -173,14 +174,7 @@ def _transition(
         modes = (*modes, observation.completed_operation)
     completed = set(observation.completed_targets) if confirmed else set()
     # An end in a gap; see dev doc "Unterbrechungen".
-    unobserved = (
-        decision.quality is CompletionQuality.DERIVED
-        and attempt.gap_since is not None
-        and (
-            attempt.terminal_observed_at is None
-            or attempt.terminal_observed_at >= attempt.gap_since
-        )
-    )
+    unobserved = decision.quality is CompletionQuality.DERIVED and end_in_gap(attempt)
     notes = tuple(
         code
         for code, changed in (

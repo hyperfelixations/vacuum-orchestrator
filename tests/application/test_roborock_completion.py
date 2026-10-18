@@ -161,12 +161,12 @@ async def test_a_run_that_returns_home_with_another_mode_setting_completes(
     await observe("charging", "off", seconds=30)
 
     assert core.state.jobs[job_id].state is JobState.COMPLETED
-    assert attempt().completion_quality is CompletionQuality.DERIVED
+    assert attempt().completion_quality is CompletionQuality.CONFIRMED
     assert core.state.incidents == ()
     # A setting changed after cleaning is no deviation of the run.
     assert attempt().observed_operations == (OperationKind.VACUUM,)
     assert present_job_view(core, core.state.jobs[job_id])["completion"] == {
-        "quality": "derived",
+        "quality": "confirmed",
         "notes": [],
     }
     stamp = core.state.room_registry.rooms["library"].last_cleaning
@@ -203,9 +203,9 @@ async def test_a_mode_changed_while_cleaning_completes_with_what_both_covered(
     )
     (receipt,) = core.state.room_registry.receipts.values()
     assert (receipt.operation, receipt.room_ids) == (OperationKind.VACUUM, ("library",))
-    assert receipt.evidence == ("derived_completion", "mode_changed")
+    assert receipt.evidence == ("confirmed_completion", "mode_changed")
     assert present_job_view(core, core.state.jobs[job_id])["completion"] == {
-        "quality": "derived",
+        "quality": "confirmed",
         "notes": ["mode_changed"],
     }
     reloaded = await _core(backend, adapter)

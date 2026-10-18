@@ -59,9 +59,10 @@ async def test_a_fixed_fault_lets_the_run_go_on_and_complete(
     await observe("charging", "off", seconds=30)
 
     assert core.state.jobs[job_id].state is JobState.COMPLETED
+    # A fixed fault leaves the end in view, so the run is confirmed (plan R1.1).
     assert (
         core.state.attempts[attempt.attempt_id].completion_quality
-        is CompletionQuality.DERIVED
+        is CompletionQuality.CONFIRMED
     )
 
 

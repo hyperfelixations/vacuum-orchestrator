@@ -274,9 +274,15 @@ async def test_derived_completion_projects_quality_and_preserves_last_confirmed(
     await orchestrator.async_start_job(second)
     attempt_id = orchestrator.state.jobs[second].active_attempt_id
     await orchestrator.async_confirm_start(attempt_id)
+    # The second run ends unseen in a connection gap, so it is derived (plan R1.1).
+    idle = adapter.observation
     adapter.observation = replace(
-        adapter.observation, observed_at=NOW + timedelta(minutes=20)
+        idle,
+        state=RobotAvailabilityState.UNKNOWN,
+        observed_at=NOW + timedelta(minutes=15),
     )
+    await orchestrator.async_process_robot_observation("robot")
+    adapter.observation = replace(idle, observed_at=NOW + timedelta(minutes=20))
     await orchestrator.async_process_robot_observation("robot")
     assert (
         orchestrator.state.attempts[attempt_id].state is AttemptState.COMPLETION_PENDING
@@ -459,11 +465,22 @@ async def test_late_proof_upgrades_same_receipt_without_counting_cleaning_twice(
     await core.async_start_job(job)
     attempt_id = core.state.jobs[job].active_attempt_id
     await core.async_confirm_start(attempt_id)
+    # An end in a connection gap is derived until a late proof (plan R1.1).
+    idle = adapter.observation
+    adapter.observation = replace(
+        idle,
+        state=RobotAvailabilityState.UNKNOWN,
+        observed_at=NOW + timedelta(seconds=300),
+    )
+    await core.async_process_robot_observation("robot")
     for seconds in (600, 631):
         adapter.observation = replace(
-            adapter.observation, observed_at=NOW + timedelta(seconds=seconds)
+            idle, observed_at=NOW + timedelta(seconds=seconds)
         )
         await core.async_process_robot_observation("robot")
+    assert core.state.attempts[attempt_id].completion_quality is (
+        CompletionQuality.DERIVED
+    )
     correlation = core.state.correlations[attempt_id]
     run = core.state.robot_runs[correlation.robot_run_id]
     stamp = core.rooms.registry.resolve("library").last_cleaning[OperationKind.VACUUM]

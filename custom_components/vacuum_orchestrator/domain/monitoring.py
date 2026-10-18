@@ -176,10 +176,21 @@ def evaluate_observation(
         seconds=attempt.policy.settle_seconds
     ):
         return MonitorDecision(MonitorAction.WAIT, "awaiting_terminal_stability")
+    # Seen to its end, a run is confirmed; see dev doc "Unterbrechungen".
     return MonitorDecision(
         MonitorAction.COMPLETE,
         "observed_start_and_stable_normal_end",
-        CompletionQuality.DERIVED,
+        CompletionQuality.DERIVED
+        if end_in_gap(attempt)
+        else CompletionQuality.CONFIRMED,
+    )
+
+
+def end_in_gap(attempt: ExecutionAttempt) -> bool:
+    """Return whether a run's end fell into an observation gap."""
+    return attempt.gap_since is not None and (
+        attempt.terminal_observed_at is None
+        or attempt.terminal_observed_at >= attempt.gap_since
     )
 
 

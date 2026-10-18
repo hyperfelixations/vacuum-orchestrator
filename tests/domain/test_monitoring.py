@@ -122,9 +122,7 @@ def test_a_confirmed_completion_needs_a_start_and_may_deviate() -> None:
     assert (unrecorded.action, unrecorded.quality) == (MonitorAction.SETTLE, None)
 
 
-def test_derived_completion_waits_for_stability_and_resets_when_cleaning_resumes() -> (
-    None
-):
+def test_an_observed_end_waits_for_stability_and_resets_when_cleaning_resumes() -> None:
     started = replace(
         ATTEMPT, state=AttemptState.START_CONFIRMED, observed_start_at=NOW
     )
@@ -139,10 +137,40 @@ def test_derived_completion_waits_for_stability_and_resets_when_cleaning_resumes
         replace(IDLE, observed_at=NOW + timedelta(seconds=30)),
         NOW + timedelta(seconds=30),
     )
-    assert decision.quality is CompletionQuality.DERIVED
+    # A run seen from its start to a stable normal end is confirmed (plan R1.1).
+    assert (decision.reason, decision.quality) == (
+        "observed_start_and_stable_normal_end",
+        CompletionQuality.CONFIRMED,
+    )
     assert (
         evaluate(settling, replace(IDLE, cleaning_active=True)).action
         is MonitorAction.RESUME
+    )
+
+
+@pytest.mark.parametrize(
+    ("gap", "terminal", "quality"),
+    [
+        (NOW + timedelta(seconds=10), NOW + timedelta(seconds=20), "derived"),
+        (NOW + timedelta(seconds=20), NOW + timedelta(seconds=20), "derived"),
+        (NOW + timedelta(seconds=30), NOW + timedelta(seconds=20), "confirmed"),
+    ],
+)
+def test_only_an_end_in_an_observation_gap_is_derived(
+    gap: datetime, terminal: datetime, quality: str
+) -> None:
+    settling = replace(
+        ATTEMPT,
+        state=AttemptState.COMPLETION_PENDING,
+        observed_start_at=NOW,
+        terminal_observed_at=terminal,
+        gap_since=gap,
+    )
+    later = terminal + timedelta(seconds=30)
+    decision = evaluate(settling, replace(IDLE, observed_at=later), later)
+    assert (decision.action, decision.quality) == (
+        MonitorAction.COMPLETE,
+        CompletionQuality(quality),
     )
 
 
@@ -477,10 +505,10 @@ def test_a_changed_mode_never_stops_the_run() -> None:
         started, state=AttemptState.COMPLETION_PENDING, terminal_observed_at=NOW
     )
     later = NOW + timedelta(seconds=30)
-    derived = evaluate(
+    completed = evaluate(
         settling, replace(IDLE, observed_at=later, observed_operation=other), later
     )
-    assert derived.quality is CompletionQuality.DERIVED
+    assert completed.quality is CompletionQuality.CONFIRMED, "a changed mode is a note"
 
 
 def test_station_activity_after_the_return_restarts_settling() -> None:
