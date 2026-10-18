@@ -496,6 +496,8 @@ async def long_history(stage: Stage) -> None:
                 "states": FINISHED_JOB_STATES,
             }
         )
+    # The oldest job, alone on the second page, as its detail page shows it.
+    await session.read_job(jobs[0])
     await session.mark("Rocky has cleaned six times")
     await session.action("delete_job", job_id=jobs[0])
     for offset in (5, 0):
