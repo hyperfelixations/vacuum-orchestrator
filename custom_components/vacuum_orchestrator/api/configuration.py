@@ -475,6 +475,7 @@ def query_configuration(
                 now,
                 waiting.get(room.room_id, ()),
                 room_actions(core.state, room),
+                core.room_conditions(room),
             ),
         }
     if name == "get_rooms":
@@ -486,6 +487,7 @@ def query_configuration(
                     now,
                     waiting.get(room.room_id, ()),
                     room_actions(core.state, room),
+                    core.room_conditions(room),
                 )
                 for room in core.rooms.registry.rooms.values()
             ],

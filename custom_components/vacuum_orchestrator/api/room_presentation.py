@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from ..domain.permissions import Availability
+from ..domain.requirements import RequirementResult
 from ..domain.rooms import Room
 from ..domain.types import OperationKind
 from ..infrastructure.room_codec import encode_room
@@ -17,12 +18,17 @@ def present_room(
     now: datetime,
     waiting_job_ids: tuple[str, ...],
     actions: Mapping[str, Availability],
+    conditions: tuple[RequirementResult, ...] = (),
 ) -> dict[str, Any]:
-    """Expose policy, grant, due state, waiting jobs and allowed actions."""
+    """Expose policy, grant, due state, conditions, waiting jobs and allowed actions."""
     result = dict(encode_room(room))
     result["released"] = room.released(now)
     result["waiting_job_ids"] = list(waiting_job_ids)
     result["actions"] = present_actions(actions)
+    # Whether each condition holds now, in the order of `requirements`.
+    result["requirement_states"] = [
+        {"entity_id": item.entity_id, "state": item.state.value} for item in conditions
+    ]
     result["due"] = {
         operation.value: {
             **asdict(report),

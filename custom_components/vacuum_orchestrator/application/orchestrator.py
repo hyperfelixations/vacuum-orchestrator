@@ -40,7 +40,12 @@ from ..domain.queue import Job, OrchestratorState
 from ..domain.queue_runs import RunPhase, run_phase
 from ..domain.readiness import ReadinessEvaluator, ReadinessReport
 from ..domain.requests import CommandOrigin
-from ..domain.requirements import StateObservation
+from ..domain.requirements import (
+    RequirementResult,
+    StateObservation,
+    evaluate_requirements,
+)
+from ..domain.rooms import Room
 from ..domain.setup import SetupStatus, evaluate_setup
 from ..domain.types import (
     AttemptState,
@@ -519,6 +524,15 @@ class VacuumOrchestrator:
             robot_requirements=self._adapters[robot_id].profile.requirements
             if robot_id in self._adapters
             else (),
+        )
+
+    def room_conditions(self, room: Room) -> tuple[RequirementResult, ...]:
+        """Each condition of a room as it stands now, for any robot or mode."""
+        conditions = tuple(
+            replace(item, robot_id=None, operation=None) for item in room.requirements
+        )
+        return evaluate_requirements(
+            conditions, self._requirement_reader(conditions), self._clock()
         )
 
     def waiting(self, job_id: str) -> Waiting | None:

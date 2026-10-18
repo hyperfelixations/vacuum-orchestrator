@@ -187,6 +187,19 @@ async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
     assert detail["due_policy"]["occupancy_entity_registry_id"] == sensor.id
     assert detail["requirements"][0]["entity_registry_id"] == sensor.id
     assert detail["due"]["vacuum"]["state"] == "due"
+    # Plan R1.9: each condition says whether it holds now, so a client never weighs it.
+    assert detail["requirement_states"] == [
+        {"entity_id": sensor.entity_id, "state": "unknown"}
+    ]
+    hass.states.async_set(sensor.entity_id, "off")
+    assert (await call(hass, "get_room", room_id=room))["requirement_states"][0][
+        "state"
+    ] == "blocked"
+    hass.states.async_set(sensor.entity_id, "on")
+    rooms = (await call(hass, "get_rooms"))["rooms"]
+    assert next(item for item in rooms if item["room_id"] == room)[
+        "requirement_states"
+    ] == [{"entity_id": sensor.entity_id, "state": "ready"}]
     await call(
         hass,
         "update_room",
