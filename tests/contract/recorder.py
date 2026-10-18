@@ -119,6 +119,9 @@ class Session:
         # Transport ID sent → ID in the recording.
         self._recorded: dict[int, int] = {}
         self._results: dict[int, dict[str, Any]] = {}
+        # Registry lists come in registration order, which concurrent platform
+        # setup varies; a recording keeps them sorted (dev doc "Aufzeichnungen").
+        self._registry_lists: set[int] = set()
         self._stalled = False
         self.frontend = frontend
         self._frontend_ids = count(1)
@@ -234,6 +237,8 @@ class Session:
         sent = next(self._ids)
         recorded = len(self._recorded) + 1
         self._recorded[sent] = recorded
+        if message["type"] == "config/entity_registry/list":
+            self._registry_lists.add(recorded)
         self.steps.append({"send": {"id": recorded, **message}})
         await self.client.send_json({"id": sent, **message})
         return recorded
@@ -420,6 +425,10 @@ class Session:
         frame["id"] = self._recorded[frame["id"]]
         self.steps.append({"receive": frame})
         if frame["type"] == "result":
+            if frame["id"] in self._registry_lists and frame["success"]:
+                frame["result"] = sorted(
+                    frame["result"], key=lambda entry: entry["entity_id"]
+                )
             self._results[frame["id"]] = frame
 
     @staticmethod
