@@ -192,6 +192,30 @@ async def test_the_showcase_records_what_the_editor_and_the_map_show(
     ]
 
 
+async def test_a_full_queue_holds_seven_open_jobs(record: Any) -> None:
+    """After the busy afternoon three more jobs wait: one cleans, six wait."""
+    recording = await record("showcase")
+    end = recording["steps"].index({"mark": "Seven jobs are open"})
+    sent = {
+        step["send"]["id"]: step["send"]
+        for step in recording["steps"][:end]
+        if "send" in step
+    }
+    queue = [
+        step["receive"]["result"]
+        for step in recording["steps"][:end]
+        if "receive" in step
+        and sent.get(step["receive"]["id"], {}).get("type") == f"{DOMAIN}/queue/get"
+    ][-1]
+    assert [
+        queue["total"],
+        [job["state"] for job in queue["jobs"]].count("queued"),
+    ] == [
+        6,
+        6,
+    ]
+
+
 async def test_the_showcase_rooms_are_fresh_due_and_without_a_rule(
     record: Any,
 ) -> None:

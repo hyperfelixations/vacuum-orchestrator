@@ -517,7 +517,8 @@ async def showcase(stage: Stage) -> None:
     one never started; two templates are saved and the conservatory is cleaned
     only while its door is open. Then the rooms are released in every way and
     the queue runs: Rocky cleans the studio while a job waits for the locked and
-    closed conservatory and two wait for the robot. New jobs are previewed."""
+    closed conservatory and two wait for the robot. New jobs are previewed. Then
+    three more jobs wait, seven open in all."""
     session, robot = stage.session, stage.home.roborock
     stage.hass.states.async_set(
         CONSERVATORY_DOOR,
@@ -626,6 +627,14 @@ async def showcase(stage: Stage) -> None:
     # A new job saved before a room is chosen: VOI names what is missing.
     await session.validate("create_job", **job_fields([]))
     await session.mark("A busy afternoon")
+    # The week ahead: three more jobs wait behind the afternoon's, seven open in all.
+    for name, mode in (
+        ("Dining Room", "vacuum"),
+        ("Studio", "mop"),
+        ("Library", "vacuum_and_mop"),
+    ):
+        await session.action("create_job", areas=stage.areas(name), mode=mode)
+    await session.mark("Seven jobs are open")
 
 
 async def _preview_new_jobs(stage: Stage) -> None:
