@@ -20,7 +20,7 @@ from custom_components.vacuum_orchestrator.domain.holds import HOLD_LEASE_SECOND
 from custom_components.vacuum_orchestrator.domain.intents import settings_for_mode
 from custom_components.vacuum_orchestrator.domain.job_defaults import JobDefaults
 from custom_components.vacuum_orchestrator.domain.types import CleaningMode
-from tests.contract.recorder import Session, action
+from tests.contract.recorder import FINISHED_JOB_STATES, Session, action
 from tests.realistic import Household, busy, no_robot, single_roborock, two_robots
 from tests.realistic import roborock as roborock_runs
 
@@ -420,7 +420,7 @@ async def external_run(stage: Stage) -> None:
 async def recovery(stage: Stage) -> None:
     """Rocky goes offline while cleaning and stays away past the connection
     window: the job needs clarification and keeps its incident. The user frees
-    the robot, then corrects the failed job to completed."""
+    the robot, which ends the job, then corrects it to completed."""
     session, robot = stage.session, stage.home.roborock
     await stage.open()
     await stage.release("Library")
@@ -444,11 +444,45 @@ async def recovery(stage: Stage) -> None:
     await session.command(
         "resolve_recovery", robot_id=robot_view["robot_id"], confirm_stopped=True
     )
+    await session.read_job(job)
+    await session.read_history()
+    await session.mark("Rocky is free again")
     await session.action("correct_job", job_id=job, outcome="completed")
     await session.read_job(job)
     await session.read()
     await session.read_history()
     await session.mark("The library job is corrected")
+
+
+async def long_history(stage: Stage) -> None:
+    """Rocky vacuumed dining room, studio and library twice each, one job after
+    the other; the history shows the six finished jobs five to a page."""
+    session, robot = stage.session, stage.home.roborock
+    await stage.open()
+    rooms = ("Dining Room", "Studio", "Library")
+    await stage.release(*rooms)
+    for turn, name in enumerate(rooms * 2, start=1):
+        await session.action("create_job", areas=stage.areas(name), start=True)
+        robot.clean()
+        await session.home(f"Rocky vacuums the {name.lower()} ({turn})", read=False)
+        await session.advance(600)
+        robot.return_home()
+        await session.home(f"Rocky drives home ({turn})", read=False)
+        await session.advance(60)
+        robot.dock_after_run()
+        await session.home(f"Rocky charges ({turn})", read=False)
+        await session.advance(900)
+    await session.read_history()
+    for offset in (0, 5):
+        await session.request(
+            {
+                "type": f"{DOMAIN}/jobs/list",
+                "offset": offset,
+                "limit": 5,
+                "states": FINISHED_JOB_STATES,
+            }
+        )
+    await session.mark("Rocky has cleaned six times")
 
 
 async def showcase(stage: Stage) -> None:
@@ -560,12 +594,8 @@ async def showcase(stage: Stage) -> None:
     await session.read_history()
     await session.read_diagnostics()
     await _preview_new_jobs(stage)
-    # Five per page: the queue's first page and both pages of every job.
+    # Five per page: the queue's first page.
     await session.request({"type": f"{DOMAIN}/queue/get", "offset": 0, "limit": 5})
-    for offset in (0, 5):
-        await session.request(
-            {"type": f"{DOMAIN}/jobs/list", "offset": offset, "limit": 5}
-        )
     # A new job saved before a room is chosen: VOI names what is missing.
     await session.validate("create_job", **job_fields([]))
     await session.mark("A busy afternoon")
@@ -873,6 +903,7 @@ SCENARIOS: dict[str, Scenario] = {
     "not_installed": Scenario(no_robot, not_installed, installed=False, refusals=1),
     "setup": Scenario(single_roborock, setup),
     "showcase": Scenario(single_roborock, showcase),
+    "long_history": Scenario(single_roborock, long_history),
     "queue_end": Scenario(single_roborock, queue_end),
     "robot_choice": Scenario(two_robots, robot_choice),
     "start_delay": Scenario(single_roborock, start_delay),

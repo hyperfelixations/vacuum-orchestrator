@@ -258,6 +258,26 @@ async def test_the_corrected_job_can_be_retried_and_corrected_again(
     assert {"mark": "The library job is corrected"} in recording["steps"]
 
 
+async def test_a_freed_robot_leaves_its_job_finished_and_correctable(
+    record: Any,
+) -> None:
+    *_, freed, _corrected = results(await record("recovery"), "job/get")
+    assert freed["state"] in {"completed", "failed", "cancelled"}
+    assert freed["actions"]["correct"]["available"]
+
+
+async def test_the_history_shows_six_finished_jobs_five_to_a_page(
+    record: Any,
+) -> None:
+    pages = [
+        result
+        for result in results(await record("long_history"), "jobs/list")
+        if result["limit"] == 5
+    ]
+    assert [len(page["jobs"]) for page in pages] == [5, 1]
+    assert {job["state"] for page in pages for job in page["jobs"]} == {"completed"}
+
+
 async def test_the_docked_robot_could_start_the_studio_at_once(record: Any) -> None:
     (*_, studio) = answers(await record("queue_controls"), "preview_job")
     assert studio["startable_now"] is True

@@ -43,6 +43,7 @@ FORMAT = 2
 CARD_PAGE_SIZE = 25
 CARD_COLLECTION_LIMIT = 100
 OPEN_JOB_STATES = ["dispatching", "running", "canceling", "needs_attention"]
+FINISHED_JOB_STATES = ["completed", "failed", "cancelled"]
 CARD_COLLECTIONS = ("get_rooms", "get_robots", "get_robot_candidates", "get_templates")
 CARD_LANGUAGES = ("en", "de")
 # Six real fractional digits, so consumers parse every timestamp they will see.
@@ -320,9 +321,14 @@ class Session:
         return await self.query(name, offset=0, limit=CARD_COLLECTION_LIMIT)
 
     async def read_history(self) -> None:
-        """Read the history view's first pages: jobs and cleaning runs."""
+        """Read the history view's first pages: finished jobs and cleaning runs."""
         await self.request(
-            {"type": f"{DOMAIN}/jobs/list", "offset": 0, "limit": CARD_PAGE_SIZE}
+            {
+                "type": f"{DOMAIN}/jobs/list",
+                "offset": 0,
+                "limit": CARD_PAGE_SIZE,
+                "states": FINISHED_JOB_STATES,
+            }
         )
         await self.query("get_history", offset=0, limit=CARD_PAGE_SIZE)
 
