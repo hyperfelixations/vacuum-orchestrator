@@ -473,6 +473,8 @@ async def long_history(stage: Stage) -> None:
         await session.home(f"Rocky charges ({turn})", read=False)
         await session.advance(900)
     await session.read_history()
+    # A card showing five per page reads its queue so too.
+    await session.request({"type": f"{DOMAIN}/queue/get", "offset": 0, "limit": 5})
     for offset in (0, 5):
         await session.request(
             {
