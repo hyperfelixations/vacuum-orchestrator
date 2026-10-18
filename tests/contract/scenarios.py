@@ -175,7 +175,8 @@ async def setup(stage: Stage) -> None:
     """First installation: the card finds the integration installed but not
     set up. Once the user adds it, VOI finds the Roborock and imports the areas
     as locked rooms; the assistant renames the robot, sets the start delay and
-    completes the setup. Each command's view event arrives before its result."""
+    completes the setup, checking each change as the card does before it sends
+    one. Each command's view event arrives before its result."""
     session = stage.session
     await session.read_static()
     _result(await session.read_manifest())
@@ -185,9 +186,10 @@ async def setup(stage: Stage) -> None:
     await session.request({"type": f"{DOMAIN}/subscribe"})
     await session.mark("The assistant opens")
     (robot,) = (await session.collection("get_robots"))["robots"]
-    await session.command(
-        "rename_robot", robot_id=robot["robot_id"], name="Rocky downstairs"
-    )
+    renamed = {"robot_id": robot["robot_id"], "name": "Rocky downstairs"}
+    await session.validate("rename_robot", **renamed)
+    await session.command("rename_robot", **renamed)
+    await session.validate("configure_queue", start_delay_seconds=10)
     await session.command("configure_queue", start_delay_seconds=10)
     await session.command("complete_setup")
 
