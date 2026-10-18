@@ -26,6 +26,7 @@ from custom_components.vacuum_orchestrator.api.configuration import VALIDATED_CO
 from custom_components.vacuum_orchestrator.const import API_VERSION, DOMAIN
 from tests.contract.__main__ import arguments
 from tests.contract.recorder import (
+    FINISHED_JOB_STATES,
     FORMAT,
     ROOT,
     Session,
@@ -269,11 +270,12 @@ async def test_a_freed_robot_leaves_its_job_finished_and_correctable(
 async def test_the_history_shows_six_finished_jobs_five_to_a_page(
     record: Any,
 ) -> None:
+    # The two pages before a card deletes a job; what follows has its own test.
     pages = [
         result
         for result in results(await record("long_history"), "jobs/list")
         if result["limit"] == 5
-    ]
+    ][:2]
     assert [len(page["jobs"]) for page in pages] == [5, 1]
     assert {job["state"] for page in pages for job in page["jobs"]} == {"completed"}
 
@@ -388,6 +390,9 @@ CONTROLS: dict[str, list[tuple[str, list[str]]]] = {
     ],
     "robot_removed": [
         ("Rocky is not configured", ["add_robot"]),
+    ],
+    "long_history": [
+        ("Rocky has cleaned six times", ["delete_job"]),
     ],
 }
 
@@ -515,6 +520,26 @@ async def test_an_unloaded_integration_is_only_checked(record: Any) -> None:
     ]
     (refused,) = [step["receive"] for step in steps if "receive" in step]
     assert refused["error"]["code"] == "orchestrator_not_loaded"
+
+
+async def test_deleting_the_last_job_of_a_page_leaves_that_page_past_the_end(
+    record: Any,
+) -> None:
+    """A card on the history's second page deletes its only job: that page is
+    then empty and past the end, and the card reads the first page again."""
+    steps = after_mark(await record("long_history"), "Rocky has cleaned six times")
+    sent = {step["send"]["id"]: step["send"] for step in steps if "send" in step}
+    pages = [
+        (sent[step["receive"]["id"]]["offset"], step["receive"]["result"])
+        for step in steps
+        if "receive" in step
+        and sent.get(step["receive"]["id"], {}).get("type") == f"{DOMAIN}/jobs/list"
+        and sent[step["receive"]["id"]].get("states") == FINISHED_JOB_STATES
+    ]
+    assert [(offset, len(page["jobs"]), page["total"]) for offset, page in pages] == [
+        (5, 0, 5),
+        (0, 5, 5),
+    ]
 
 
 async def test_a_deletion_under_a_lapsed_hold_is_confirmed_again(record: Any) -> None:

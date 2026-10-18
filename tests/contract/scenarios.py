@@ -461,13 +461,20 @@ async def recovery(stage: Stage) -> None:
 
 async def long_history(stage: Stage) -> None:
     """Rocky vacuumed dining room, studio and library twice each, one job after
-    the other; the history shows the six finished jobs five to a page."""
+    the other; the history shows the six finished jobs five to a page. A card on
+    the second page deletes its only job; that page is then past the end and the
+    card shows the first page again."""
     session, robot = stage.session, stage.home.roborock
     await stage.open()
     rooms = ("Dining Room", "Studio", "Library")
     await stage.release(*rooms)
+    jobs = []
     for turn, name in enumerate(rooms * 2, start=1):
-        await session.action("create_job", areas=stage.areas(name), start=True)
+        jobs.append(
+            _job_id(
+                await session.action("create_job", areas=stage.areas(name), start=True)
+            )
+        )
         robot.clean()
         await session.home(f"Rocky vacuums the {name.lower()} ({turn})", read=False)
         await session.advance(600)
@@ -490,6 +497,17 @@ async def long_history(stage: Stage) -> None:
             }
         )
     await session.mark("Rocky has cleaned six times")
+    await session.action("delete_job", job_id=jobs[0])
+    for offset in (5, 0):
+        await session.request(
+            {
+                "type": f"{DOMAIN}/jobs/list",
+                "offset": offset,
+                "limit": 5,
+                "states": FINISHED_JOB_STATES,
+            }
+        )
+    await session.mark("Five jobs are left")
 
 
 async def showcase(stage: Stage) -> None:
