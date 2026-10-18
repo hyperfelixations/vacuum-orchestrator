@@ -820,8 +820,9 @@ async def room_controls(stage: Stage) -> None:
 
 
 async def settings_controls(stage: Stage) -> None:
-    """The user lets the queue wait 30 minutes for more work and makes mopping
-    with the deep route the default for new jobs."""
+    """The user lets the queue wait 30 minutes for more work, makes mopping with
+    the deep route the default for new jobs and lets a job start 30 seconds
+    after it could."""
     session = stage.session
     await stage.open()
     await session.validate("configure_queue", grace_seconds=1800)
@@ -831,6 +832,9 @@ async def settings_controls(stage: Stage) -> None:
     await session.validate("configure_job_defaults", **defaults)
     await session.command("configure_job_defaults", **defaults)
     await session.mark("Mopping is the default")
+    await session.validate("configure_queue", start_delay_seconds=30)
+    await session.command("configure_queue", start_delay_seconds=30)
+    await session.mark("Jobs start 30 seconds after they could")
 
 
 async def template_controls(stage: Stage) -> None:

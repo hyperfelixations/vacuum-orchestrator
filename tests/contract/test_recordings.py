@@ -370,6 +370,7 @@ CONTROLS: dict[str, list[tuple[str, list[str]]]] = {
     "settings_controls": [
         ("The card opens", ["configure_queue"]),
         ("The queue waits 30 minutes", ["configure_job_defaults"]),
+        ("Mopping is the default", ["configure_queue"]),
     ],
     "template_controls": [
         ("The daily template made a job", ["reset_template_demand"]),
