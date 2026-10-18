@@ -223,7 +223,7 @@ def test_robot_actions_follow_lease_attention_and_dock() -> None:
     }
     leased = robot_actions(leased=True, blocked=True, returns=True, at_dock=False)
     assert _reasons(leased) == {
-        "configure": "robot_busy",
+        "configure": None,
         "rename": None,
         "remove": "robot_busy",
         "return_to_dock": "robot_already_executing",

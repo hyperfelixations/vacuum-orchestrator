@@ -73,7 +73,7 @@ def validate_robot_configuration(
     if robot_id is None and len(entry.subentries) >= 20:
         raise ValidationError("robot_limit_reached")
     if robot_id is not None:
-        require_idle_robot(entry, robot_id)
+        require_robot_change(entry, robot_id, data)
     with located(CONF_ROBOT_ENTITY_ID):
         candidate = candidate_for(
             hass,
@@ -360,19 +360,30 @@ def added_robot_fields() -> Iterator[None]:
 
 
 def require_idle_robot(entry: ConfigEntry, robot_id: str) -> ConfigSubentry:
-    """Validate mutation ownership for both configuration flows and public commands."""
+    """Refuse removing a robot while a job owns it."""
     subentry = require_robot(entry, robot_id)
-    runtime = getattr(entry, "runtime_data", None)
-    require(
-        robot_idle(
-            runtime is not None
-            and any(
-                lease.robot_id == robot_id
-                for lease in runtime.orchestrator.state.robot_leases.values()
-            )
-        )
-    )
+    require(robot_idle(_leased(entry, robot_id)))
     return subentry
+
+
+def require_robot_change(
+    entry: ConfigEntry, robot_id: str, data: Mapping[str, Any]
+) -> ConfigSubentry:
+    """Let a job keep its robot's physical identity; the rest applies afterwards."""
+    subentry = require_robot(entry, robot_id)
+    physical = data.get("physical_robot_id") or None
+    if physical != (subentry.data.get("physical_robot_id") or None):
+        with located("physical_robot_id"):
+            require(robot_idle(_leased(entry, robot_id)))
+    return subentry
+
+
+def _leased(entry: ConfigEntry, robot_id: str) -> bool:
+    runtime = getattr(entry, "runtime_data", None)
+    return runtime is not None and any(
+        lease.robot_id == robot_id
+        for lease in runtime.orchestrator.state.robot_leases.values()
+    )
 
 
 def prepare_robot(
@@ -382,8 +393,8 @@ def prepare_robot(
     *,
     robot_id: str | None = None,
 ) -> tuple[ConfigSubentry | None, dict[str, Any]]:
-    """Check an idle robot change and return the profile it replaces and its data."""
-    previous = require_idle_robot(entry, robot_id) if robot_id else None
+    """Check a robot change and return the profile it replaces and its data."""
+    previous = require_robot(entry, robot_id) if robot_id else None
     merged = {**(previous.data if previous else {}), **data}
     if CONF_ROBOT_ENTITY_ID in data:
         merged.pop(CONF_ROBOT_REGISTRY_ID, None)
@@ -399,7 +410,7 @@ def configure_robot(
     *,
     robot_id: str | None = None,
 ) -> str:
-    """Apply one validated idle robot mutation without reloading the runtime."""
+    """Apply one validated robot mutation without reloading the runtime."""
     previous, normalized = prepare_robot(hass, entry, data, robot_id=robot_id)
     if previous is not None:
         hass.config_entries.async_update_subentry(entry, previous, data=normalized)

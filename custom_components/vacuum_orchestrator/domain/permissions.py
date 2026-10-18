@@ -201,7 +201,11 @@ def room_actions(state: OrchestratorState, room: Room) -> Mapping[str, Availabil
 
 
 def robot_idle(leased: bool) -> Availability:
-    """`configure_robot`, `remove_robot`: never while a job owns the robot."""
+    """`remove_robot` and a new physical robot ID: never while a job owns the robot.
+
+    Any other profile change applies from the robot's next job; see dev doc
+    "Erlaubte Aktionen".
+    """
     return unavailable("robot_busy") if leased else AVAILABLE
 
 
@@ -224,7 +228,7 @@ def robot_actions(
     """Offer each robot action; a docked robot is not sent home again."""
     home = returnable(leased, blocked, returns)
     return {
-        "configure": robot_idle(leased),
+        "configure": AVAILABLE,
         "rename": AVAILABLE,
         "remove": robot_idle(leased),
         "return_to_dock": unavailable("robot_at_dock")

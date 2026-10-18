@@ -1374,7 +1374,7 @@
     },
     "configure_robot": {
       "name": "Roboter konfigurieren",
-      "description": "Ändert das Profil eines freien Roboters: Rollen, Ziele, Bedingungen und unterstützte Einstellungen.",
+      "description": "Ändert das Profil eines Roboters: Rollen, Ziele, Bedingungen und unterstützte Einstellungen. Während eines Auftrags gilt die Änderung ab dem nächsten Auftrag des Roboters.",
       "fields": {
         "robot_id": {
           "name": "Roboter",

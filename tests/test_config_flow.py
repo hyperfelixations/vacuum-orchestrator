@@ -16,6 +16,10 @@ from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.vacuum_orchestrator import async_migrate_entry
+from custom_components.vacuum_orchestrator.configuration import (
+    require_idle_robot,
+    validate_robot_configuration,
+)
 from custom_components.vacuum_orchestrator.const import (
     CONF_INSTALLATION_ID,
     CONF_ROBOT_ENTITY_ID,
@@ -24,6 +28,7 @@ from custom_components.vacuum_orchestrator.const import (
     DOMAIN,
     SUBENTRY_TYPE_ROBOT,
 )
+from custom_components.vacuum_orchestrator.domain.errors import ConflictError
 from custom_components.vacuum_orchestrator.infrastructure.integrity import JsonObject
 
 
@@ -260,7 +265,7 @@ async def test_minor_two_migration_follows_the_ha_mapping_where_lists_restrict_n
     assert entry.minor_version == 2
 
 
-async def test_reconfigure_tracks_renames_and_blocks_active_robot(
+async def test_reconfigure_tracks_renames_and_applies_while_the_robot_cleans(
     hass: HomeAssistant, enable_custom_integrations: None
 ) -> None:
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
@@ -288,12 +293,8 @@ async def test_reconfigure_tracks_renames_and_blocks_active_robot(
             )
         )
     )
-    result = await hass.config_entries.subentries.async_configure(
-        flow["flow_id"],
-        {CONF_ROBOT_ENTITY_ID: "vacuum.renamed", CONF_TARGET_AREAS: ["library"]},
-    )
-    assert result["errors"] == {CONF_ROBOT_ENTITY_ID: "robot_busy"}
-    entry.runtime_data.orchestrator.state.robot_leases.clear()
+    # A running job keeps its adapter; the new profile applies from the next job
+    # (plan R1.2).
     result = await hass.config_entries.subentries.async_configure(
         flow["flow_id"],
         {CONF_ROBOT_ENTITY_ID: "vacuum.renamed", CONF_TARGET_AREAS: ["library"]},
@@ -308,6 +309,44 @@ async def test_reconfigure_tracks_renames_and_blocks_active_robot(
         entry.subentries[subentry.subentry_id].data[CONF_ROBOT_ENTITY_ID]
         == "vacuum.renamed"
     )
+
+
+async def test_a_cleaning_robot_keeps_its_physical_identity_and_stays(
+    hass: HomeAssistant, enable_custom_integrations: None
+) -> None:
+    """Plan R1.2: only what claims the robot or ends it waits for its job."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
+    entry.add_to_hass(hass)
+    entity = er.async_get(hass).async_get_or_create("vacuum", "demo", "robot")
+    flow = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_ROBOT), context={"source": SOURCE_USER}
+    )
+    await hass.config_entries.subentries.async_configure(
+        flow["flow_id"], {CONF_ROBOT_ENTITY_ID: entity.entity_id}
+    )
+    subentry = next(iter(entry.subentries.values()))
+    entry.runtime_data = SimpleNamespace(
+        orchestrator=SimpleNamespace(
+            state=SimpleNamespace(
+                robot_leases={"source": SimpleNamespace(robot_id=subentry.subentry_id)}
+            )
+        )
+    )
+    profile = dict(subentry.data)
+    changed = validate_robot_configuration(
+        hass, entry, {**profile, "minimum_battery": 40}, robot_id=subentry.subentry_id
+    )
+    assert changed["minimum_battery"] == 40
+    with pytest.raises(ConflictError) as busy:
+        validate_robot_configuration(
+            hass,
+            entry,
+            {**profile, "physical_robot_id": "other"},
+            robot_id=subentry.subentry_id,
+        )
+    assert (busy.value.code, busy.value.path) == ("robot_busy", ("physical_robot_id",))
+    with pytest.raises(ConflictError, match="robot_busy"):
+        require_idle_robot(entry, subentry.subentry_id)
 
 
 async def test_reconfigure_cannot_replace_physical_entity(

@@ -1374,7 +1374,7 @@
     },
     "configure_robot": {
       "name": "Configure robot",
-      "description": "Changes the profile of an idle robot: roles, targets, conditions and supported settings.",
+      "description": "Changes a robot's profile: roles, targets, conditions and supported settings. During a job the change applies from the robot's next job.",
       "fields": {
         "robot_id": {
           "name": "Robot",
