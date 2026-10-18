@@ -53,6 +53,7 @@ def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
             "recorded": core.trace.sequence,
             "retained": len(traces),
             "dropped": core.trace.sequence - len(traces),
+            "repeated": core.trace.repeated,
             "capacity": core.trace.capacity,
             "first_sequence": records[0]["sequence"] if records else None,
             "last_sequence": records[-1]["sequence"] if records else None,

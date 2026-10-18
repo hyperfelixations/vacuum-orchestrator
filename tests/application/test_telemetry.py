@@ -102,7 +102,48 @@ def test_repeated_observations_are_summarized_on_change(caplog):
     assert len(caplog.records) == 2
     last = json.loads(caplog.records[-1].getMessage().split(" ", 1)[1])
     assert last["suppressed"] == 99
-    assert trace.sequence == 101
+    assert (trace.sequence, trace.repeated) == (2, 99), "repeats stay out of the ring"
+
+
+def test_the_ring_keeps_changes_and_a_rare_sign_of_life() -> None:
+    """Plan R1.3: unchanged observations do not push a run out of the ring."""
+    trace = TraceRecorder()
+    at = [NOW + timedelta(minutes=minute) for minute in range(13)]
+    for moment in at[:12]:
+        trace.record(
+            TraceEvent.OBSERVATION,
+            moment,
+            robot_id="robot",
+            state="busy",
+            reason="segment_cleaning",
+        )
+    trace.record(TraceEvent.OBSERVATION, at[12], robot_id="robot", state="available")
+    trace.record(
+        TraceEvent.OBSERVATION,
+        NOW,
+        robot_id="other",
+        state="busy",
+        reason="segment_cleaning",
+    )
+    rows = trace.snapshot()
+    assert [(row["robot_id"], row["state"], row["timestamp"]) for row in rows] == [
+        ("robot", "busy", at[0].isoformat()),
+        ("robot", "busy", at[10].isoformat()),
+        ("robot", "available", at[12].isoformat()),
+        ("other", "busy", NOW.isoformat()),
+    ]
+    assert [row["sequence"] for row in rows] == [1, 2, 3, 4]
+    assert (trace.sequence, trace.repeated) == (4, 10)
+
+
+async def test_a_commit_leaves_one_storage_record_in_the_ring() -> None:
+    backend = RecordingBackend()
+    core = await _orchestrator(backend, RecordingAdapter(backend, "robot"))
+    await core.async_create_job(_intent())
+    stages = [
+        row["stage"] for row in core.trace.snapshot() if row["event"] == "storage"
+    ]
+    assert "committing" not in stages and stages[-1] == "committed"
 
 
 async def test_concurrent_requests_keep_distinct_ids_and_reset_context():

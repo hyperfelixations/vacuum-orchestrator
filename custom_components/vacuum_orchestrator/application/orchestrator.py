@@ -1660,7 +1660,9 @@ class VacuumOrchestrator:
     ) -> None:
         if _DRY_RUN.get():
             raise RuntimeError("commit_during_validation")
-        self.trace.record(TraceEvent.STORAGE, self._clock(), stage="committing")
+        self.trace.record(
+            TraceEvent.STORAGE, self._clock(), stage="committing", ring=False
+        )
         try:
             await self._repository.async_commit(
                 candidate, expected_previous_commit_id=previous.commit_id

@@ -4,8 +4,9 @@ from collections import deque
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import asdict, dataclass
-from datetime import datetime
+from dataclasses import asdict, dataclass, replace
+from datetime import datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 from ..domain.errors import OrchestratorError
@@ -16,6 +17,21 @@ from ..ports.telemetry import TelemetrySink
 __all__ = ["ObservationTrace", "TraceEvent", "TraceRecorder", "incident_record"]
 
 _request_id: ContextVar[str | None] = ContextVar("voi_trace_request", default=None)
+
+# How long an unchanged observation stays out of the ring before it is kept again.
+OBSERVATION_HEARTBEAT = timedelta(minutes=10)
+# Fields that change with every observation without saying anything new.
+_VOLATILE_FIELDS = frozenset(
+    {
+        "sequence",
+        "timestamp",
+        "observed_at",
+        "commit_id",
+        "runtime_sequence",
+        "request_id",
+        "run_id",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +88,9 @@ class TraceRecorder:
     ) -> None:
         self._records: deque[TraceRecord] = deque(maxlen=capacity)
         self.sequence = 0
+        # Unchanged observations left out of the ring; see dev doc "Telemetrie".
+        self.repeated = 0
+        self._last_observation: dict[str | None, tuple[tuple[Any, ...], datetime]] = {}
         self.sink_failures = 0
         self.sink = sink
         self._id_factory = id_factory
@@ -108,9 +127,12 @@ class TraceRecorder:
         operation: str | None = None,
         error: Exception | None = None,
         observation: ObservationTrace | None = None,
+        ring: bool = True,
     ) -> TraceRecord:
-        """Append only normalized values chosen by the application."""
-        self.sequence += 1
+        """Append only normalized values chosen by the application.
+
+        `ring=False` and an unchanged observation reach only the sink.
+        """
         if reason is None and isinstance(error, OrchestratorError):
             reason = error.code
         frames: list[str] = []
@@ -124,7 +146,7 @@ class TraceRecorder:
                 frames.append(f"{frame}:{traceback.tb_lineno}")
                 traceback = traceback.tb_next
         record = TraceRecord(
-            self.sequence,
+            self.sequence + 1,
             now.isoformat(),
             event.value,
             job_id,
@@ -147,13 +169,40 @@ class TraceRecorder:
             ";".join(frames) if frames else None,
             **(asdict(observation) if observation is not None else {}),
         )
-        self._records.append(record)
+        if ring and not self._repeats(record, now):
+            self.sequence += 1
+            self._records.append(record)
+        else:
+            if ring:
+                self.repeated += 1
+            record = replace(record, sequence=self.sequence)
         if self.sink is not None:
             try:
                 self.sink.emit(asdict(record))
             except Exception:
                 self.sink_failures += 1
         return record
+
+    def _repeats(self, record: TraceRecord, now: datetime) -> bool:
+        """Return whether an observation repeats its robot's last kept one.
+
+        A repeat is kept again after `OBSERVATION_HEARTBEAT` as a sign of life.
+        """
+        if record.event != TraceEvent.OBSERVATION.value:
+            return False
+        fields = asdict(record)
+        key = tuple(
+            value for name, value in fields.items() if name not in _VOLATILE_FIELDS
+        )
+        last = self._last_observation.get(record.robot_id)
+        if (
+            last is not None
+            and last[0] == key
+            and now - last[1] < OBSERVATION_HEARTBEAT
+        ):
+            return True
+        self._last_observation[record.robot_id] = (key, now)
+        return False
 
     @property
     def capacity(self) -> int:
