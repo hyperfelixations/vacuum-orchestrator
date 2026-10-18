@@ -98,5 +98,7 @@ class AreaVacuum:
     def set_vacuum(self, state: str) -> None:
         """Set the vacuum activity."""
         self.hass.states.async_set(
-            self.entity_id, state, {"supported_features": int(FEATURES)}
+            self.entity_id,
+            state,
+            {"friendly_name": self.name, "supported_features": int(FEATURES)},
         )

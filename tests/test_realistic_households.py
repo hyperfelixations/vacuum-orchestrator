@@ -76,6 +76,34 @@ def _reach(robot: dict, rooms: dict[str, dict]) -> dict[str, tuple[str, list, li
     }
 
 
+async def test_entities_carry_the_names_home_assistant_gives_them(
+    hass: HomeAssistant, install
+) -> None:
+    """Device name and entity name, as HA forms `friendly_name` for entities
+    that have an entity name; a vacuum without one carries the device name."""
+    home = await install(two_robots)
+    rocky, dusty = home.roborock, home.generic
+    dock_role = next(role for role in ROLES if role.dock)
+
+    def name(entity_id: str) -> str:
+        return hass.states.get(entity_id).attributes["friendly_name"]
+
+    assert name(rocky.entity_id) == "Rocky"
+    assert name(rocky.entities["battery"].entity_id) == "Rocky Battery"
+    assert (
+        name(rocky.entities[dock_role.key].entity_id) == f"Rocky Dock {dock_role.name}"
+    )
+    assert name(dusty.entity_id) == "Dusty"
+    rocky.set("battery", "50")
+    rocky.set_vacuum("cleaning")
+    dusty.set_vacuum("cleaning")
+    assert [
+        name(rocky.entities["battery"].entity_id),
+        name(rocky.entity_id),
+        name(dusty.entity_id),
+    ] == ["Rocky Battery", "Rocky", "Dusty"]
+
+
 async def test_a_home_without_robots_imports_its_areas_as_locked_rooms(
     hass: HomeAssistant, install
 ) -> None:

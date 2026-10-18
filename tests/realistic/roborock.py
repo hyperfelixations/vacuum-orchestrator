@@ -567,9 +567,10 @@ class RoborockV1:
     def set(self, key: str, value: str) -> None:
         """Set a companion entity's state, keeping its attributes."""
         role = next(item for item in ROLES if item.key == key)
-        attributes: dict[str, Any] = (
-            {"options": list(role.options)} if role.options else {}
-        )
+        device = f"{self.name} Dock" if role.dock else self.name
+        attributes: dict[str, Any] = {"friendly_name": f"{device} {role.name}"}
+        if role.options:
+            attributes["options"] = list(role.options)
         if role.device_class == "battery":
             attributes["unit_of_measurement"] = "%"
         self.hass.states.async_set(self.entities[key].entity_id, value, attributes)
@@ -578,6 +579,7 @@ class RoborockV1:
         """Set the vacuum activity; `None` keeps it."""
         current = self.hass.states.get(self.entity_id)
         attributes = {
+            "friendly_name": self.name,
             "supported_features": int(FEATURES),
             "fan_speed_list": FAN_SPEEDS,
             "fan_speed": fan_speed
