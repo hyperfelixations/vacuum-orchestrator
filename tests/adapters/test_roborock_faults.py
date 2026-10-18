@@ -30,9 +30,11 @@ def _options(sensor: str) -> set[str]:
     return set(strings["entity"]["sensor"][sensor]["state"])
 
 
-def test_tables_cover_exactly_the_core_options() -> None:
-    assert set(ROBOT_FAULTS) | ROBOT_NEUTRAL == _options("vacuum_error")
-    assert set(DOCK_FAULTS) | DOCK_NEUTRAL == _options("dock_error")
+def test_tables_cover_every_translated_core_option() -> None:
+    # Core reports some options it has no translation for; the exact option sets are
+    # compared in test_roborock_core.py.
+    assert _options("vacuum_error") <= set(ROBOT_FAULTS) | ROBOT_NEUTRAL
+    assert _options("dock_error") <= set(DOCK_FAULTS) | DOCK_NEUTRAL
     assert not set(ROBOT_FAULTS) & ROBOT_NEUTRAL
     assert not set(DOCK_FAULTS) & DOCK_NEUTRAL
 

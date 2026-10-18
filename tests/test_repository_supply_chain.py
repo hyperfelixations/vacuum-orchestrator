@@ -29,6 +29,8 @@ HOME_ASSISTANT_STACK = {
     "pytest-cov",
     "pytest-homeassistant-custom-component",
 }
+# Core's Roborock requirements at the baseline (tests/adapters/test_roborock_core.py).
+CORE_ROBOROCK = {"python-roborock", "vacuum-map-parser-roborock"}
 SEMVER_TYPES = {
     "version-update:semver-major",
     "version-update:semver-minor",
@@ -154,18 +156,20 @@ def pinned(name: str) -> set[str]:
 
 
 def test_dependabot_leaves_the_home_assistant_test_stack_to_the_baseline() -> None:
-    """The E2E pins are HA's own and move with the baseline as well."""
+    """Core's Roborock pins and the E2E pins are HA's own and move with it as well."""
     ignored = {
         rule["dependency-name"]: rule for rule in dependabot_updates()["pip"]["ignore"]
     }
-    assert set(ignored) == HOME_ASSISTANT_STACK | pinned("requirements-e2e.txt")
+    assert set(ignored) == (
+        HOME_ASSISTANT_STACK | CORE_ROBOROCK | pinned("requirements-e2e.txt")
+    )
     # A rule without update-types would also block the package's security updates.
     for name, rule in ignored.items():
         assert set(rule["update-types"]) == SEMVER_TYPES, name
 
 
 def test_every_test_requirement_is_pinned_exactly() -> None:
-    assert pinned("requirements-test.txt") >= HOME_ASSISTANT_STACK
+    assert pinned("requirements-test.txt") >= HOME_ASSISTANT_STACK | CORE_ROBOROCK
     lines = (ROOT / "requirements-e2e.txt").read_text(encoding="utf-8").splitlines()
     assert "-r requirements-test.txt" in lines
     assert pinned("requirements-e2e.txt")

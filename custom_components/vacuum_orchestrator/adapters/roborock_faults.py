@@ -72,10 +72,14 @@ ROBOT_FAULTS: dict[str, FaultScope] = {
 }
 
 DOCK_FAULTS: dict[str, FaultScope] = {
+    "auto_empty_dock_fan_error": STATION_VACUUM,
+    "auto_empty_dock_voltage_error": STATION_VACUUM,
     "cleaning_tank_full_or_blocked": STATION_MOP,
     "dirty_tank_latch_open": STATION_MOP,
     "duct_blockage": STATION_VACUUM,
+    "maintenance_brush_jammed": STATION_MOP,
     "no_dustbin": STATION_VACUUM,
+    "no_dustbin_or_filter": STATION_VACUUM,
     "waste_water_tank_full": STATION_MOP,
     "water_empty": STATION_MOP,
 }

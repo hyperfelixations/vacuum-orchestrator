@@ -6,6 +6,11 @@ pytest==9.0.3
 pytest-asyncio==1.4.0
 pytest-cov==7.1.0
 
+# Core's Roborock integration as the tests run its own methods: exactly the requirements of its
+# manifest at the baseline; tests/adapters/test_roborock_core.py keeps them equal.
+python-roborock==7.12.0
+vacuum-map-parser-roborock==0.1.5
+
 # Independent tooling
 hypothesis==6.168.5
 mypy==2.4.0
