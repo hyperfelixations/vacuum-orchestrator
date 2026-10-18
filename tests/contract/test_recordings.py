@@ -366,6 +366,7 @@ CONTROLS: dict[str, list[tuple[str, list[str]]]] = {
         ("The library is released for 75 minutes", ["disable_room", "enable_room"]),
         ("The studio is included again", ["update_room"]),
         ("The dining room is due every 36 hours", ["create_room"]),
+        ("The studio and the library are released", ["revoke_rooms"]),
     ],
     "settings_controls": [
         ("The card opens", ["configure_queue"]),

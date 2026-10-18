@@ -51,10 +51,13 @@ class Stage:
         await self.session.mark("The card opens")
 
     async def rooms(self) -> dict[str, str]:
-        """VOI room IDs by area name, as the card reads them."""
+        """VOI room IDs by area name, as the card reads them; a room without an
+        area by its own name."""
         names = {area_id: name for name, area_id in self.home.areas.items()}
         rooms = (await self.session.collection("get_rooms"))["rooms"]
-        return {names[room["area_id"]]: room["room_id"] for room in rooms}
+        return {
+            names.get(room["area_id"], room["name"]): room["room_id"] for room in rooms
+        }
 
     async def release(self, *names: str) -> None:
         """Release rooms permanently, as the release dialog does."""
@@ -793,8 +796,8 @@ async def queue_controls(stage: Stage) -> None:
 async def room_controls(stage: Stage) -> None:
     """The user arranges the rooms: releases the library for 75 minutes and
     locks the dining room again, excludes and includes the studio, gives the
-    dining room its own due rule and adds a room without an area, first
-    without a name."""
+    dining room its own due rule, adds a room without an area, first without a
+    name, and at last locks the studio and the library in one step."""
     session = stage.session
     await stage.open()
     await stage.release("Dining Room")
@@ -819,6 +822,11 @@ async def room_controls(stage: Stage) -> None:
     await session.validate("create_room", name="Office")
     await session.command("create_room", name="Office")
     await session.mark("The office is a room")
+    await stage.release("Studio")
+    await session.mark("The studio and the library are released")
+    # In the order a card lists them.
+    await session.command("revoke_rooms", rooms=[rooms["Studio"], rooms["Library"]])
+    await session.mark("Every room is locked")
 
 
 async def settings_controls(stage: Stage) -> None:
