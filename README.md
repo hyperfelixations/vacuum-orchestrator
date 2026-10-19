@@ -259,6 +259,7 @@ cleaning mode.
 |---|---|
 | Add a job | `create_job`: `areas`, `rooms` or `all_rooms`, optional `mode`, `name` and settings |
 | Add a job and start it now | `create_job` with `start: true`, optional `robot_id` |
+| Start a waiting job now | `start_job`: `job_id`, optional `robot_id` |
 | Set the job defaults | `configure_job_defaults`: the defaults to change |
 | Edit a waiting job | `update_job`: `job_id` and the fields to change |
 | Change its position | `move_job`: `job_id`, `direction: up`, `down`, `top` or `bottom` |
@@ -279,6 +280,11 @@ started jobs finish, including their remaining phases.
 `create_job` with `start: true` creates the job and reserves a robot in one
 step. If the job cannot start right now, for example because a room is not
 released or no robot is free, nothing is created and the error says why.
+
+A new or changed job waits **5 seconds** before the queue starts it, so a job
+added by mistake can still be deleted. Use `configure_queue` with
+`start_delay_seconds` (0 to 600) to change the wait; `0` starts jobs at once.
+`start_job` and `create_job` with `start: true` skip it.
 
 Ending the queue keeps waiting jobs in the queue but starts nothing new. With
 `running_jobs: finish` (the default) started jobs, including a pending mopping
@@ -434,6 +440,7 @@ permission types through `release_room`.
 | A job remains in the queue | Is its room released? Are the door conditions satisfied? Is the right map selected? Use `get_job_execution` with its `job_id`. |
 | No robot can run the job | Check room targeting, supported mode, charge, availability and any required device settings. Discovery alone does not establish compatibility. |
 | Queue is paused or idle | Use `resume_queue` or `run_queue` when ready. Creating jobs alone does not start an idle queue. |
+| A new job waits a few seconds before it starts | That is the start delay; change it with `configure_queue` and `start_delay_seconds`. |
 | Room became locked after a run | Check whether its permission was `once`, `timed` or `queue_run`. |
 | A job needs attention after a lost connection | The robot did not report for 10 minutes (`connection_timeout_seconds`). Check the physical robot first, then the integration's Repair message and `get_queue` recovery information. |
 | No new automatic job appears | Check the template is enabled and automatic, the room is due, and there is no overlapping job or demand suppression from an earlier attempt. |
@@ -446,11 +453,11 @@ room as successfully cleaned.
 
 ### What “derived” cleaning means
 
-For cleaning started by VOI, an observed start followed by a stable normal end
-may be recorded as **derived** completion. **Confirmed** means stronger evidence
-is available. The room keeps the most recent effective result and the most recent
-confirmed result separately. An error, a lasting connection loss or a timeout is
-not success.
+For cleaning started by VOI, a run that VOI watches from its start to a stable
+normal end is recorded as **confirmed**. When the end fell into a time in which
+VOI could not see the robot, the completion is **derived**. The room keeps the
+most recent effective result and the most recent confirmed result separately.
+An error, a lasting connection loss or a timeout is not success.
 
 Restarting Home Assistant or reloading VOI does not stop a running job; VOI
 watches it again afterwards. If the robot stops reporting, for example during a
