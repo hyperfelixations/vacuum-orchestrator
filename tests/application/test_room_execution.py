@@ -274,7 +274,7 @@ async def test_derived_completion_projects_quality_and_preserves_last_confirmed(
     await orchestrator.async_start_job(second)
     attempt_id = orchestrator.state.jobs[second].active_attempt_id
     await orchestrator.async_confirm_start(attempt_id)
-    # The second run ends unseen in a connection gap, so it is derived (plan R1.1).
+    # The second run ends unseen in a connection gap, so it is derived.
     idle = adapter.observation
     adapter.observation = replace(
         idle,
@@ -465,7 +465,7 @@ async def test_late_proof_upgrades_same_receipt_without_counting_cleaning_twice(
     await core.async_start_job(job)
     attempt_id = core.state.jobs[job].active_attempt_id
     await core.async_confirm_start(attempt_id)
-    # An end in a connection gap is derived until a late proof (plan R1.1).
+    # An end in a connection gap is derived until a late proof.
     idle = adapter.observation
     adapter.observation = replace(
         idle,

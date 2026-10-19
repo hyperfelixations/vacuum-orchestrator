@@ -293,8 +293,7 @@ async def test_reconfigure_tracks_renames_and_applies_while_the_robot_cleans(
             )
         )
     )
-    # A running job keeps its adapter; the new profile applies from the next job
-    # (plan R1.2).
+    # A running job keeps its adapter; the new profile applies from the next job.
     result = await hass.config_entries.subentries.async_configure(
         flow["flow_id"],
         {CONF_ROBOT_ENTITY_ID: "vacuum.renamed", CONF_TARGET_AREAS: ["library"]},
@@ -314,7 +313,7 @@ async def test_reconfigure_tracks_renames_and_applies_while_the_robot_cleans(
 async def test_a_cleaning_robot_keeps_its_physical_identity_and_stays(
     hass: HomeAssistant, enable_custom_integrations: None
 ) -> None:
-    """Plan R1.2: only what claims the robot or ends it waits for its job."""
+    """Only what claims the robot or ends it waits for its job."""
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_INSTALLATION_ID: DOMAIN})
     entry.add_to_hass(hass)
     entity = er.async_get(hass).async_get_or_create("vacuum", "demo", "robot")

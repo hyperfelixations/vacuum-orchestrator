@@ -106,7 +106,7 @@ def test_repeated_observations_are_summarized_on_change(caplog):
 
 
 def test_the_ring_keeps_changes_and_a_rare_sign_of_life() -> None:
-    """Plan R1.3: unchanged observations do not push a run out of the ring."""
+    """Unchanged observations do not push a run out of the ring."""
     trace = TraceRecorder()
     at = [NOW + timedelta(minutes=minute) for minute in range(13)]
     for moment in at[:12]:

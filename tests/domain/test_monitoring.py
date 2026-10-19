@@ -137,7 +137,7 @@ def test_an_observed_end_waits_for_stability_and_resets_when_cleaning_resumes() 
         replace(IDLE, observed_at=NOW + timedelta(seconds=30)),
         NOW + timedelta(seconds=30),
     )
-    # A run seen from its start to a stable normal end is confirmed (plan R1.1).
+    # A run seen from its start to a stable normal end is confirmed.
     assert (decision.reason, decision.quality) == (
         "observed_start_and_stable_normal_end",
         CompletionQuality.CONFIRMED,

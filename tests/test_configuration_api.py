@@ -187,7 +187,7 @@ async def test_room_actions_preserve_runtime_facts_and_stable_conditions(
     assert detail["due_policy"]["occupancy_entity_registry_id"] == sensor.id
     assert detail["requirements"][0]["entity_registry_id"] == sensor.id
     assert detail["due"]["vacuum"]["state"] == "due"
-    # Plan R1.9: each condition says whether it holds now, so a client never weighs it.
+    # Each condition says whether it holds now, so a client never weighs it.
     assert detail["requirement_states"] == [
         {"entity_id": sensor.entity_id, "state": "unknown"}
     ]

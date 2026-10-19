@@ -355,7 +355,7 @@ async def test_run_queue_dispatches_non_overlapping_jobs_to_distinct_robots() ->
 
 
 async def test_a_pass_during_a_dispatch_leaves_that_job_alone() -> None:
-    """Plan R1.4: a job dispatched since the candidate list is no blocked job."""
+    """A job dispatched since the candidate list is no blocked job."""
     backend = RecordingBackend()
     adapter = RecordingAdapter(backend, "robot")
     orchestrator = await _orchestrator(backend, adapter)
