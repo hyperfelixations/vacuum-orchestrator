@@ -95,7 +95,7 @@ def test_distribution_metadata_and_translations_are_consistent():
         "issue_tracker",
         "codeowners",
     } <= manifest.keys()
-    assert manifest["version"] == "0.1.2"
+    assert manifest["version"] == "0.1.3"
     # The tested baseline is the pinned HA test stack; HACS and README name it.
     (baseline,) = (
         line.removeprefix("homeassistant==")
