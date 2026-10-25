@@ -36,6 +36,14 @@ SEMVER_TYPES = {
     "version-update:semver-minor",
     "version-update:semver-patch",
 }
+SCHEDULE = {"interval": "cron", "cronjob": "0 5 1,15 * *"}
+PATCH_RULE = {"dependency-name": "*", "update-types": ["version-update:semver-patch"]}
+VERSION_GROUP = {
+    "patterns": ["*"],
+    "update-types": ["minor", "patch"],
+    "applies-to": "version-updates",
+}
+SECURITY_GROUP = {"patterns": ["*"], "applies-to": "security-updates"}
 PINNED_USES = re.compile(r"uses: [\w.-]+/[\w./-]+@[0-9a-f]{40} # v\d+(?:\.\d+){0,2}$")
 EXACT_PIN = re.compile(r"([A-Za-z0-9_.-]+)==\d[\w.]*")
 
@@ -46,9 +54,13 @@ def load(path: Path) -> dict[str, Any]:
     return loaded
 
 
-def triggers(workflow: dict[str, Any]) -> set[str]:
+def trigger_config(workflow: dict[str, Any]) -> dict[str, Any]:
     # YAML 1.1 reads the key `on` as the boolean True.
-    return set(workflow[True] if True in workflow else workflow["on"])
+    return workflow[True] if True in workflow else workflow["on"]
+
+
+def triggers(workflow: dict[str, Any]) -> set[str]:
+    return set(trigger_config(workflow))
 
 
 def steps(job: dict[str, Any]) -> list[dict[str, Any]]:
@@ -107,6 +119,12 @@ def test_ci_runs_on_push_and_pull_request() -> None:
     assert triggers(workflow) == {"push", "pull_request", "workflow_dispatch"}
 
 
+def test_ci_runs_pushes_to_main_and_pull_requests_once() -> None:
+    configured = trigger_config(load(WORKFLOWS / "ci.yml"))
+    assert configured["push"] == {"branches": ["main"]}
+    assert configured["pull_request"] is None
+
+
 def test_ci_runs_the_e2e_host_with_its_requirements() -> None:
     job = load(WORKFLOWS / "ci.yml")["jobs"]["e2e-host"]
     commands = [step["run"] for step in steps(job) if "run" in step]
@@ -134,12 +152,37 @@ def dependabot_updates() -> dict[str, dict[str, Any]]:
     return {entry["package-ecosystem"]: entry for entry in updates}
 
 
-def test_dependabot_watches_pip_and_the_workflow_actions_weekly() -> None:
+def test_dependabot_watches_pip_and_the_actions_in_the_repository_root() -> None:
     updates = dependabot_updates()
     assert set(updates) == {"pip", "github-actions"}
     for entry in updates.values():
         assert entry["directory"] == "/"
-        assert entry["schedule"] == {"interval": "weekly"}
+    # Dependabot reads the watched directory only; a manifest elsewhere stays stale.
+    for folder in ("custom_components", "tests"):
+        assert not list((ROOT / folder).rglob("requirements*.txt")), folder
+        assert not list((ROOT / folder).rglob("pyproject.toml")), folder
+
+
+def test_version_updates_run_on_the_1st_and_15th_after_a_week_without_patches() -> None:
+    for ecosystem, entry in dependabot_updates().items():
+        assert entry["schedule"] == SCHEDULE, ecosystem
+        assert entry["cooldown"] == {"default-days": 7}, ecosystem
+        assert entry["ignore"][0] == PATCH_RULE, ecosystem
+
+
+def test_minor_updates_are_grouped_and_security_updates_come_grouped() -> None:
+    updates = dependabot_updates()
+    pip, actions = updates["pip"], updates["github-actions"]
+    assert pip["groups"] == {"tooling": VERSION_GROUP, "security": SECURITY_GROUP}
+    assert actions["groups"] == {"actions": VERSION_GROUP, "security": SECURITY_GROUP}
+    assert actions["ignore"] == [PATCH_RULE]
+
+
+def test_no_ignore_rule_can_hold_back_security_updates() -> None:
+    """A rule that names only a package would block its security updates as well."""
+    for ecosystem, entry in dependabot_updates().items():
+        for rule in entry["ignore"]:
+            assert rule.get("update-types") and "versions" not in rule, ecosystem
 
 
 def pinned(name: str) -> set[str]:
@@ -157,9 +200,8 @@ def pinned(name: str) -> set[str]:
 
 def test_dependabot_leaves_the_home_assistant_test_stack_to_the_baseline() -> None:
     """Core's Roborock pins and the E2E pins are HA's own and move with it as well."""
-    ignored = {
-        rule["dependency-name"]: rule for rule in dependabot_updates()["pip"]["ignore"]
-    }
+    rules = dependabot_updates()["pip"]["ignore"][1:]
+    ignored = {rule["dependency-name"]: rule for rule in rules}
     assert set(ignored) == (
         HOME_ASSISTANT_STACK | CORE_ROBOROCK | pinned("requirements-e2e.txt")
     )

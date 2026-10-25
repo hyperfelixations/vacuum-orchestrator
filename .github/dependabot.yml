@@ -1,19 +1,30 @@
-# Security updates arrive one advisory per pull request; routine tooling updates are grouped.
+# Version updates run on the 1st and 15th at 05:00 UTC: minor and major releases only, each at least
+# 7 days old; majors stay single pull requests. Security updates are alert-driven and unaffected by
+# schedule, cooldown and the patch rule. See internal dev doc "Abhängigkeiten und Lieferkette".
 # Actions are pinned to commit SHAs; Dependabot moves the SHA and its version comment together.
 # The Home Assistant test stack, core's Roborock requirements and the E2E host's pins move with
-# the supported baseline, never through Dependabot.
+# the supported baseline: they get no version updates, only security updates.
 
 version: 2
 updates:
   - package-ecosystem: pip
     directory: /
     schedule:
-      interval: weekly
+      interval: cron
+      cronjob: "0 5 1,15 * *"
+    cooldown:
+      default-days: 7
     groups:
       tooling:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
         applies-to: version-updates
+      security:
+        patterns: ["*"]
+        applies-to: security-updates
     ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
       - dependency-name: homeassistant
         update-types:
           - version-update:semver-major
@@ -110,8 +121,18 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: cron
+      cronjob: "0 5 1,15 * *"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
     groups:
       actions:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
         applies-to: version-updates
+      security:
+        patterns: ["*"]
+        applies-to: security-updates
