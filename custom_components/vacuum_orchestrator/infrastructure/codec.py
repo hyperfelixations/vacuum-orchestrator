@@ -276,7 +276,8 @@ def _with_finish_times(state: OrchestratorState) -> OrchestratorState:
     """Give a finished job stored without `finished_at` its best known end.
 
     The robot's observed end of the job's last run, else the last observation
-    of its last attempt, else when it last changed; see dev doc "Persistenz".
+    of its last attempt, else when it last changed; see dev doc "Persistenz und
+    Testbelege".
     """
     missing = [
         job
