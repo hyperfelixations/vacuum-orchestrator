@@ -1,12 +1,13 @@
 """How far a started job is; see dev doc "Fortschritt"."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 
 from .dispatching import RobotObservation
 from .execution import ExecutionAttempt
 from .faults import blocking
-from .planning import ExecutionPlan
+from .planning import DispatchAssignment, ExecutionPlan
 from .queue import Job
 from .types import JobState, OperationKind
 
@@ -34,6 +35,16 @@ class Progress:
     phase_percent: int | None
     percent: int | None
     fault: FaultWait | None = None
+    # The job's room the robot reports being in.
+    room_id: str | None = None
+
+
+def room_at(target: str | None, rooms: Mapping[str, tuple[str, ...]]) -> str | None:
+    """Name the only room whose device targets contain `target`."""
+    if target is None:
+        return None
+    matches = [room for room, targets in rooms.items() if target in targets]
+    return matches[0] if len(matches) == 1 else None
 
 
 def job_progress(
@@ -41,8 +52,13 @@ def job_progress(
     plan: ExecutionPlan | None,
     attempt: ExecutionAttempt | None,
     observation: RobotObservation | None,
+    assignment: DispatchAssignment | None = None,
 ) -> Progress | None:
-    """Describe a started job; a percentage needs a report after the start."""
+    """Describe a started job.
+
+    A percentage and a room need a report after the start from the robot
+    running it.
+    """
     if job.state not in STARTED_STATES or plan is None:
         return None
     units = plan.work_units
@@ -70,6 +86,15 @@ def job_progress(
         and observation.clean_percent_at > attempt.observed_start_at
         else None
     )
+    room_id = (
+        room_at(observation.current_target, assignment.room_targets)
+        if attempt is not None
+        and attempt.observed_start_at is not None
+        and observation is not None
+        and observation.robot_id == attempt.robot_id
+        and assignment is not None
+        else None
+    )
     return Progress(
         units[index].operation,
         index + 1,
@@ -81,6 +106,7 @@ def job_progress(
         if phase_percent is None
         else round((index + phase_percent / 100) / len(units) * 100),
         _fault_wait(units[index].operation, attempt, observation),
+        room_id,
     )
 
 

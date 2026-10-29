@@ -12,6 +12,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, fields
 from typing import Any
 
+from homeassistant.auth.const import GROUP_ID_ADMIN, GROUP_ID_READ_ONLY, GROUP_ID_USER
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -20,6 +21,7 @@ from custom_components.vacuum_orchestrator.domain.holds import HOLD_LEASE_SECOND
 from custom_components.vacuum_orchestrator.domain.intents import settings_for_mode
 from custom_components.vacuum_orchestrator.domain.job_defaults import JobDefaults
 from custom_components.vacuum_orchestrator.domain.types import CleaningMode
+from custom_components.vacuum_orchestrator.runtime import async_get_runtime
 from tests.contract.recorder import FINISHED_JOB_STATES, Session, action
 from tests.realistic import Household, busy, no_robot, single_roborock, two_robots
 from tests.realistic import roborock as roborock_runs
@@ -139,6 +141,8 @@ class Scenario:
     installed: bool = True
     # Messages the scenario expects to be refused, each with a code.
     refusals: int = 0
+    # The HA group of the user the card runs as.
+    user_group: str = GROUP_ID_ADMIN
 
     @property
     def description(self) -> str:
@@ -148,6 +152,12 @@ class Scenario:
 
 # A door sensor of the showcase home; the conservatory is cleaned only while it is open.
 CONSERVATORY_DOOR = "binary_sensor.conservatory_door"
+# An occupancy sensor whose use the studio's due rule counts in the long history.
+STUDIO_OCCUPANCY = "binary_sensor.studio_occupancy"
+STUDIO_OCCUPANCY_ATTRIBUTES = {
+    "device_class": "occupancy",
+    "friendly_name": "Studio Occupancy",
+}
 
 
 def entry() -> MockConfigEntry:
@@ -189,9 +199,13 @@ async def setup(stage: Stage) -> None:
     await session.request({"type": f"{DOMAIN}/subscribe"})
     await session.mark("The assistant opens")
     (robot,) = (await session.collection("get_robots"))["robots"]
-    renamed = {"robot_id": robot["robot_id"], "name": "Rocky downstairs"}
-    await session.validate("rename_robot", **renamed)
-    await session.command("rename_robot", **renamed)
+    # The robot's editor names it: its name is part of its profile.
+    renamed = {
+        "robot_id": robot["robot_id"],
+        "configuration": {**robot["configuration"], "name": "Rocky downstairs"},
+    }
+    await session.validate("configure_robot", **renamed)
+    await session.command("configure_robot", **renamed)
     await session.validate("configure_queue", start_delay_seconds=10)
     await session.command("configure_queue", start_delay_seconds=10)
     await session.command("complete_setup")
@@ -463,7 +477,9 @@ async def long_history(stage: Stage) -> None:
     """Rocky vacuumed dining room, studio and library twice each, one job after
     the other; the history shows the six finished jobs five to a page. A card on
     the second page deletes its only job; that page is then past the end and the
-    card shows the first page again."""
+    card shows the first page again. Then the dining room becomes overdue by the
+    calendar, and the studio counts its use from a sensor that misses half an
+    hour."""
     session, robot = stage.session, stage.home.roborock
     await stage.open()
     rooms = ("Dining Room", "Studio", "Library")
@@ -510,6 +526,35 @@ async def long_history(stage: Stage) -> None:
             }
         )
     await session.mark("Five jobs are left")
+    stage.hass.states.async_set(STUDIO_OCCUPANCY, "on", STUDIO_OCCUPANCY_ATTRIBUTES)
+    room_ids = await stage.rooms()
+    await session.command(
+        "update_room",
+        room_id=room_ids["Dining Room"],
+        configuration={"due_policy": {"vacuum_seconds": 3600}},
+    )
+    await session.command(
+        "update_room",
+        room_id=room_ids["Studio"],
+        configuration={
+            "due_policy": {
+                "basis": "occupied",
+                "vacuum_seconds": 7200,
+                "occupancy_entity_id": STUDIO_OCCUPANCY,
+            }
+        },
+    )
+    await session.advance(1800)
+    for state, change in (
+        ("unavailable", "The studio's sensor drops out"),
+        ("on", "The studio's sensor is back"),
+    ):
+        stage.hass.states.async_set(
+            STUDIO_OCCUPANCY, state, STUDIO_OCCUPANCY_ATTRIBUTES
+        )
+        await session.home(change, read=False)
+        await session.advance(1800)
+    await session.mark("The dining room is overdue and the studio partly observed")
 
 
 async def showcase(stage: Stage) -> None:
@@ -627,13 +672,15 @@ async def showcase(stage: Stage) -> None:
     # A new job saved before a room is chosen: VOI names what is missing.
     await session.validate("create_job", **job_fields([]))
     await session.mark("A busy afternoon")
-    # The week ahead: three more jobs wait behind the afternoon's, seven open in all.
-    for name, mode in (
-        ("Dining Room", "vacuum"),
-        ("Studio", "mop"),
-        ("Library", "vacuum_and_mop"),
+    # The week ahead: three more jobs wait behind the afternoon's, seven open in all;
+    # one carries a name too long for a single line beside a row's actions.
+    for room, mode, name in (
+        ("Dining Room", "vacuum", None),
+        ("Studio", "mop", None),
+        ("Library", "vacuum_and_mop", "Library before the reading group on Saturday"),
     ):
-        await session.action("create_job", areas=stage.areas(name), mode=mode)
+        named = {"name": name} if name else {}
+        await session.action("create_job", areas=stage.areas(room), mode=mode, **named)
     await session.mark("Seven jobs are open")
 
 
@@ -853,15 +900,19 @@ async def room_controls(stage: Stage) -> None:
     await session.mark("The office is a room")
     await stage.release("Studio")
     await session.mark("The studio and the library are released")
-    # In the order a card lists them.
-    await session.command("revoke_rooms", rooms=[rooms["Studio"], rooms["Library"]])
+    # In the order a card lists them: the integration's room order (ROOM-13).
+    listed = await stage.rooms()
+    await session.command(
+        "revoke_rooms",
+        rooms=[room for name, room in listed.items() if name in ("Studio", "Library")],
+    )
     await session.mark("Every room is locked")
 
 
 async def settings_controls(stage: Stage) -> None:
     """The user lets the queue wait 30 minutes for more work, makes mopping with
-    the deep route the default for new jobs and lets a job start 30 seconds
-    after it could."""
+    the deep route the default for new jobs, lets a job start 30 seconds after
+    it could and lists rooms by name."""
     session = stage.session
     await stage.open()
     await session.validate("configure_queue", grace_seconds=1800)
@@ -874,6 +925,10 @@ async def settings_controls(stage: Stage) -> None:
     await session.validate("configure_queue", start_delay_seconds=30)
     await session.command("configure_queue", start_delay_seconds=30)
     await session.mark("Jobs start 30 seconds after they could")
+    await session.validate("configure_room_order", room_order="name")
+    await session.command("configure_room_order", room_order="name")
+    await session.collection("get_rooms")
+    await session.mark("Rooms are listed by name")
 
 
 async def template_controls(stage: Stage) -> None:
@@ -944,6 +999,72 @@ async def template_controls(stage: Stage) -> None:
     await session.mark("The card saved a job draft as a template")
 
 
+async def low_battery(stage: Stage) -> None:
+    """Rocky's battery is below the minimum its profile sets: the waiting job
+    offers a start with a warning while the running queue waits, and the user
+    starts it anyway."""
+    session, robot = stage.session, stage.home.roborock
+    await stage.open()
+    (profile,) = (await session.collection("get_robots"))["robots"]
+    await session.command(
+        "configure_robot",
+        robot_id=profile["robot_id"],
+        # A configuration replaces the whole profile; unnamed fields reset.
+        configuration={**profile["configuration"], "minimum_battery": 50},
+    )
+    robot.set("battery", "30")
+    await session.home("Rocky's battery is low")
+    await stage.release("Studio")
+    rooms = await stage.rooms()
+    job = _job_id(await session.action("create_job", **job_fields([rooms["Studio"]])))
+    await session.action("run_queue")
+    await session.advance(5)
+    await session.read_job(job)
+    await session.mark("The job waits for the battery and offers a start")
+    await session.action("start_job", job_id=job, allow_low_battery=True)
+    robot.clean()
+    await session.home("Rocky cleans with a low battery")
+
+
+async def household_member(stage: Stage) -> None:
+    """A household member who is no administrator opens the card, releases the
+    studio, adds a job for it and runs the queue: every user may command."""
+    session = stage.session
+    await stage.open()
+    await stage.release("Studio")
+    rooms = await stage.rooms()
+    await session.action("create_job", **job_fields([rooms["Studio"]]))
+    await session.action("run_queue")
+    await session.mark("A household member started the queue")
+
+
+async def read_only_user(stage: Stage) -> None:
+    """A user Home Assistant lets only read opens the card while an automation's
+    jobs wait, one for the released studio and one for the locked library: the
+    setup says the user may not command, and a queue start is refused."""
+    session, hass = stage.session, stage.hass
+    await stage.load()
+    # An administrator finished the assistant long before.
+    await async_get_runtime(hass).orchestrator.async_complete_setup()
+    rooms = await stage.rooms()
+    for name in ("Studio", "Library"):
+        await hass.services.async_call(
+            DOMAIN, "create_job", job_fields([rooms[name]]), blocking=True
+        )
+    await hass.services.async_call(
+        DOMAIN,
+        "release_room",
+        {"rooms": [rooms["Studio"]], "kind": "permanent"},
+        blocking=True,
+    )
+    await session.settle()
+    await session.request({"type": f"{DOMAIN}/subscribe"})
+    await session.read_static()
+    await session.mark("The card opens for a read-only user")
+    await session.action("run_queue")
+    await session.mark("The queue start was refused")
+
+
 SCENARIOS: dict[str, Scenario] = {
     "not_installed": Scenario(no_robot, not_installed, installed=False, refusals=1),
     "setup": Scenario(single_roborock, setup),
@@ -968,6 +1089,13 @@ SCENARIOS: dict[str, Scenario] = {
     "room_controls": Scenario(single_roborock, room_controls),
     "settings_controls": Scenario(single_roborock, settings_controls),
     "template_controls": Scenario(single_roborock, template_controls),
+    "low_battery": Scenario(single_roborock, low_battery),
+    "household_member": Scenario(
+        single_roborock, household_member, user_group=GROUP_ID_USER
+    ),
+    "read_only_user": Scenario(
+        single_roborock, read_only_user, refusals=1, user_group=GROUP_ID_READ_ONLY
+    ),
 }
 
 

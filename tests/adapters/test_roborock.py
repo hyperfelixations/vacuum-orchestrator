@@ -50,6 +50,7 @@ def setup_robot(
     unbound=(),
     target_areas=("library", "upstairs"),
     sensors=None,
+    current_room=None,
 ):
     registry = er.async_get(hass)
     vacuum = registry.async_get_or_create(
@@ -78,6 +79,11 @@ def setup_robot(
             role: ("binary_sensor", value, None)
             for role, value in (sensors or {}).items()
         },
+        **(
+            {"current_room": ("sensor", current_room, None)}
+            if current_room is not None
+            else {}
+        ),
     }
     for role, (domain, value, options) in values.items():
         entity = registry.async_get_or_create(
@@ -897,3 +903,20 @@ async def test_a_deselected_sensor_role_reports_nothing(hass: HomeAssistant) -> 
         hass, sensors={**SENSORS, "mop_attached": "off"}, unbound=("mop_attached",)
     )
     assert (await adapter.async_observe()).faults == ()
+
+
+async def test_the_reported_room_names_its_segment_on_the_current_map(
+    hass: HomeAssistant,
+) -> None:
+    adapter, inventory, _ = setup_robot(hass, current_room="Dining")
+    assert (await adapter.async_observe()).current_target is None
+    await adapter.async_refresh_maps()
+    assert (await adapter.async_observe()).current_target == "0_17"
+
+    hass.states.async_set("sensor.current_room", "Hallway")
+    assert (await adapter.async_observe()).current_target is None
+    inventory["maps"][0]["rooms"]["18"] = "Dining"
+    await adapter.async_refresh_maps()
+    hass.states.async_set("sensor.current_room", "Dining")
+    # Two segments of one name: VOI cannot tell which room the robot is in.
+    assert (await adapter.async_observe()).current_target is None

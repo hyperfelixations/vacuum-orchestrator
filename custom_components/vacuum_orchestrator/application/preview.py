@@ -70,6 +70,8 @@ class JobPreview:
     robots: tuple[RobotPreview, ...]
     reason: str | None
     unreachable_room_ids: tuple[str, ...] = ()
+    # A manual start may allow the battery below its minimum (JOB-27).
+    start_warning: str | None = None
 
 
 async def preview_job(
@@ -188,4 +190,20 @@ def preview_draft(
         startable: str | None = None
     except (ConflictError, PlanningError) as err:
         startable = err.code
-    return JobPreview(mode, settings, tuple(robots), startable, unreachable)
+    warning = None
+    if startable == "battery_below_minimum":
+        try:
+            core.select_robot(
+                state,
+                job,
+                plan.work_units[0],
+                observations,
+                robot_id,
+                allow_low_battery=True,
+            )
+            warning = "battery_low"
+        except ConflictError, PlanningError:
+            warning = None
+    return JobPreview(
+        mode, settings, tuple(robots), startable, unreachable, start_warning=warning
+    )

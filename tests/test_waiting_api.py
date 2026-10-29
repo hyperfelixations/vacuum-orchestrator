@@ -46,6 +46,8 @@ async def test_jobs_name_their_blockers_and_rooms_their_waiting_jobs(
                     "until": detail["start_after"],
                 },
             ],
+            # A room still blocks the job, so the queue would not start it next.
+            "next": False,
         },
     }
     assert (await call(hass, "get_queue"))["jobs"][0]["waiting"] == waiting

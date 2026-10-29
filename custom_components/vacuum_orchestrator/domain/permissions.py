@@ -33,11 +33,17 @@ _ROOM_IN_USE = frozenset(
 
 @dataclass(frozen=True, slots=True)
 class Availability:
-    """Whether an action is offered now; `reason` is a translated error code."""
+    """Whether an action is offered now; `reason` is a translated error code.
+
+    `warning` names what a person should confirm before an offered action, with
+    the robots it is about.
+    """
 
     available: bool
     reason: str | None = None
     detail: str | None = None
+    warning: str | None = None
+    robot_ids: tuple[str, ...] = ()
 
 
 AVAILABLE = Availability(True)
@@ -156,6 +162,9 @@ def _startable(job: Job, waiting: Waiting | None) -> Availability:
     if job.state is not JobState.QUEUED:
         return unavailable("job_not_waiting")
     if waiting is not None and not waiting.pending:
+        robots = waiting.low_battery_robots
+        if robots:
+            return Availability(True, warning="battery_low", robot_ids=robots)
         return unavailable("job_not_startable")
     return AVAILABLE
 

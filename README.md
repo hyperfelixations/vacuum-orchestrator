@@ -50,7 +50,8 @@ You can prepare rooms and jobs before connecting a robot.
   such as Roborock or Matter. VOI uses that existing connection.
 - Room targeting and stopping supported by that robot, plus a cleaning mode
   VOI can select or one you explicitly configure as fixed.
-- Administrator access to configure VOI and issue its cleaning actions.
+- A Home Assistant user account. Every user may configure VOI and issue its
+  cleaning actions; users in Home Assistant's **Read only** group can only read.
 
 Roborock support depends on the device family and the features exposed in Home
 Assistant. Other robots need compatible Home Assistant room controls. A robot
@@ -259,7 +260,7 @@ cleaning mode.
 |---|---|
 | Add a job | `create_job`: `areas`, `rooms` or `all_rooms`, optional `mode`, `name` and settings |
 | Add a job and start it now | `create_job` with `start: true`, optional `robot_id` |
-| Start a waiting job now | `start_job`: `job_id`, optional `robot_id` |
+| Start a waiting job now | `start_job`: `job_id`, optional `robot_id` and `allow_low_battery` |
 | Set the job defaults | `configure_job_defaults`: the defaults to change |
 | Edit a waiting job | `update_job`: `job_id` and the fields to change |
 | Change its position | `move_job`: `job_id`, `direction: up`, `down`, `top` or `bottom` |
@@ -280,6 +281,11 @@ started jobs finish, including their remaining phases.
 `create_job` with `start: true` creates the job and reserves a robot in one
 step. If the job cannot start right now, for example because a room is not
 released or no robot is free, nothing is created and the error says why.
+
+Below a robot's minimum battery a job starts only by hand, with
+`allow_low_battery: true` on `start_job` or on `create_job` with `start: true`;
+its later phases may start there too. The queue never starts a job below the
+minimum, and a robot whose battery level is unknown does not start.
 
 A new or changed job waits **5 seconds** before the queue starts it, so a job
 added by mistake can still be deleted. Use `configure_queue` with
@@ -371,7 +377,11 @@ keep. Robot-specific conditions can also be set in the robot profile.
 
 Choose a time basis per room: **calendar time** since cleaning, or **occupied
 time** measured by an occupancy sensor. Set separate intervals for vacuuming and
-mopping. Due status does not unlock rooms or start an idle queue.
+mopping. Due status does not unlock rooms or start an idle queue. A room counts
+as overdue 30 minutes after it fell due.
+
+Rooms are listed most due first. To list them by name, run
+`configure_room_order` with `room_order: name`; `due` restores the default.
 
 <details>
 <summary>Example: vacuum every two days and mop every seven days</summary>
@@ -390,8 +400,9 @@ data:
 For occupied time, choose `basis: occupied` and provide
 `occupancy_entity_id: binary_sensor.example_occupancy`. The intervals then count
 occupied seconds. Unknown sensor periods and time while Home Assistant was
-offline are marked as gaps, not assumed to be unoccupied. Use `null` for an
-interval to disable that due calculation.
+offline are not counted: the due time then counts only what VOI surely
+observed, is marked `observation: partial`, and the room may be due earlier.
+Use `null` for an interval to disable that due calculation.
 
 </details>
 

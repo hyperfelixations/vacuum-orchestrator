@@ -1013,6 +1013,10 @@
         "robot_id": {
           "name": "Robot",
           "description": "Only with Start now; otherwise VOI chooses the robot. The robot's vacuum entity or robot ID."
+        },
+        "allow_low_battery": {
+          "name": "Allow low battery",
+          "description": "Only with Start now; start even though the robot's battery is below its configured minimum."
         }
       }
     },
@@ -1129,6 +1133,10 @@
         "robot_id": {
           "name": "Robot",
           "description": "Optional; otherwise VOI chooses the robot. The robot's vacuum entity or robot ID."
+        },
+        "allow_low_battery": {
+          "name": "Allow low battery",
+          "description": "Start even though the robot's battery is below its configured minimum."
         }
       }
     },
@@ -1241,6 +1249,16 @@
         "start_delay_seconds": {
           "name": "Start delay",
           "description": "How long the queue waits before it starts a job that was just added or edited, at most 10 minutes. Starting a job directly skips the delay."
+        }
+      }
+    },
+    "configure_room_order": {
+      "name": "Configure room order",
+      "description": "Sets how the card lists rooms: the most due first or by name.",
+      "fields": {
+        "room_order": {
+          "name": "Room order",
+          "description": "By due lists the room that most needs cleaning first."
         }
       }
     },
@@ -1754,6 +1772,12 @@
         "once": "For the next job",
         "timed": "For a duration",
         "queue_run": "For this queue run"
+      }
+    },
+    "room_order": {
+      "options": {
+        "due": "By due",
+        "name": "By name"
       }
     }
   },

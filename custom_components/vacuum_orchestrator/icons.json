@@ -108,6 +108,9 @@
     "configure_queue": {
       "service": "mdi:timer-cog-outline"
     },
+    "configure_room_order": {
+      "service": "mdi:sort"
+    },
     "configure_job_defaults": {
       "service": "mdi:tune"
     },

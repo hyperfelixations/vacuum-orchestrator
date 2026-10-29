@@ -12,6 +12,7 @@ from custom_components.vacuum_orchestrator.domain.completion import (
 )
 from custom_components.vacuum_orchestrator.domain.due import (
     DueBasis,
+    DueObservation,
     DuePolicy,
     DueState,
     OccupancyCounter,
@@ -34,6 +35,8 @@ from custom_components.vacuum_orchestrator.domain.room_registry import RoomRegis
 from custom_components.vacuum_orchestrator.domain.rooms import (
     Room,
     RoomBinding,
+    RoomOrder,
+    ordered_rooms,
     validate_room_registry,
 )
 from custom_components.vacuum_orchestrator.domain.types import OperationKind
@@ -172,7 +175,7 @@ def test_occupied_time_ignores_unoccupied_periods_without_inventing_due_date() -
     assert room.occupancy == counter
 
 
-def test_restart_gap_is_unknown_unless_measured_time_already_exceeds_limit() -> None:
+def test_a_restart_gap_counts_the_surely_observed_time() -> None:
     room = Room(
         "room",
         "Library",
@@ -183,19 +186,24 @@ def test_restart_gap_is_unknown_unless_measured_time_already_exceeds_limit() -> 
     counter = room.occupancy.advance(NOW + timedelta(hours=3), True, gap=True)
     room = replace(room, occupancy=counter)
     report = room.due(OperationKind.VACUUM, NOW + timedelta(hours=3))
-    assert report.state is DueState.UNKNOWN
-    assert report.elapsed_seconds == 0
-    assert (
-        room.due(OperationKind.VACUUM, NOW + timedelta(hours=4)).state is DueState.DUE
+    assert (report.state, report.reason, report.observation) == (
+        DueState.FRESH,
+        "occupancy_gap",
+        DueObservation.PARTIAL,
     )
+    assert (report.elapsed_seconds, report.unobserved_seconds) == (0, 10800)
+    later = room.due(OperationKind.VACUUM, NOW + timedelta(hours=4))
+    assert (later.state, later.observation) == (DueState.DUE, DueObservation.PARTIAL)
     changed_epoch = replace(room, occupancy=replace(counter, epoch=1))
-    assert (
-        changed_epoch.due(OperationKind.VACUUM, NOW + timedelta(hours=4)).reason
-        == "occupancy_baseline_unknown"
+    restarted = changed_epoch.due(OperationKind.VACUUM, NOW + timedelta(hours=4))
+    assert (restarted.state, restarted.reason, restarted.elapsed_seconds) == (
+        DueState.DUE,
+        "occupancy_baseline_unknown",
+        3600,
     )
 
 
-def test_late_receipt_does_not_invent_an_occupancy_baseline() -> None:
+def test_a_late_receipt_counts_from_the_last_checkpoint() -> None:
     room = Room(
         "room",
         "Library",
@@ -203,10 +211,13 @@ def test_late_receipt_does_not_invent_an_occupancy_baseline() -> None:
         due_policy=DuePolicy(DueBasis.OCCUPIED, 3600, None, "binary_sensor.presence"),
     )
     room = room.apply_receipt(receipt())
-    assert (
-        room.due(OperationKind.VACUUM, NOW + timedelta(hours=3)).state
-        is DueState.UNKNOWN
+    report = room.due(OperationKind.VACUUM, NOW + timedelta(hours=3))
+    assert (report.state, report.reason, report.observation) == (
+        DueState.DUE,
+        "occupancy_baseline_unknown",
+        DueObservation.PARTIAL,
     )
+    assert (report.elapsed_seconds, report.unobserved_seconds) == (3600, None)
     with pytest.raises(ValidationError, match="non_monotonic_observation"):
         room.occupancy.advance(NOW, False)
 
@@ -447,13 +458,92 @@ def test_withdrawn_receipts_fall_back_to_the_latest_remaining_ones() -> None:
     assert without_derived.rooms["room"].last_cleaning[OperationKind.VACUUM] == held
     assert set(without_derived.receipts) == {"older", "confirmed"}
 
-    # Older receipts have no held stamp; their baseline is unknown.
+    # Older receipts have no held stamp; they count from the last checkpoint.
     fallback = registry.withdraw(frozenset({"derived", "confirmed"})).rooms["room"]
     stamp = fallback.last_cleaning[OperationKind.VACUUM]
     assert (stamp.receipt_id, stamp.occupancy_baseline_known) == ("older", False)
+    assert (stamp.occupied_seconds, stamp.unknown_seconds) == (
+        fallback.occupancy.occupied_seconds,
+        fallback.occupancy.unknown_seconds,
+    )
     assert fallback.last_confirmed[OperationKind.VACUUM] == stamp
 
     empty = registry.withdraw(frozenset({"older", "confirmed", "derived"}))
     assert empty.rooms["room"].last_cleaning == {}
     assert empty.rooms["room"].last_confirmed == {}
     assert registry.withdraw(frozenset({"unknown"})) is registry
+
+
+def test_a_fallback_counts_only_occupied_time_after_the_correction() -> None:
+    policy = DuePolicy(DueBasis.OCCUPIED, 3600, None, "binary_sensor.presence")
+    occupancy = OccupancyCounter().advance(NOW - timedelta(hours=2), True)
+    registry = (
+        RoomRegistry(
+            {"room": Room("room", "Room", occupancy=occupancy, due_policy=policy)}
+        )
+        .record(receipt("older", at=NOW - timedelta(hours=1)))
+        .record(receipt("newer", at=NOW))
+    )
+    corrected = registry.withdraw(frozenset({"newer"})).rooms["room"]
+    report = corrected.due(OperationKind.VACUUM, NOW + timedelta(minutes=30))
+    # Only the half hour after the checkpoint is sure; the hour before is not.
+    assert (report.state, report.elapsed_seconds, report.observation) == (
+        DueState.FRESH,
+        1800,
+        DueObservation.PARTIAL,
+    )
+
+
+def test_rooms_are_listed_most_due_first_or_by_name() -> None:
+    calendar = DuePolicy(DueBasis.CALENDAR, 3600, 7200)
+    never = Room("never", "Attic", due_policy=calendar)
+    both = OperationKind.VACUUM_AND_MOP
+    overdue = Room("overdue", "Bath", due_policy=calendar).apply_receipt(
+        replace(receipt(operation=both), room_ids=("overdue",))
+    )
+    fresh = Room("fresh", "Cellar", due_policy=calendar).apply_receipt(
+        replace(
+            receipt(at=NOW + timedelta(hours=1, minutes=30), operation=both),
+            room_ids=("fresh",),
+        )
+    )
+    no_interval = Room("plain", "Den")
+    excluded = Room("excluded", "Atrium", enabled=False, due_policy=calendar)
+    rooms = (no_interval, fresh, excluded, overdue, never)
+    at = NOW + timedelta(hours=2)
+
+    by_due = ordered_rooms(rooms, at, RoomOrder.DUE)
+    assert [room.room_id for room in by_due] == [
+        "never",
+        "overdue",
+        "fresh",
+        "plain",
+        "excluded",
+    ]
+    by_name = ordered_rooms(rooms, at, RoomOrder.NAME)
+    assert [room.name for room in by_name] == [
+        "Attic",
+        "Bath",
+        "Cellar",
+        "Den",
+        "Atrium",
+    ]
+
+
+def test_the_more_due_operation_ranks_a_room() -> None:
+    policy = DuePolicy(DueBasis.CALENDAR, 3600 * 10, 3600)
+    mop_due = Room("mop", "A", due_policy=policy).apply_receipt(
+        replace(receipt(operation=OperationKind.VACUUM_AND_MOP), room_ids=("mop",))
+    )
+    vacuum_due = Room("vacuum", "B", due_policy=DuePolicy(DueBasis.CALENDAR, 3600))
+    vacuum_due = vacuum_due.apply_receipt(
+        replace(receipt(at=NOW + timedelta(hours=1)), room_ids=("vacuum",))
+    )
+    at = NOW + timedelta(hours=3)
+    # Mop: three intervals elapsed; vacuum: two.
+    assert [
+        room.room_id for room in ordered_rooms((vacuum_due, mop_due), at, RoomOrder.DUE)
+    ] == [
+        "mop",
+        "vacuum",
+    ]

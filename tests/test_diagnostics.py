@@ -164,3 +164,27 @@ async def test_configuration_repairs_clear_when_configuration_is_resolved(
         ir.async_get(hass).async_get_issue("vacuum_orchestrator", f"room_{room_id}")
         is None
     )
+
+
+@pytest.mark.usefixtures("configured")
+async def test_diagnostics_show_each_rooms_due_state_by_code(hass, request):
+    entry = request.getfixturevalue("configured")
+    core = entry.runtime_data.orchestrator
+    room_id = await core.rooms.async_create("Private room name")
+    await call(
+        hass,
+        "update_room",
+        room_id=room_id,
+        configuration={"due_policy": {"basis": "calendar", "vacuum_seconds": 3600}},
+    )
+    export = await async_get_config_entry_diagnostics(hass, entry)
+    (room,) = export["rooms"]
+    assert room["due"] == {
+        "vacuum": {"state": "due", "reason": "never_cleaned", "observation": None},
+        "mop": {
+            "state": "disabled",
+            "reason": "interval_disabled",
+            "observation": None,
+        },
+    }
+    assert "Private room" not in json.dumps(export)

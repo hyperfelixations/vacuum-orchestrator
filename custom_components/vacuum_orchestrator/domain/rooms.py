@@ -3,10 +3,19 @@
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+from enum import StrEnum
+from math import inf
 from types import MappingProxyType
 
 from .completion import CleaningReceipt, CompletionQuality
-from .due import CleaningStamp, DuePolicy, DueReport, OccupancyCounter, evaluate_due
+from .due import (
+    CleaningStamp,
+    DuePolicy,
+    DueReport,
+    DueState,
+    OccupancyCounter,
+    evaluate_due,
+)
 from .errors import ValidationError, located
 from .releases import RoomRelease
 from .requirements import StateRequirement
@@ -131,8 +140,8 @@ class Room:
     ) -> Room:
         """Fall back to the latest remaining receipts; see dev doc "Korrektur".
 
-        A fallback keeps a stamp still held for the receipt, otherwise its
-        occupied-time baseline is unknown.
+        A fallback keeps a stamp still held for the receipt, otherwise it counts
+        occupied time from the last checkpoint on, a lower bound (DUE-03).
         """
         held = {
             stamp.receipt_id: stamp
@@ -172,8 +181,8 @@ class Room:
                     fact.completed_at,
                     fact.quality,
                     self.occupancy.epoch,
-                    0,
-                    0,
+                    self.occupancy.occupied_seconds,
+                    self.occupancy.unknown_seconds,
                     False,
                 )
             return result
@@ -209,6 +218,49 @@ class Room:
             self.occupancy,
             now,
         )
+
+
+class RoomOrder(StrEnum):
+    """How clients list rooms (ROOM-13)."""
+
+    DUE = "due"
+    NAME = "name"
+
+
+_DUE_RANK = {
+    DueState.DUE: 0,
+    DueState.FRESH: 1,
+    DueState.UNKNOWN: 2,
+    DueState.DISABLED: 3,
+}
+
+
+def ordered_rooms(
+    rooms: Iterable[Room], now: datetime, order: RoomOrder
+) -> tuple[Room, ...]:
+    """List the most due room first, or by name; excluded rooms come last.
+
+    Due rooms lead, then fresh, unknown and those without an interval; within
+    each, the larger elapsed share of either operation's interval first and a
+    room never cleaned before all (DUE-05).
+    """
+
+    def key(room: Room) -> tuple[bool, int, float, str, str]:
+        rank, share = 0, 0.0
+        if order is RoomOrder.DUE:
+            reports = [room.due(operation, now) for operation in _DUE_OPERATIONS]
+            rank = min(_DUE_RANK[report.state] for report in reports)
+            share = max(
+                inf if report.reason == "never_cleaned" else report.urgency or 0
+                for report in reports
+                if _DUE_RANK[report.state] == rank
+            )
+        return (not room.enabled, rank, -share, room.name.casefold(), room.room_id)
+
+    return tuple(sorted(rooms, key=key))
+
+
+_DUE_OPERATIONS = (OperationKind.VACUUM, OperationKind.MOP)
 
 
 def validate_room_registry(rooms: Mapping[str, Room]) -> None:

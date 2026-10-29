@@ -97,5 +97,12 @@ SENSOR_FAULTS: tuple[tuple[str, str, str, FaultSource, FaultScope, bool], ...] =
 )
 REFILLING_DOCK_ROLE = "clean_box_empty"
 
+# Dock error values naming the same tank state as a sensor fault: one fact, one
+# code (EXE-17); see dev doc "Gerätefehler".
+DOCK_FAULT_FACTS = {
+    "waste_water_tank_full": "dirty_water_full",
+    "water_empty": "clean_water_empty",
+}
+
 # Roborock status values that are faults themselves; `device_offline` is not.
 STATUS_FAULTS = frozenset({"error", "charging_problem", "locked"})

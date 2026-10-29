@@ -11,12 +11,15 @@ from custom_components.vacuum_orchestrator.domain.intents import (
     TargetRef,
 )
 from custom_components.vacuum_orchestrator.domain.planning import (
+    DispatchAssignment,
     ExecutionPlan,
+    SettingsResolution,
     WorkUnit,
 )
 from custom_components.vacuum_orchestrator.domain.progress import (
     Progress,
     job_progress,
+    room_at,
 )
 from custom_components.vacuum_orchestrator.domain.queue import Job
 from custom_components.vacuum_orchestrator.domain.types import (
@@ -136,3 +139,44 @@ def test_waiting_and_finished_jobs_have_no_progress() -> None:
         JOB, active_attempt_id=None, completed_work_unit_ids=("vacuum", "mop")
     )
     assert job_progress(done, PLAN, None, None) is None
+
+
+ASSIGNMENT = DispatchAssignment(
+    "vacuum",
+    "robot",
+    "source",
+    "fake",
+    ("0_16", "0_17", "0_18"),
+    "caps",
+    SettingsResolution(),
+    {"room": ("0_16", "0_17"), "hall": ("0_18",)},
+)
+
+
+def test_a_running_job_names_the_room_the_robot_reports() -> None:
+    inside = replace(OBSERVATION, current_target="0_17")
+    assert job_progress(JOB, PLAN, ATTEMPT, inside, ASSIGNMENT).room_id == "room"
+    hall = replace(OBSERVATION, current_target="0_18")
+    assert job_progress(JOB, PLAN, ATTEMPT, hall, ASSIGNMENT).room_id == "hall"
+
+
+def test_a_room_needs_this_attempts_robot_and_one_of_its_targets() -> None:
+    elsewhere = replace(OBSERVATION, current_target="1_16")
+    other = replace(OBSERVATION, robot_id="other", current_target="0_16")
+    unobserved = replace(ATTEMPT, observed_start_at=None)
+    inside = replace(OBSERVATION, current_target="0_16")
+    for attempt, observation, assignment in (
+        (ATTEMPT, elsewhere, ASSIGNMENT),
+        (ATTEMPT, other, ASSIGNMENT),
+        (unobserved, inside, ASSIGNMENT),
+        (ATTEMPT, inside, None),
+        (ATTEMPT, OBSERVATION, ASSIGNMENT),
+    ):
+        progress = job_progress(JOB, PLAN, attempt, observation, assignment)
+        assert progress is not None and progress.room_id is None
+
+
+def test_a_target_two_rooms_share_names_no_room() -> None:
+    assert room_at("a", {"one": ("a",), "two": ("a", "b")}) is None
+    assert room_at("b", {"one": ("a",), "two": ("a", "b")}) == "two"
+    assert room_at(None, {"one": ("a",)}) is None

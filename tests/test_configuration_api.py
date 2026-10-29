@@ -2,7 +2,6 @@
 
 from dataclasses import replace
 from datetime import datetime, timedelta
-from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import probatio
@@ -51,6 +50,7 @@ from tests.application.test_orchestrator import RecordingAdapter, RecordingBacke
 from tests.errors import raises_code
 from tests.test_runtime import MemoryBackend
 from tests.test_websocket import Connection
+from tests.users import household_member
 
 
 @pytest.fixture
@@ -315,43 +315,36 @@ async def test_robot_configuration_actions_share_validation_and_idle_guard(
     resolve.assert_awaited_once_with("retained", confirm_stopped=True)
 
 
-async def test_configuration_actions_enforce_admin_and_return_optional_response(
-    hass, configured, monkeypatch
+async def test_configuration_actions_enforce_permission_and_return_optional_response(
+    hass, configured, hass_read_only_user
 ):
-    monkeypatch.setattr(
-        hass.auth,
-        "async_get_user",
-        AsyncMock(return_value=SimpleNamespace(is_admin=False)),
-    )
     with pytest.raises(Unauthorized):
         await hass.services.async_call(
             DOMAIN,
             "create_room",
             {"name": "Room"},
             blocking=True,
-            context=Context(user_id="user"),
+            context=Context(user_id=hass_read_only_user.id),
         )
-    monkeypatch.setattr(
-        hass.auth,
-        "async_get_user",
-        AsyncMock(return_value=SimpleNamespace(is_admin=True)),
-    )
+    member = await household_member(hass)
     assert (
         await hass.services.async_call(
             DOMAIN,
             "create_room",
             {"name": "Room"},
             blocking=True,
-            context=Context(user_id="admin"),
+            context=Context(user_id=member.id),
         )
         is None
     )
     assert (await call(hass, "get_rooms"))["total"] == 1
 
 
-async def test_configuration_websocket_uses_action_schemas(hass, configured):
+async def test_configuration_websocket_uses_action_schemas(
+    hass, configured, hass_read_only_user
+):
     connection = Connection()
-    connection.user = SimpleNamespace(is_admin=True)
+    connection.user = await household_member(hass)
     websocket_configuration_command(
         hass,
         connection,
@@ -388,9 +381,12 @@ async def test_configuration_websocket_uses_action_schemas(hass, configured):
         "invalid_parameters",
         "unknown_room",
     }
-    connection.user.is_admin = False
-    with pytest.raises(Unauthorized):
-        websocket_configuration_command(hass, connection, {"id": 7})
+    connection.user = hass_read_only_user
+    websocket_configuration_command(
+        hass, connection, {"id": 7, "command": "create_room", "parameters": {}}
+    )
+    await hass.async_block_till_done()
+    assert connection.errors[-1] == (7, "unauthorized", "Unauthorized")
 
 
 @pytest.mark.parametrize(

@@ -83,7 +83,9 @@ async def record(
             translation_cache(hass).cache_data = TranslationsCacheData({}, {})
         home = scenario.household(hass)
         await serve_frontend_messages(hass)
-        session = await Session.connect(hass, hass_ws_client, freezer)
+        session = await Session.connect(
+            hass, hass_ws_client, freezer, scenario.user_group
+        )
         await scenario.run(Stage(hass, home, session, entry()))
         await session.settle()
         return {
@@ -121,7 +123,12 @@ def check(name: str, recording: dict[str, Any]) -> None:
         error, message = result["error"], sent[result["id"]]
         assert error["code"], error
         assert error["message"], error
-        if DOMAIN in (message["type"].split("/")[0], message.get("domain")):
+        # HA itself reports a refused permission; see tests/test_authorization.py.
+        refused_permission = "unauthorized" in (error["code"], error["message"].lower())
+        if not refused_permission and DOMAIN in (
+            message["type"].split("/")[0],
+            message.get("domain"),
+        ):
             assert error["translation_domain"] == DOMAIN, error
             assert error["translation_key"], error
     leaked = PRIVATE.search(dump(recording))
@@ -228,6 +235,78 @@ async def test_the_showcase_rooms_are_fresh_due_and_without_a_rule(
         "Library": "due",
         "Conservatory": "disabled",
     }
+    # Most due first: the due rooms lead, the room without an interval ends.
+    assert [room["name"] for room in rooms["rooms"]][-1] == "Conservatory"
+    assert rooms["room_order"] == "due"
+
+
+async def test_the_history_ends_with_an_overdue_and_a_partly_observed_room(
+    record: Any,
+) -> None:
+    """DUE-03, DUE-04: the dining room is overdue by the calendar; the studio's
+    use counts from a sensor that missed a stretch, a lower bound."""
+    steps = after_mark(
+        await record("long_history"),
+        "The dining room is overdue and the studio partly observed",
+    )
+    (*_, rooms) = answers({"steps": steps}, "get_rooms")
+    due = {room["name"]: room["due"]["vacuum"] for room in rooms["rooms"]}
+    dining, studio = due["Dining Room"], due["Studio"]
+    assert [dining["state"], dining["overdue"], dining["observation"]] == [
+        "due",
+        True,
+        "complete",
+    ]
+    assert dining["overdue_seconds"] > 1800
+    assert [studio["state"], studio["overdue"], studio["observation"]] == [
+        "fresh",
+        False,
+        "partial",
+    ]
+    # Most urgent first: the overdue dining room leads.
+    assert rooms["rooms"][0]["name"] == "Dining Room"
+
+
+async def test_the_showcase_names_the_room_rocky_cleans(record: Any) -> None:
+    recording = await record("showcase")
+    rooms = {
+        room["room_id"]: room["name"]
+        for room in answers(recording, "get_rooms")[-1]["rooms"]
+    }
+    # The card reads the running job by itself; the queue lists waiting ones.
+    running = [
+        job
+        for job in results(recording, "job/get")
+        if job["state"] == "running" and job["progress"]["room_id"]
+    ]
+    assert {rooms[job["progress"]["room_id"]] for job in running} == {"Studio"}
+    (*_, robots) = answers(recording, "get_robots")
+    assert {rooms.get(robot["current_room_id"]) for robot in robots["robots"]} == {
+        "Studio"
+    }
+
+
+async def test_rooms_are_listed_by_name_once_the_user_chooses_it(record: Any) -> None:
+    (*_, rooms) = answers(await record("settings_controls"), "get_rooms")
+    assert rooms["room_order"] == "name"
+    names = [room["name"] for room in rooms["rooms"]]
+    assert names == sorted(names, key=str.casefold)
+
+
+async def test_a_low_battery_job_offers_its_start_with_a_warning(record: Any) -> None:
+    recording = await record("low_battery")
+    steps = recording["steps"]
+    offered = steps.index({"mark": "The job waits for the battery and offers a start"})
+    (*_, queue) = [
+        result
+        for result in results({"steps": steps[:offered]}, "queue/get")
+        if result["limit"] > 1 and result["jobs"]
+    ]
+    (job,) = queue["jobs"]
+    assert job["waiting"]["code"] == "battery_low"
+    start = job["actions"]["start"]
+    assert (start["available"], start["warning"]) == (True, "battery_low")
+    assert len(start["robot_ids"]) == 1
 
 
 async def test_either_robot_can_start_the_waiting_job(record: Any) -> None:
@@ -243,6 +322,8 @@ async def test_either_robot_can_start_the_waiting_job(record: Any) -> None:
     candidates = job["waiting"]["robots"]["candidates"]
     assert len(candidates) == 2
     assert all(not candidate["blockers"] for candidate in candidates)
+    # Only the queue keeps it waiting: it starts first once the queue runs.
+    assert job["waiting"]["queue"]["next"] is True
     (preview,) = answers(recording, "preview_job")
     options = preview["settings"]["vacuum_power"]["options"]
     assert options

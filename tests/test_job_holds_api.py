@@ -1,7 +1,6 @@
 """The card holds jobs over WebSocket; actions accept its token, never a hold."""
 
 from datetime import datetime, timedelta
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -17,6 +16,7 @@ from custom_components.vacuum_orchestrator.runtime import async_get_runtime
 from tests.errors import raises_code
 from tests.test_configuration_api import call, configured  # noqa: F401
 from tests.test_websocket import Connection
+from tests.users import household_member
 
 
 class Card:
@@ -25,11 +25,13 @@ class Card:
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
         self.connection = Connection()
-        self.connection.user = SimpleNamespace(is_admin=True)  # type: ignore[attr-defined]
         self.message_id = 0
 
     async def command(self, command: str, **parameters: Any) -> dict[str, Any]:
         """Send one command; return its result or its error code."""
+        if self.connection.user is None:
+            # A household member, not an administrator: the card serves every user.
+            self.connection.user = await household_member(self.hass)
         self.message_id += 1
         websocket_configuration_command(
             self.hass,

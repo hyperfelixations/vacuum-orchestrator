@@ -75,6 +75,10 @@ class Blocker:
     detail: str | None = None
 
 
+# A known battery below the minimum; an unknown battery carries the detail "unknown".
+LOW_BATTERY = Blocker("battery_low")
+
+
 @dataclass(frozen=True, slots=True)
 class RobotBlockers:
     """Every reason of one robot; empty for a robot that could start now."""
@@ -144,6 +148,22 @@ class Waiting:
         return (
             all(item.code in HOLD_CODES for item in self.job)
             and self.robots.state is RobotsState.READY
+        )
+
+    @property
+    def low_battery_robots(self) -> tuple[str, ...]:
+        """Return the robots a manual start may use below their battery minimum.
+
+        Only when nothing else keeps the job waiting (JOB-27).
+        """
+        if not all(item.code in HOLD_CODES for item in self.job):
+            return ()
+        if self.robots.state is not RobotsState.NO_ROBOT_READY:
+            return ()
+        return tuple(
+            entry.robot_id
+            for entry in self.robots.candidates
+            if entry.blockers and all(item == LOW_BATTERY for item in entry.blockers)
         )
 
 

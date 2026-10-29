@@ -92,10 +92,10 @@ async def serve_frontend_messages(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, websocket_get_translations)
 
 
-async def admin_token(hass: HomeAssistant) -> str:
-    """An access token of an administrator with a fixed user ID."""
+async def user_token(hass: HomeAssistant, group_id: str) -> str:
+    """An access token of a user in `group_id` with a fixed user ID."""
     user = MockUser(id=USER_ID, name="Recording")
-    user.groups = [await hass.auth.async_get_group(GROUP_ID_ADMIN)]
+    user.groups = [await hass.auth.async_get_group(group_id)]
     user.add_to_hass(hass)
     refresh = await hass.auth.async_create_refresh_token(user, CLIENT_ID)
     return hass.auth.async_create_access_token(refresh)
@@ -137,9 +137,10 @@ class Session:
         hass: HomeAssistant,
         hass_ws_client: WebSocketGenerator,
         freezer: FrozenDateTimeFactory,
+        group_id: str = GROUP_ID_ADMIN,
     ) -> Session:
         """Open an authenticated connection as the card does, and the frontend's."""
-        token = await admin_token(hass)
+        token = await user_token(hass, group_id)
         session = cls(
             hass,
             await hass_ws_client(hass, token),

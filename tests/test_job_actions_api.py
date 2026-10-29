@@ -60,6 +60,8 @@ async def test_waiting_jobs_offer_what_their_commands_accept(
         "available": True,
         "reason": None,
         "detail": None,
+        "warning": None,
+        "robot_ids": [],
     }
 
     held = await Card(hass).command("hold_job", job_id=second, purpose="edit")
@@ -67,6 +69,8 @@ async def test_waiting_jobs_offer_what_their_commands_accept(
         "available": False,
         "reason": "job_held",
         "detail": "edit",
+        "warning": None,
+        "robot_ids": [],
     }
     await call(hass, "run_queue")
     queue = await call(hass, "get_queue")

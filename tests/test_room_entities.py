@@ -61,6 +61,8 @@ async def test_room_entity_values_commands_and_clock_are_derived(hass, request):
     assert last.native_value == now - timedelta(hours=1)
     assert elapsed.native_value >= 3600
     assert elapsed.extra_state_attributes["quality"] == "derived"
+    # Without an interval nothing is observed for due (DUE-03).
+    assert due.extra_state_attributes["due_observation"] is None
     assert last.extra_state_attributes["last_confirmed"] is None
     await core.rooms.async_record_receipt(
         CleaningReceipt(

@@ -121,9 +121,25 @@ class CleaningStamp:
             raise ValidationError("invalid_occupancy_epoch")
 
 
+class DueObservation(StrEnum):
+    """Whether the evaluated span was watched without a gap (DUE-03)."""
+
+    COMPLETE = "complete"
+    # A gap, a baseline before the last checkpoint or a derived cleaning: the
+    # report counts what was surely observed.
+    PARTIAL = "partial"
+
+
+# A due room reads as overdue once it has been due this long (DUE-04).
+DUE_OVERDUE_GRACE_SECONDS = 1800
+
+
 @dataclass(frozen=True, slots=True)
 class DueReport:
-    """Read-only evaluation with no invented occupied-time due date."""
+    """Read-only evaluation with no invented occupied-time due date.
+
+    `urgency` is the elapsed share of the interval and may exceed 1 (DUE-05).
+    """
 
     state: DueState
     reason: str
@@ -131,6 +147,12 @@ class DueReport:
     remaining_seconds: float | None = None
     due_at: datetime | None = None
     quality: CompletionQuality | None = None
+    observation: DueObservation | None = None
+    unobserved_seconds: float | None = None
+    interval_seconds: float | None = None
+    overdue_seconds: float | None = None
+    overdue: bool = False
+    urgency: float | None = None
 
 
 def evaluate_due(
@@ -140,44 +162,55 @@ def evaluate_due(
     counter: OccupancyCounter,
     now: datetime,
 ) -> DueReport:
-    """Use measured lower bounds; gaps cannot conceal an already due room."""
+    """Count surely observed time; a gap lowers the count, never hides it.
+
+    See dev doc "Abschlussqualität und Fälligkeit".
+    """
     instant(now)
     if interval is None:
         return DueReport(DueState.DISABLED, "interval_disabled")
     if stamp is None:
-        return DueReport(DueState.DUE, "never_cleaned")
+        return DueReport(DueState.DUE, "never_cleaned", interval_seconds=interval)
     if now < stamp.completed_at:
         return DueReport(
             DueState.UNKNOWN, "clock_before_completion", quality=stamp.quality
         )
+    partial = stamp.quality is CompletionQuality.DERIVED
+    unobserved: float | None = None
+    due_at = None
     if basis is DueBasis.CALENDAR:
         elapsed = (now - stamp.completed_at).total_seconds()
-        return DueReport(
-            DueState.DUE if elapsed >= interval else DueState.FRESH,
-            "calendar_interval",
-            elapsed,
-            max(0, interval - elapsed),
-            stamp.completed_at + timedelta(seconds=interval),
-            stamp.quality,
-        )
-    if stamp.occupancy_epoch != counter.epoch or not stamp.occupancy_baseline_known:
-        return DueReport(
-            DueState.UNKNOWN, "occupancy_baseline_unknown", quality=stamp.quality
-        )
-    current = counter.advance(now, counter.occupied)
-    elapsed = max(0, current.occupied_seconds - stamp.occupied_seconds)
-    gap = current.unknown_seconds > stamp.unknown_seconds
-    state = (
-        DueState.DUE
-        if elapsed >= interval
-        else DueState.UNKNOWN
-        if gap
-        else DueState.FRESH
-    )
+        reason = "calendar_interval"
+        due_at = stamp.completed_at + timedelta(seconds=interval)
+    else:
+        current = counter.advance(now, counter.occupied)
+        if stamp.occupancy_epoch != counter.epoch:
+            # The counter restarted after the cleaning: all of it is later.
+            elapsed = current.occupied_seconds
+            reason, partial = "occupancy_baseline_unknown", True
+        elif not stamp.occupancy_baseline_known:
+            elapsed = max(0, current.occupied_seconds - stamp.occupied_seconds)
+            reason, partial = "occupancy_baseline_unknown", True
+        elif current.unknown_seconds > stamp.unknown_seconds:
+            elapsed = max(0, current.occupied_seconds - stamp.occupied_seconds)
+            unobserved = current.unknown_seconds - stamp.unknown_seconds
+            reason, partial = "occupancy_gap", True
+        else:
+            elapsed = max(0, current.occupied_seconds - stamp.occupied_seconds)
+            reason = "occupied_interval"
+    due = elapsed >= interval
+    overdue_seconds = elapsed - interval if due else None
     return DueReport(
-        state,
-        "occupancy_gap" if gap else "occupied_interval",
+        DueState.DUE if due else DueState.FRESH,
+        reason,
         elapsed,
         max(0, interval - elapsed),
-        quality=stamp.quality,
+        due_at,
+        stamp.quality,
+        DueObservation.PARTIAL if partial else DueObservation.COMPLETE,
+        unobserved,
+        interval,
+        overdue_seconds,
+        overdue_seconds is not None and overdue_seconds >= DUE_OVERDUE_GRACE_SECONDS,
+        elapsed / interval,
     )
