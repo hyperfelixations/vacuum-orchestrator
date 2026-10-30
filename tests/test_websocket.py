@@ -62,6 +62,9 @@ class StubOrchestrator:
     def waiting(self, job_id: str) -> object:
         return None
 
+    def next_jobs(self) -> frozenset[str]:
+        return frozenset()
+
     def progress(self, job_id: str) -> object:
         return None
 
@@ -92,6 +95,8 @@ class Connection:
         self.translations: list[tuple[int, str, str | None, Any]] = []
         self.events: list[tuple[int, Any]] = []
         self.subscriptions: dict[int, Callable[[], None]] = {}
+        # No user: the system context, which may command (test_authorization.py).
+        self.user: Any = None
 
     def send_result(self, message_id: int, result: Any = None) -> None:
         self.results.append((message_id, result))

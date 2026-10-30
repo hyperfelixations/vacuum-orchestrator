@@ -82,8 +82,13 @@ def present_blocker(blocker: Blocker, entities: EntityReferences) -> dict[str, o
     }
 
 
-def present_waiting(waiting: Waiting, entities: EntityReferences) -> dict[str, object]:
-    """Serialize the main reason and the job, execution and queue axes."""
+def present_waiting(
+    waiting: Waiting, entities: EntityReferences, *, next_job: bool = False
+) -> dict[str, object]:
+    """Serialize the main reason and the job, execution and queue axes.
+
+    `queue.next` says the queue would start the job first (QUE-13).
+    """
 
     def blockers(items: tuple[Blocker, ...]) -> list[dict[str, object]]:
         return [present_blocker(item, entities) for item in items]
@@ -105,7 +110,11 @@ def present_waiting(waiting: Waiting, entities: EntityReferences) -> dict[str, o
         },
         "queue": None
         if waiting.queue is None
-        else {"ready": not waiting.queue, "blockers": blockers(waiting.queue)},
+        else {
+            "ready": not waiting.queue,
+            "blockers": blockers(waiting.queue),
+            "next": next_job,
+        },
     }
 
 
@@ -116,17 +125,28 @@ def present_actions(actions: Mapping[str, Availability]) -> dict[str, object]:
             "available": item.available,
             "reason": item.reason,
             "detail": item.detail,
+            "warning": item.warning,
+            "robot_ids": list(item.robot_ids),
         }
         for name, item in actions.items()
     }
 
 
 def present_job_view(
-    core: VacuumOrchestrator, job: Job, readiness: ReadinessReport | None = None
+    core: VacuumOrchestrator,
+    job: Job,
+    readiness: ReadinessReport | None = None,
+    *,
+    next_jobs: frozenset[str] | None = None,
 ) -> dict[str, object]:
-    """Serialize a job with its hold, waiting reason, progress and actions."""
+    """Serialize a job with its hold, waiting reason, progress and actions.
+
+    A page of jobs passes `next_jobs` computed once for all of them.
+    """
     state = core.state
     waiting = core.waiting(job.job_id)
+    if waiting is not None and waiting.queue is not None and next_jobs is None:
+        next_jobs = core.next_jobs()
     return present_job(
         job,
         core.entity_references,
@@ -138,6 +158,7 @@ def present_job_view(
         progress=core.progress(job.job_id),
         completion=state.completion(job.job_id),
         actions=job_actions(state, job, core.now(), waiting),
+        next_job=job.job_id in (next_jobs or ()),
     )
 
 
@@ -153,6 +174,7 @@ def present_job(
     progress: Progress | None = None,
     completion: JobCompletion | None = None,
     actions: Mapping[str, Availability] | None = None,
+    next_job: bool = False,
 ) -> dict[str, object]:
     """Serialize one bounded job record; a hold never reveals its token."""
     intent = job.intent
@@ -206,7 +228,9 @@ def present_job(
         "hold": None
         if hold is None
         else {"purpose": hold.purpose.value, "expires_at": hold.expires_at.isoformat()},
-        "waiting": None if waiting is None else present_waiting(waiting, entities),
+        "waiting": None
+        if waiting is None
+        else present_waiting(waiting, entities, next_job=next_job),
         "progress": None
         if progress is None
         else {
@@ -219,6 +243,7 @@ def present_job(
             "robot_id": progress.robot_id,
             "phase_percent": progress.phase_percent,
             "percent": progress.percent,
+            "room_id": progress.room_id,
             "fault": None
             if progress.fault is None
             else {
@@ -242,6 +267,7 @@ def present_job(
         "retries_job_id": job.retries_job_id,
         "failure_code": job.failure_code,
         "corrected_at": job.corrected_at.isoformat() if job.corrected_at else None,
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
         "after_cancel": None
         if canceling is None
         else "return_to_dock"

@@ -11,7 +11,6 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
-from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util.json import JsonObjectType, JsonValueType
 
@@ -39,9 +38,11 @@ from ..domain.errors import ConflictError, OrchestratorError
 from ..domain.types import JobState, MoveDirection, QueueMode
 from ..ha_context import request_context
 from ..runtime import VacuumOrchestratorRuntime, async_get_runtime
+from .authorization import async_require_command
 from .configuration import setup_configuration_actions
 from .errors import service_error
 from .job_input import (
+    ATTR_ALLOW_LOW_BATTERY,
     ATTR_DIRECTION,
     ATTR_HOLD_ID,
     ATTR_JOB_ID,
@@ -74,6 +75,7 @@ START_SCHEMA = probatio.Schema(
     {
         probatio.Required(ATTR_JOB_ID): cv.string,
         probatio.Optional(ATTR_ROBOT_ID): cv.string,
+        probatio.Optional(ATTR_ALLOW_LOW_BATTERY, default=False): cv.boolean,
     }
 )
 MOVE_SCHEMA = probatio.Schema(
@@ -146,7 +148,11 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
             job_id = await _translate_errors(core.async_create_job(intent))
             return _command_response(call, runtime, {ATTR_JOB_ID: job_id})
         job_id, assignment = await _translate_errors(
-            core.async_create_and_start_job(intent, _robot(hass, runtime, call))
+            core.async_create_and_start_job(
+                intent,
+                _robot(hass, runtime, call),
+                allow_low_battery=call.data[ATTR_ALLOW_LOW_BATTERY],
+            )
         )
         return _command_response(
             call,
@@ -199,7 +205,9 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         runtime = await _runtime_for_call(hass, call)
         assignment = await _translate_errors(
             runtime.orchestrator.async_start_job(
-                call.data[ATTR_JOB_ID], _robot(hass, runtime, call)
+                call.data[ATTR_JOB_ID],
+                _robot(hass, runtime, call),
+                allow_low_battery=call.data[ATTR_ALLOW_LOW_BATTERY],
             )
         )
         return _command_response(
@@ -282,16 +290,18 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         return _command_response(call, runtime, {ATTR_JOB_ID: call.data[ATTR_JOB_ID]})
 
     async def get_queue(call: ServiceCall) -> ServiceResponse:
-        runtime = await _runtime_for_call(hass, call, require_admin=False)
+        runtime = await _runtime_for_call(hass, call)
         state = runtime.orchestrator.state
         offset = call.data[ATTR_OFFSET]
         limit = call.data[ATTR_LIMIT]
         selected = state.queue[offset : offset + limit]
+        next_jobs = runtime.orchestrator.next_jobs()
         jobs = [
             present_job_view(
                 runtime.orchestrator,
                 state.jobs[job_id],
                 runtime.orchestrator.readiness_for_job(job_id),
+                next_jobs=next_jobs,
             )
             for job_id in selected
         ]
@@ -309,7 +319,7 @@ async def async_setup_actions(hass: HomeAssistant) -> None:
         )
 
     async def get_job(call: ServiceCall) -> ServiceResponse:
-        runtime = await _runtime_for_call(hass, call, require_admin=False)
+        runtime = await _runtime_for_call(hass, call)
         state = runtime.orchestrator.state
         job = state.jobs.get(call.data[ATTR_JOB_ID])
         if job is None:
@@ -356,6 +366,7 @@ def _register(
     hass: HomeAssistant, name: str, handler: Any, schema: probatio.Schema
 ) -> None:
     async def contextual(call: ServiceCall) -> ServiceResponse | None:
+        await async_require_command(hass, call.context)
         runtime = await _runtime_for_call(hass, call)
         with (
             request_context(call.context),
@@ -388,12 +399,8 @@ def _register_query(
 
 
 async def _runtime_for_call(
-    hass: HomeAssistant, call: ServiceCall, *, require_admin: bool = True
+    hass: HomeAssistant, call: ServiceCall
 ) -> VacuumOrchestratorRuntime:
-    if require_admin and call.context.user_id is not None:
-        user = await hass.auth.async_get_user(call.context.user_id)
-        if user is None or not user.is_admin:
-            raise Unauthorized(context=call.context)
     try:
         return async_get_runtime(hass)
     except OrchestratorError as err:

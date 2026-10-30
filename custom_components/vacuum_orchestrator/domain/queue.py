@@ -38,6 +38,7 @@ from .planning import (
 from .queue_runs import QueueRun
 from .requests import CommandOrigin
 from .room_registry import RoomRegistry
+from .rooms import RoomOrder
 from .templates import JobTemplate
 from .types import (
     AttemptState,
@@ -90,6 +91,11 @@ class Job:
     start_after: datetime | None = None
     # Last outcome correction; see dev doc "Korrektur".
     corrected_at: datetime | None = None
+    # A person started it despite a battery below the minimum; its next phases
+    # may too (JOB-27).
+    allow_low_battery: bool = False
+    # When it reached a final state; a correction keeps it (JOB-28).
+    finished_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +125,7 @@ class OrchestratorState:
     start_delay_seconds: float = START_DELAY_SECONDS
     job_holds: Mapping[str, JobHold] = field(default_factory=dict)
     setup_completed_at: datetime | None = None
+    room_order: RoomOrder = RoomOrder.DUE
     # Oldest first; see dev doc "Vorfälle".
     incidents: tuple[Incident, ...] = ()
 
@@ -612,6 +619,7 @@ class OrchestratorState:
             active_attempt_id=None,
             completed_work_unit_ids=completed,
             updated_at=now,
+            finished_at=now if final else None,
         )
         leases = dict(self.robot_leases)
         leases.pop(attempt.source_robot_id, None)
@@ -661,6 +669,7 @@ class OrchestratorState:
                 state=JobState.CANCELLED,
                 revision=job.revision + 1,
                 updated_at=now,
+                finished_at=now,
             )
             return (
                 self._replace(
@@ -764,6 +773,7 @@ class OrchestratorState:
             revision=job.revision + 1,
             active_attempt_id=None,
             updated_at=now,
+            finished_at=now,
         )
         attempts = dict(self.attempts)
         attempts[attempt.attempt_id] = replace(attempt, state=AttemptState.CANCELLED)
@@ -804,6 +814,7 @@ class OrchestratorState:
             active_attempt_id=None,
             failure_code=failure_code,
             updated_at=now,
+            finished_at=now,
         )
         attempts = dict(self.attempts)
         attempts[attempt_id] = replace(
@@ -986,6 +997,7 @@ class OrchestratorState:
                 revision=job.revision + 1,
                 failure_code=job.failure_code or reason,
                 updated_at=now,
+                finished_at=now,
             )
             for unit in self._plan_for_job(job).work_units:
                 if unit.work_unit_id not in job.completed_work_unit_ids:

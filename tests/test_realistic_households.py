@@ -270,18 +270,18 @@ def _advancer(
         pytest.param("vacuum", vacuum_run(2), [], id="vacuum"),
         pytest.param("mop", mop_run(3), [], id="mop with washes between sections"),
         pytest.param("mop", mop_run(1, prewash=240), [], id="mop after a long wash"),
-        # The robot cleans on while the dock lacks water; see dev doc
-        # "Gerätefehler".
+        # The robot cleans on while the dock lacks water; the dock's error names
+        # the clean water tank fact (EXE-17). See dev doc "Gerätefehler".
         pytest.param(
             "mop",
             mop_run(3, empty_tank="during"),
-            ["water_empty"],
+            ["clean_water_empty"],
             id="mop while the dock runs out of water",
         ),
         pytest.param(
             "mop",
             mop_run(1, empty_tank="after"),
-            ["water_empty"],
+            ["clean_water_empty"],
             id="mop until the last wash empties the dock",
         ),
     ],

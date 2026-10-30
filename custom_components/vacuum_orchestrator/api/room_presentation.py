@@ -34,6 +34,7 @@ def present_room(
             **asdict(report),
             "state": report.state.value,
             "quality": report.quality.value if report.quality else None,
+            "observation": report.observation.value if report.observation else None,
             "due_at": report.due_at.isoformat() if report.due_at else None,
         }
         for operation in (OperationKind.VACUUM, OperationKind.MOP)

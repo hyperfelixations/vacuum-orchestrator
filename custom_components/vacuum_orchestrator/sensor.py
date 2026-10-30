@@ -89,6 +89,7 @@ class RoomCleaningSensor(RoomEntity, SensorEntity):
             "receipt_id": stamp.receipt_id if stamp else None,
             "last_confirmed": confirmed.completed_at.isoformat() if confirmed else None,
             "due_reason": report.reason,
+            "due_observation": report.observation.value if report.observation else None,
         }
 
 

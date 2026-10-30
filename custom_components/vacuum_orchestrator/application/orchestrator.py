@@ -45,7 +45,7 @@ from ..domain.requirements import (
     StateObservation,
     evaluate_requirements,
 )
-from ..domain.rooms import Room
+from ..domain.rooms import Room, RoomOrder
 from ..domain.setup import SetupStatus, evaluate_setup
 from ..domain.types import (
     AttemptState,
@@ -115,7 +115,7 @@ SCOPE_FIELDS: Mapping[str, tuple[str, ...]] = MappingProxyType(
             "job_defaults",
             "blocked_robots",
         ),
-        "rooms": ("room_registry",),
+        "rooms": ("room_registry", "room_order"),
         "robots": ("robot_leases", "blocked_robots", "robot_runs"),
         "templates": ("templates",),
         "setup": ("setup_completed_at",),
@@ -542,6 +542,38 @@ class VacuumOrchestrator:
             raise ConflictError("unknown_job", job_id)
         return explain_waiting(self, self.state, job, self._clock())
 
+    def next_jobs(self) -> frozenset[str]:
+        """Return the waiting jobs the queue would start first (QUE-13).
+
+        In queue order, a job nothing but the queue, its delay or a hold keeps
+        waiting is next while one of its ready robots is free; each next job
+        takes one robot and its rooms. See dev doc "Wartegrund".
+        """
+        state = self.state
+        taken: set[str] = set()
+        rooms: set[str] = set()
+        chosen: set[str] = set()
+        for job_id in state.queue:
+            waiting = self.waiting(job_id)
+            if waiting is None or not waiting.pending:
+                continue
+            job = state.jobs[job_id]
+            targets = set(
+                self._planner.create_plan(job_id, job.intent)
+                .work_units[0]
+                .canonical_targets
+            )
+            free = sorted(
+                item.robot_id
+                for item in waiting.robots.candidates
+                if not item.blockers and item.robot_id not in taken
+            )
+            if free and not targets & rooms:
+                chosen.add(job_id)
+                taken.add(free[0])
+                rooms |= targets
+        return frozenset(chosen)
+
     def progress(self, job_id: str) -> Progress | None:
         """Describe a started job from its attempt and the latest observation."""
         state = self.state
@@ -558,6 +590,7 @@ class VacuumOrchestrator:
             state.plans.get(job.plan_id) if job.plan_id is not None else None,
             attempt,
             self._observations.get(attempt.robot_id) if attempt is not None else None,
+            state.assignments.get(attempt.attempt_id) if attempt is not None else None,
         )
 
     def jobs_awaiting_release(
@@ -713,6 +746,16 @@ class VacuumOrchestrator:
 
         await self._mutate(configure)
 
+    async def async_configure_room_order(self, order: RoomOrder) -> None:
+        """Choose how clients list rooms (ROOM-13)."""
+
+        def configure(state: OrchestratorState) -> OrchestratorState:
+            if state.room_order is order:
+                return state
+            return replace(state, commit_id=state.commit_id + 1, room_order=order)
+
+        await self._mutate(configure)
+
     async def async_delete_job(
         self, job_id: str, *, hold_id: str | None = None
     ) -> None:
@@ -831,18 +874,29 @@ class VacuumOrchestrator:
         )
 
     async def async_start_job(
-        self, job_id: str, robot_id: str | None = None
+        self,
+        job_id: str,
+        robot_id: str | None = None,
+        *,
+        allow_low_battery: bool = False,
     ) -> DispatchAssignment:
         """Start one job using an optional requested robot and shared policy."""
         assignment = await self._async_dispatch_job(
-            job_id, robot_id, origin=command_origin.get()
+            job_id,
+            robot_id,
+            origin=command_origin.get(),
+            allow_low_battery=allow_low_battery,
         )
         if assignment is None:
             raise PlanningError("job_not_startable")
         return assignment
 
     async def async_create_and_start_job(
-        self, intent: JobIntent, robot_id: str | None = None
+        self,
+        intent: JobIntent,
+        robot_id: str | None = None,
+        *,
+        allow_low_battery: bool = False,
     ) -> tuple[str, DispatchAssignment]:
         """Create and reserve atomically; nothing is created if it cannot start.
 
@@ -851,7 +905,11 @@ class VacuumOrchestrator:
         """
         job_id = self._id_factory()
         assignment = await self._async_dispatch_job(
-            job_id, robot_id, origin=command_origin.get(), intent=intent
+            job_id,
+            robot_id,
+            origin=command_origin.get(),
+            intent=intent,
+            allow_low_battery=allow_low_battery,
         )
         if assignment is None:
             raise PlanningError("job_not_startable")
@@ -1279,10 +1337,13 @@ class VacuumOrchestrator:
         origin: CommandOrigin | None = None,
         intent: JobIntent | None = None,
         automatic: bool = False,
+        allow_low_battery: bool = False,
     ) -> DispatchAssignment | None:
         """Select, reserve and start; with `intent`, create the job in that commit.
 
-        Only `automatic` queue starts honor a job's start delay.
+        Only `automatic` queue starts honor a job's start delay. A manual start
+        that allows a low battery allows it for the job's next phases as well;
+        the queue never starts a waiting job below the minimum (JOB-27).
         """
         observations = await self._observe_robots()
         async with self._lock:
@@ -1334,8 +1395,16 @@ class VacuumOrchestrator:
             else:
                 plan = self._existing_plan(previous, job)
                 unit = previous.next_pending_unit(job)
+            low_battery = allow_low_battery and not automatic
+            if job.state is JobState.DISPATCHING:
+                low_battery = low_battery or job.allow_low_battery
             assignment = self.select_robot(
-                previous, job, unit, observations, requested_robot_id
+                previous,
+                job,
+                unit,
+                observations,
+                requested_robot_id,
+                allow_low_battery=low_battery,
             )
             adapter = self._adapters.get(assignment.robot_id)
             if adapter is None or not assignment_supports_current_capabilities(
@@ -1371,7 +1440,11 @@ class VacuumOrchestrator:
                 previous,
                 jobs={
                     **previous.jobs,
-                    job_id: replace(job, origin=origin or job.origin),
+                    job_id: replace(
+                        job,
+                        origin=origin or job.origin,
+                        allow_low_battery=low_battery,
+                    ),
                 },
                 room_registry=previous.room_registry.admit(
                     job_id, unit.canonical_targets, now
@@ -1418,10 +1491,15 @@ class VacuumOrchestrator:
                 operation=unit.operation.value,
             )
         )
+        battery = observations[assignment.robot_id].battery_percentage
+        minimum = adapter.profile.minimum_battery
         self.trace.record(
             TraceEvent.PHYSICAL,
             self._clock(),
             stage="selected",
+            reason="battery_minimum_allowed"
+            if battery is not None and minimum is not None and battery < minimum
+            else None,
             job_id=job_id,
             attempt_id=attempt_id,
             robot_id=assignment.robot_id,
@@ -1476,6 +1554,8 @@ class VacuumOrchestrator:
         unit: WorkUnit,
         observations: Mapping[str, RobotObservation],
         requested_robot_id: str | None = None,
+        *,
+        allow_low_battery: bool = False,
     ) -> DispatchAssignment:
         """Apply per-robot job conditions, then the selector, as dispatch does."""
         profiles = tuple(adapter.profile for adapter in self._adapters.values())
@@ -1498,6 +1578,7 @@ class VacuumOrchestrator:
             state.active_target_sets(excluding_job_id=job.job_id),
             requested_robot_id,
             defaults=state.job_defaults,
+            allow_low_battery=allow_low_battery,
         )
 
     async def async_observed_snapshot(self) -> ObservedSnapshot:

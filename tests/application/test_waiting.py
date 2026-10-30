@@ -9,6 +9,7 @@ from custom_components.vacuum_orchestrator.domain.intents import JobIntent, Targ
 from custom_components.vacuum_orchestrator.domain.requirements import StateRequirement
 from custom_components.vacuum_orchestrator.domain.types import (
     CleaningMode,
+    MoveDirection,
     OperationKind,
     QueueMode,
     RobotAvailabilityState,
@@ -348,3 +349,31 @@ async def test_the_execution_explanation_names_a_structural_reason_first() -> No
     assert unsuitable.blockers[0].code == "room_unreachable"
     (explanation,) = await explain_job(core, job)
     assert explanation.eligibility_reason == "unmapped_target"
+
+
+async def test_the_first_ready_job_is_next_and_each_robot_takes_one() -> None:
+    core, _now = await setup_waiting()
+    first = await core.async_create_job(_intent())
+    second = await core.async_create_job(_intent("studio"))
+    assert core.next_jobs() == {first}
+
+    await core.async_move_job(second, MoveDirection.UP)
+    assert core.next_jobs() == {second}
+
+    await core.rooms.async_revoke("library")
+    await core.async_move_job(second, MoveDirection.DOWN)
+    # A job its room keeps waiting is passed over; the next ready one leads.
+    assert core.next_jobs() == {second}
+
+
+async def test_two_free_robots_make_two_jobs_next() -> None:
+    backend = RecordingBackend()
+    core, _now = await setup_waiting(
+        RecordingAdapter(backend, "rocky"), RecordingAdapter(backend, "dusty")
+    )
+    jobs = [
+        await core.async_create_job(_intent(area))
+        for area in ("library", "library", "studio", "studio")
+    ]
+    # The second library job would overlap the first; the studio job is next.
+    assert core.next_jobs() == {jobs[0], jobs[2]}

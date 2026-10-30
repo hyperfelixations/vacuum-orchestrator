@@ -93,6 +93,8 @@ class RobotObservation:
     # Progress of the robot's current run and when the robot last changed it.
     clean_percent: int | None = None
     clean_percent_at: datetime | None = None
+    # The device target of the room the robot reports being in, if unambiguous.
+    current_target: str | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -129,11 +131,14 @@ def eligibility(
     leases: Mapping[str, RobotLease],
     blocked_source_robot_ids: frozenset[str],
     defaults: JobDefaults,
+    *,
+    allow_low_battery: bool = False,
 ) -> tuple[Ineligibility, ...]:
     """Return every reason one robot cannot take `unit`; empty means it can.
 
     Selection and waiting explanations share it; the selector raises the
-    first reason. See dev doc "Wartegrund".
+    first reason. A manual start may allow a known battery below the minimum
+    (JOB-27). See dev doc "Wartegrund".
     """
     capabilities = profile.capabilities
     reasons: list[Ineligibility] = []
@@ -153,11 +158,12 @@ def eligibility(
             and any(fault.scope is FaultScope.GENERAL for fault in faults)
         ):
             reasons.append(Ineligibility(f"robot_{observation.state.value}"))
-        if profile.minimum_battery is not None and (
-            observation.battery_percentage is None
-            or observation.battery_percentage < profile.minimum_battery
-        ):
-            reasons.append(Ineligibility("battery_below_minimum"))
+        battery = observation.battery_percentage
+        if profile.minimum_battery is not None:
+            if battery is None:
+                reasons.append(Ineligibility("battery_below_minimum", detail="unknown"))
+            elif battery < profile.minimum_battery and not allow_low_battery:
+                reasons.append(Ineligibility("battery_below_minimum"))
     if profile.source_robot_id in blocked_source_robot_ids:
         reasons.append(Ineligibility("robot_needs_attention"))
     if profile.source_robot_id in leases:
@@ -209,6 +215,7 @@ class RobotSelector:
         requested_robot_id: str | None = None,
         *,
         defaults: JobDefaults | None = None,
+        allow_low_battery: bool = False,
     ) -> DispatchAssignment:
         """Late-bind a unit or raise one stable, explainable reason."""
         if requested_robot_id is not None:
@@ -237,6 +244,7 @@ class RobotSelector:
                     leases,
                     blocked_source_robot_ids,
                     defaults or JobDefaults(),
+                    allow_low_battery=allow_low_battery,
                 )
             except PlanningError as err:
                 failures.append(err.code)
@@ -267,9 +275,17 @@ class RobotSelector:
         leases: Mapping[str, RobotLease],
         blocked_source_robot_ids: frozenset[str],
         defaults: JobDefaults,
+        *,
+        allow_low_battery: bool = False,
     ) -> DispatchAssignment:
         reasons = eligibility(
-            unit, profile, observation, leases, blocked_source_robot_ids, defaults
+            unit,
+            profile,
+            observation,
+            leases,
+            blocked_source_robot_ids,
+            defaults,
+            allow_low_battery=allow_low_battery,
         )
         if reasons:
             raise PlanningError(reasons[0].code, reasons[0].detail)

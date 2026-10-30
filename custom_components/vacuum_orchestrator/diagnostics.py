@@ -12,6 +12,7 @@ from .adapters.public_values import ADAPTER_VALUES
 from .application.tracing import incident_record
 from .const import API_VERSION, INTEGRATION_VERSION, STORE_VERSION
 from .domain.monitoring import next_deadline
+from .domain.types import OperationKind
 from .infrastructure.telemetry import DIAGNOSTIC_VERSION, LoggingSink
 from .runtime import TELEMETRY_KEY, VacuumOrchestratorRuntime, async_get_registry
 
@@ -29,6 +30,7 @@ def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
     anonymize = sanitizer.pseudonym
 
     state = core.state
+    now = core.now()
     incidents = {item.attempt_id: item for item in state.incidents}
     records = core.trace.snapshot()
     traces = [sanitizer.sanitize(record) for record in records]
@@ -136,6 +138,17 @@ def build_diagnostics(runtime: VacuumOrchestratorRuntime) -> dict[str, Any]:
                 "completion_quality": {
                     key.value: stamp.quality.value
                     for key, stamp in room.last_cleaning.items()
+                },
+                "due": {
+                    operation.value: {
+                        "state": report.state.value,
+                        "reason": report.reason,
+                        "observation": report.observation.value
+                        if report.observation
+                        else None,
+                    }
+                    for operation in (OperationKind.VACUUM, OperationKind.MOP)
+                    for report in (room.due(operation, now),)
                 },
             }
             for room in islice(state.room_registry.rooms.values(), 500)

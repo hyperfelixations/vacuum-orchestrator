@@ -20,6 +20,9 @@ INTEGRATION = ROOT / "custom_components" / "vacuum_orchestrator"
 HACS_ACTION = "hacs/action@main"
 HASSFEST_ACTION = "home-assistant/actions/hassfest@master"
 
+# actions/python-versions builds the Python baseline for no later Ubuntu.
+PYTHON_RUNNER = "ubuntu-24.04"
+
 # pytest-homeassistant-custom-component pins this set, which moves only with the
 # supported Home Assistant baseline.
 HOME_ASSISTANT_STACK = {
@@ -112,6 +115,17 @@ def test_workflows_read_by_default_and_keep_no_checkout_credentials(
         for step in steps(job):
             if str(step.get("uses", "")).startswith("actions/checkout@"):
                 assert step["with"]["persist-credentials"] is False, job_name
+
+
+@pytest.mark.parametrize("name", WORKFLOW_NAMES)
+def test_python_jobs_run_the_baseline_on_a_runner_that_ships_it(name: str) -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    baseline = project["project"]["requires-python"].removeprefix(">=")
+    for job_name, job in load(WORKFLOWS / name)["jobs"].items():
+        for step in steps(job):
+            if str(step.get("uses", "")).startswith("actions/setup-python@"):
+                assert job["runs-on"] == PYTHON_RUNNER, f"{name}:{job_name}"
+                assert step["with"]["python-version"] == baseline, job_name
 
 
 def test_ci_runs_on_push_and_pull_request() -> None:

@@ -141,7 +141,8 @@ jobs:
   test:
     name: Version, icon, lint and tests
     needs: validate
-    runs-on: ubuntu-latest
+    # The Python baseline has no build for later Ubuntu releases.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:

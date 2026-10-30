@@ -392,7 +392,7 @@ async def test_action_validation_permissions_and_unloaded_runtime_are_clear(
         )
 
 
-async def test_non_admin_commands_and_unknown_queries_are_rejected(
+async def test_read_only_commands_and_unknown_queries_are_rejected(
     hass: HomeAssistant,
     enable_custom_integrations: None,
     monkeypatch: pytest.MonkeyPatch,

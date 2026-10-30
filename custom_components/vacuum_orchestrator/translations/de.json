@@ -1013,6 +1013,10 @@
         "robot_id": {
           "name": "Roboter",
           "description": "Nur mit „Sofort starten“; sonst wählt VOI den Roboter. Saugroboter-Entität oder Roboter-ID des Roboters."
+        },
+        "allow_low_battery": {
+          "name": "Niedrigen Akku zulassen",
+          "description": "Nur mit „Sofort starten“; auch starten, wenn der Akku des Roboters unter seinem eingestellten Mindestwert liegt."
         }
       }
     },
@@ -1129,6 +1133,10 @@
         "robot_id": {
           "name": "Roboter",
           "description": "Optional; sonst wählt VOI den Roboter. Saugroboter-Entität oder Roboter-ID des Roboters."
+        },
+        "allow_low_battery": {
+          "name": "Niedrigen Akku zulassen",
+          "description": "Auch starten, wenn der Akku des Roboters unter seinem eingestellten Mindestwert liegt."
         }
       }
     },
@@ -1241,6 +1249,16 @@
         "start_delay_seconds": {
           "name": "Startverzögerung",
           "description": "Wie lange die Warteschlange wartet, bevor sie einen eben angelegten oder bearbeiteten Auftrag startet; höchstens 10 Minuten. Ein direkter Start überspringt die Verzögerung."
+        }
+      }
+    },
+    "configure_room_order": {
+      "name": "Raumreihenfolge festlegen",
+      "description": "Legt fest, wie die Karte Räume auflistet: den fälligsten zuerst oder nach Name.",
+      "fields": {
+        "room_order": {
+          "name": "Raumreihenfolge",
+          "description": "„Nach Fälligkeit“ listet den Raum zuerst, der eine Reinigung am dringendsten braucht."
         }
       }
     },
@@ -1754,6 +1772,12 @@
         "once": "Für den nächsten Auftrag",
         "timed": "Für eine Dauer",
         "queue_run": "Für diesen Warteschlangenlauf"
+      }
+    },
+    "room_order": {
+      "options": {
+        "due": "Nach Fälligkeit",
+        "name": "Nach Name"
       }
     }
   },

@@ -11,7 +11,6 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
-from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import config_validation as cv
 
@@ -39,9 +38,10 @@ from ..domain.holds import HoldPurpose
 from ..domain.intents import CleaningPreferences
 from ..domain.maps import RobotMaps
 from ..domain.permissions import robot_actions, room_actions, template_actions
+from ..domain.progress import room_at
 from ..domain.queue import MAX_START_DELAY_SECONDS
 from ..domain.releases import GrantRequest, ReleaseKind
-from ..domain.rooms import Room
+from ..domain.rooms import Room, RoomOrder, ordered_rooms
 from ..domain.templates import JobTemplate
 from ..domain.types import (
     ROUTE_LADDER,
@@ -58,6 +58,7 @@ from ..room_configuration import (
     normalize_room_patch,
 )
 from ..runtime import async_get_runtime
+from .authorization import async_may_command, async_require_command, permissions
 from .errors import service_error
 from .job_input import (
     ATTR_AREAS,
@@ -127,6 +128,9 @@ COMMANDS: dict[str, probatio.Schema | probatio.All[dict[str, Any]]] = {
             }
         ),
         cv.has_at_least_one_key("grace_seconds", "start_delay_seconds"),
+    ),
+    "configure_room_order": probatio.Schema(
+        {probatio.Required("room_order"): probatio.Coerce(RoomOrder)}
     ),
     "configure_job_defaults": probatio.Schema(
         {
@@ -234,6 +238,7 @@ VALIDATED_COMMANDS = (
     "update_room",
     "release_rooms",
     "configure_queue",
+    "configure_room_order",
     "configure_job_defaults",
     "add_robot",
     "configure_robot",
@@ -384,6 +389,7 @@ async def _async_preview(
         "unreachable_room_ids": list(preview.unreachable_room_ids),
         "startable_now": reason is None,
         "reason": reason,
+        "start_warning": None if area_reason else preview.start_warning,
     } | view_metadata(core)
 
 
@@ -489,11 +495,13 @@ def query_configuration(
                     room_actions(core.state, room),
                     core.room_conditions(room),
                 )
-                for room in core.rooms.registry.rooms.values()
+                for room in ordered_rooms(
+                    core.rooms.registry.rooms.values(), now, core.state.room_order
+                )
             ],
             data,
             "rooms",
-        )
+        ) | {"room_order": core.state.room_order.value}
     if name == "get_robot_candidates":
         return page(
             [
@@ -545,6 +553,16 @@ def query_configuration(
                 ],
                 **present_maps(adapter.maps() if adapter else RobotMaps()),
                 "active": leased,
+                # The room the robot reports being in, when VOI can name it.
+                "current_room_id": None
+                if profile is None or observation is None
+                else room_at(
+                    observation.current_target,
+                    {
+                        room: profile.capabilities.targets_for(room)
+                        for room in profile.capabilities.target_map
+                    },
+                ),
                 "activity": {
                     "phase": observation.phase.value
                     if observation
@@ -686,6 +704,9 @@ async def _execute_configuration(
         )
         result["grace_seconds"] = core.state.queue_grace_seconds
         result["start_delay_seconds"] = core.state.start_delay_seconds
+    elif name == "configure_room_order":
+        await core.async_configure_room_order(data["room_order"])
+        result["room_order"] = core.state.room_order.value
     elif name == "configure_job_defaults":
         await core.async_configure_job_defaults(data)
         result["job_defaults"] = present_job_defaults(core.state.job_defaults)
@@ -856,16 +877,14 @@ def present_template(
 
 
 def setup_configuration_actions(hass: HomeAssistant) -> None:
-    """Register bounded queries and admin-only mutations with stable error codes."""
+    """Register bounded queries and mutations with stable error codes."""
 
     def handler_for(
         name: str, write: bool
     ) -> Callable[[ServiceCall], Coroutine[Any, Any, ServiceResponse | None]]:
         async def handle(call: ServiceCall) -> ServiceResponse | None:
-            if write and call.context.user_id:
-                user = await hass.auth.async_get_user(call.context.user_id)
-                if user is None or not user.is_admin:
-                    raise Unauthorized(context=call.context)
+            if write:
+                await async_require_command(hass, call.context)
             try:
                 with request_context(call.context):
                     result = (
@@ -877,6 +896,8 @@ def setup_configuration_actions(hass: HomeAssistant) -> None:
                     )
             except OrchestratorError as err:
                 raise service_error(err) from err
+            if name == "get_setup":
+                result |= permissions(await async_may_command(hass, call.context))
             return cast(ServiceResponse, result) if call.return_response else None
 
         return handle

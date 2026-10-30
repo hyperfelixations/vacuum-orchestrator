@@ -90,6 +90,10 @@ create_job:
         entity:
           filter:
             domain: vacuum
+    allow_low_battery:
+      default: false
+      selector:
+        boolean: {}
 update_job:
   fields:
     job_id: &id002
@@ -195,6 +199,10 @@ start_job:
         entity:
           filter:
             domain: vacuum
+    allow_low_battery:
+      default: false
+      selector:
+        boolean: {}
 run_queue:
 pause_queue:
 resume_queue:
@@ -277,6 +285,16 @@ configure_queue:
       required: false
       selector:
         duration: {}
+configure_room_order:
+  fields:
+    room_order:
+      required: true
+      selector:
+        select:
+          translation_key: room_order
+          options:
+          - due
+          - name
 configure_job_defaults:
   fields:
     mode:
@@ -492,6 +510,7 @@ validate:
           - update_room
           - release_rooms
           - configure_queue
+          - configure_room_order
           - configure_job_defaults
           - add_robot
           - configure_robot

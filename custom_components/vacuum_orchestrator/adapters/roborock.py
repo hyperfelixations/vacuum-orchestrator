@@ -21,6 +21,7 @@ from ..ha_context import physical_context
 from ..ports.telemetry import TelemetryEvent, report_adapter
 from .home_assistant_vacuum import HomeAssistantVacuumAdapter
 from .roborock_faults import (
+    DOCK_FAULT_FACTS,
     DOCK_FAULTS,
     REFILLING_DOCK_ROLE,
     ROBOT_FAULTS,
@@ -334,13 +335,25 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
             and not (code == "water_shortage" and refilled)
         )
 
+    def _current_target(self) -> str | None:
+        """Name the segment the robot is in when its name is unique on the map."""
+        name = self.role_value("current_room")
+        map_id = self.current_map_id
+        if name is None or map_id is None or self._maps is None:
+            return None
+        rooms = self._maps.get(map_id, {}).get("rooms", {})
+        segments = [segment for segment, room in rooms.items() if room == name]
+        return f"{map_id}_{segments[0]}" if len(segments) == 1 else None
+
     async def async_observe(self) -> RobotObservation:
         """Separate floor cleaning from mapping, mop washing and dock activity."""
         observation = await super().async_observe()
         if observation.state is RobotAvailabilityState.UNKNOWN:
             return observation
         observation = replace(
-            observation, faults=(*observation.faults, *self._sensor_faults())
+            observation,
+            faults=_one_per_fact((*observation.faults, *self._sensor_faults())),
+            current_target=self._current_target(),
         )
         general = any(fault.scope is FaultScope.GENERAL for fault in observation.faults)
         flag = self.role_value("in_cleaning")
@@ -402,3 +415,16 @@ class RoborockAdapter(HomeAssistantVacuumAdapter):
             at_dock=status in AT_DOCK,
             phase=phase,
         )
+
+
+def _one_per_fact(faults: tuple[Fault, ...]) -> tuple[Fault, ...]:
+    """Report a state two sources name once, under the sensor's code (EXE-17)."""
+    facts: dict[tuple[str, FaultSource], Fault] = {}
+    for reported in faults:
+        fault = (
+            replace(reported, code=DOCK_FAULT_FACTS[reported.code])
+            if reported.source is FaultSource.DOCK and reported.code in DOCK_FAULT_FACTS
+            else reported
+        )
+        facts.setdefault((fault.code, fault.source), fault)
+    return tuple(facts.values())

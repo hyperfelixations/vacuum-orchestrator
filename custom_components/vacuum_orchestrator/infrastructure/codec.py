@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, fields, replace
+from datetime import datetime
 from typing import Any, cast
 
 from ..domain.completion import CleaningSource, CompletionQuality
@@ -24,6 +25,7 @@ from ..domain.intents import (
     settings_for_operation,
 )
 from ..domain.job_defaults import JobDefaults
+from ..domain.permissions import TERMINAL_STATES
 from ..domain.planning import (
     DispatchAssignment,
     ExecutionPlan,
@@ -36,7 +38,7 @@ from ..domain.queue import START_DELAY_SECONDS, Job, JobProvenance, Orchestrator
 from ..domain.queue_runs import QueueRun
 from ..domain.requests import CommandOrigin
 from ..domain.room_registry import RoomRegistry
-from ..domain.rooms import Room
+from ..domain.rooms import Room, RoomOrder
 from ..domain.templates import JobTemplate
 from ..domain.types import (
     AttemptState,
@@ -149,6 +151,7 @@ def encode_orchestrator_state(state: OrchestratorState) -> JsonObject:
         "queue_grace_seconds": state.queue_grace_seconds,
         "start_delay_seconds": state.start_delay_seconds,
         "setup_completed_at": _encode_optional_datetime(state.setup_completed_at),
+        "room_order": state.room_order.value,
         "incidents": [_encode_incident(item) for item in state.incidents],
         "job_holds": {
             key: {
@@ -245,6 +248,7 @@ def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
             setup_completed_at=_decode_optional_datetime(
                 data.get("setup_completed_at")
             ),
+            room_order=_enum(RoomOrder, data.get("room_order", RoomOrder.DUE.value)),
             incidents=tuple(
                 _decode_incident(item)
                 for item in _object_list(data.get("incidents", []))
@@ -265,7 +269,43 @@ def decode_orchestrator_state(data: JsonObject) -> OrchestratorState:
     except (KeyError, TypeError, ValueError, ValidationError) as err:
         raise StorageIntegrityError("invalid_storage_payload") from err
     _validate_relational_integrity(state)
-    return state
+    return _with_finish_times(state)
+
+
+def _with_finish_times(state: OrchestratorState) -> OrchestratorState:
+    """Give a finished job stored without `finished_at` its best known end.
+
+    The robot's observed end of the job's last run, else the last observation
+    of its last attempt, else when it last changed; see dev doc "Persistenz und
+    Testbelege".
+    """
+    missing = [
+        job
+        for job in state.jobs.values()
+        if job.state in TERMINAL_STATES and job.finished_at is None
+    ]
+    if not missing:
+        return state
+    jobs = dict(state.jobs)
+    for job in missing:
+        attempts = sorted(
+            (item for item in state.attempts.values() if item.job_id == job.job_id),
+            key=lambda item: item.prepared_at,
+        )
+        end: datetime | None = None
+        if attempts:
+            last = attempts[-1]
+            correlation = state.correlations.get(last.attempt_id)
+            run = (
+                state.robot_runs.get(correlation.robot_run_id)
+                if correlation is not None
+                else None
+            )
+            end = (run.observed_end if run is not None else None) or (
+                last.terminal_observed_at or last.last_observation_at
+            )
+        jobs[job.job_id] = replace(job, finished_at=end or job.updated_at)
+    return replace(state, jobs=jobs)
 
 
 def _decode_hold(data: JsonObject) -> JobHold:
@@ -868,6 +908,8 @@ def _encode_job(job: Job) -> JsonObject:
         },
         "start_after": _encode_optional_datetime(job.start_after),
         "corrected_at": _encode_optional_datetime(job.corrected_at),
+        "allow_low_battery": job.allow_low_battery,
+        "finished_at": _encode_optional_datetime(job.finished_at),
     }
 
 
@@ -896,6 +938,8 @@ def _decode_job(data: JsonObject) -> Job:
         provenance=provenance,
         start_after=_decode_optional_datetime(data["start_after"]),
         corrected_at=_decode_optional_datetime(data.get("corrected_at")),
+        allow_low_battery=_bool(data.get("allow_low_battery", False)),
+        finished_at=_decode_optional_datetime(data.get("finished_at")),
     )
 
 

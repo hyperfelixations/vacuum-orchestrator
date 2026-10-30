@@ -286,3 +286,40 @@ async def test_only_registry_changes_outside_the_integration_rebuild_robots(
     _vacuum(hass)
     await hass.async_block_till_done()
     assert rebuilds
+
+
+@pytest.mark.usefixtures("configured")
+async def test_the_robot_configuration_sets_and_resets_the_name_like_a_rename(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    vacuum = _vacuum(hass)
+    robot = await _robot(hass, vacuum)
+    robot_id = robot["robot_id"]
+    controller = async_get_runtime(hass).controller
+    assert controller is not None
+    rebuilds: list[object] = []
+    rebuild = controller._async_rebuild_adapters
+
+    async def counted(*args: object, **kwargs: object) -> None:
+        rebuilds.append(args)
+        await rebuild(*args, **kwargs)
+
+    monkeypatch.setattr(controller, "_async_rebuild_adapters", counted)
+    configuration = {**robot["configuration"], "name": "Zippy"}
+    await call(hass, "configure_robot", robot_id=robot_id, configuration=configuration)
+    await hass.async_block_till_done()
+    (named,) = (await call(hass, "get_robots"))["robots"]
+    assert (named["name"], named["name_source"]) == ("Zippy", "custom")
+    assert _title(hass, robot_id) == "Zippy"
+    assert rebuilds == []
+
+    await call(
+        hass,
+        "configure_robot",
+        robot_id=robot_id,
+        configuration={**named["configuration"], "name": None},
+    )
+    await hass.async_block_till_done()
+    (reset,) = (await call(hass, "get_robots"))["robots"]
+    assert (reset["name"], reset["name_source"]) == ("Rocky", "home_assistant")
+    assert _title(hass, robot_id) == "Rocky"

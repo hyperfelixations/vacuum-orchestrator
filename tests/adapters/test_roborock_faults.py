@@ -73,8 +73,9 @@ def test_sensor_roles_are_core_binary_sensors() -> None:
         (
             "dock_error",
             "water_empty",
+            # The dock's error names the clean water tank's sensor fact (EXE-17).
             Fault(
-                "water_empty",
+                "clean_water_empty",
                 FaultSource.DOCK,
                 FaultScope.STATION_MOP,
                 "sensor.dock_error",
@@ -108,3 +109,35 @@ async def test_an_offline_robot_is_unavailable_without_a_fault(
     observed = await adapter.async_observe()
     assert observed.state is RobotAvailabilityState.UNAVAILABLE
     assert observed.faults == ()
+
+
+@pytest.mark.parametrize(
+    ("dock_error", "sensor", "code"),
+    [
+        ("waste_water_tank_full", "dirty_box_full", "dirty_water_full"),
+        ("water_empty", "clean_box_empty", "clean_water_empty"),
+    ],
+)
+async def test_a_tank_state_both_sources_report_is_one_fault(
+    hass: HomeAssistant, dock_error: str, sensor: str, code: str
+) -> None:
+    adapter, _, _ = setup_robot(hass, sensors={sensor: "off"})
+    hass.states.async_set("sensor.dock_error", dock_error)
+    first = await adapter.async_observe()
+    assert [fault.code for fault in first.faults] == [code]
+
+    hass.states.async_set(f"binary_sensor.{sensor}", "on")
+    both = await adapter.async_observe()
+    assert both.faults == (
+        Fault(code, FaultSource.DOCK, FaultScope.STATION_MOP, "sensor.dock_error"),
+    )
+
+    hass.states.async_set("sensor.dock_error", "ok")
+    sensor_only = await adapter.async_observe()
+    assert sensor_only.faults == (
+        Fault(
+            code, FaultSource.DOCK, FaultScope.STATION_MOP, f"binary_sensor.{sensor}"
+        ),
+    )
+    hass.states.async_set(f"binary_sensor.{sensor}", "off")
+    assert (await adapter.async_observe()).faults == ()

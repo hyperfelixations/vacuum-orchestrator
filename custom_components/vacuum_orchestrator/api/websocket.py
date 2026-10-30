@@ -7,9 +7,9 @@ from typing import Any
 import probatio
 from homeassistant.components.websocket_api import async_register_command
 from homeassistant.components.websocket_api.connection import ActiveConnection
+from homeassistant.components.websocket_api.const import ERR_UNAUTHORIZED
 from homeassistant.components.websocket_api.decorators import (
     async_response,
-    require_admin,
     websocket_command,
 )
 from homeassistant.core import HomeAssistant, callback
@@ -26,6 +26,7 @@ from ..domain.errors import (
 from ..domain.types import JobState
 from ..ha_context import request_context
 from ..runtime import async_get_runtime
+from .authorization import may_command, permissions
 from .configuration import (
     CARD_COMMANDS,
     COMMANDS,
@@ -75,9 +76,10 @@ async def websocket_configuration_get(
     """Query room and configuration views through their action schemas."""
     try:
         data = QUERIES[msg["query"]](msg["parameters"])
-        connection.send_result(
-            msg["id"], await async_query_configuration(hass, msg["query"], data)
-        )
+        result = await async_query_configuration(hass, msg["query"], data)
+        if msg["query"] == "get_setup":
+            result |= permissions(may_command(hass, connection.user))
+        connection.send_result(msg["id"], result)
     except probatio.Invalid as err:
         send_websocket_error(
             connection,
@@ -95,12 +97,14 @@ async def websocket_configuration_get(
         probatio.Required("parameters"): dict,
     }
 )
-@require_admin
 @async_response
 async def websocket_configuration_command(
     hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
 ) -> None:
     """Use the same validated commands for HA and optional clients."""
+    if not may_command(hass, connection.user):
+        connection.send_error(msg["id"], ERR_UNAUTHORIZED, "Unauthorized")
+        return
     try:
         data = {**COMMANDS, **CARD_COMMANDS}[msg["command"]](msg["parameters"])
         with request_context(connection.context(msg)):
@@ -129,9 +133,13 @@ async def websocket_queue_get(
         offset = msg["offset"]
         limit = msg["limit"]
         selected = state.queue[offset : offset + limit]
+        next_jobs = orchestrator.next_jobs()
         jobs = [
             present_job_view(
-                orchestrator, state.jobs[job_id], orchestrator.readiness_for_job(job_id)
+                orchestrator,
+                state.jobs[job_id],
+                orchestrator.readiness_for_job(job_id),
+                next_jobs=next_jobs,
             )
             for job_id in selected
         ]
@@ -188,14 +196,15 @@ async def websocket_job_get(
 async def websocket_jobs_list(
     hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Return bounded job-registry history ordered by creation time."""
+    """Return bounded job-registry history, the latest finished or created first."""
     try:
         orchestrator = async_get_runtime(hass).orchestrator
         state = orchestrator.state
         states = set(msg.get("states", JobState))
+        # Finished jobs by when they ended (JOB-28), the others by creation.
         ordered = sorted(
             (job for job in state.jobs.values() if job.state in states),
-            key=lambda job: (job.created_at, job.job_id),
+            key=lambda job: (job.finished_at or job.created_at, job.job_id),
             reverse=True,
         )
         offset = msg["offset"]

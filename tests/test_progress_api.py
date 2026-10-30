@@ -68,6 +68,8 @@ async def test_a_running_job_reports_progress_and_changes_notify_views(
         "phase_percent": 50,
         "percent": 25,
         "fault": None,
+        # The recording adapter names no room it is in.
+        "room_id": None,
     }
     assert progress["started_at"] is not None
     connection = Connection()

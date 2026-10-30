@@ -38,6 +38,7 @@ ATTR_OFFSET = "offset"
 ATTR_LIMIT = "limit"
 ATTR_HOLD_ID = "hold_id"
 ATTR_START = "start"
+ATTR_ALLOW_LOW_BATTERY = "allow_low_battery"
 ATTR_ROOMS = "rooms"
 ATTR_ALL_ROOMS = "all_rooms"
 SELECTION = (ATTR_AREAS, ATTR_ROOMS, ATTR_ALL_ROOMS)
@@ -107,6 +108,7 @@ CREATE_JOB_SCHEMA = CREATE_SCHEMA.extend(
     {
         probatio.Optional(ATTR_START, default=False): cv.boolean,
         probatio.Optional(ATTR_ROBOT_ID): cv.string,
+        probatio.Optional(ATTR_ALLOW_LOW_BATTERY, default=False): cv.boolean,
     }
 )
 UPDATE_SCHEMA = probatio.Schema(
